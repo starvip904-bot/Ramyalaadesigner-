@@ -20,4 +20,5 @@ export interface SaleReturn { id: string; saleId: string; branchId: string; item
 export interface Expense { id: string; branchId: string; title: string; category: string; amount: number; status: 'pending' | 'paid'; createdAt: string }
 export interface Employee { id: string; name: string; phone: string; role: EmployeeRole; branchIds: string[]; status: 'active' | 'inactive' }
 export interface PermissionSet { role: EmployeeRole; label: string; permissions: string[] }
+export interface InventoryTransfer { id: string; fromBranchId: string; toBranchId: string; productVariantId: string; quantity: number; status: 'requested' | 'received' | 'cancelled'; requestedBy: string; createdAt: string; receivedAt?: string }
 export interface AuditEntry { id: string; userId: string; userName: string; action: string; referenceType: string; referenceId: string; createdAt: string }

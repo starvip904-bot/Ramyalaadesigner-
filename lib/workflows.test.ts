@@ -20,3 +20,8 @@ assert.ok(mockRepository.returnSale({ saleId: sale.id, branchId: 'branch-1', ite
 assert.equal(saleStock.quantity, stockBeforeReturn + 1)
 assert.equal(mockRepository.returnSale({ saleId: sale.id, branchId: 'branch-1', items: [{ productVariantId: 'var-1', quantity: 1, amount: 245 }], refundAmount: 245, type: 'refund' }), undefined)
 assert.ok(purchases.length > 1 && sales.length > 0)
+assert.equal(mockRepository.adjustStock({ branchId: 'branch-1', productVariantId: 'var-1', quantity: -999 }), undefined)
+const transfer = mockRepository.requestTransfer({ fromBranchId: 'branch-1', toBranchId: 'branch-2', productVariantId: 'var-1', quantity: 1 })
+assert.ok(transfer)
+assert.equal(mockRepository.receiveTransfer(transfer.id), true)
+assert.equal(mockRepository.receiveTransfer(transfer.id), false)
