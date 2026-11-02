@@ -2,7 +2,7 @@
   "name": "dokkan-saas",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "tsc --noEmit" },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "tsc --noEmit", "test:pos": "node --experimental-strip-types lib/pos.test.ts" },
   "dependencies": { "@tailwindcss/postcss": "latest", "lucide-react": "latest", "next": "latest", "react": "latest", "react-dom": "latest" },
   "devDependencies": { "@types/node": "latest", "@types/react": "latest", "@types/react-dom": "latest", "postcss": "latest", "tailwindcss": "latest", "typescript": "latest" }
 }
