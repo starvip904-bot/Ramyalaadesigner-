@@ -1,0 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+:root { --background:#f7f8fa; --foreground:#17202b; --muted:#697586; --line:#e8ebef; --brand:#0b5c52; --brand-soft:#e3f2ef; --card:#ffffff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--background); color:var(--foreground); font-family:'Cairo', sans-serif; }
+button, input { font:inherit; }
+::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-thumb { background:#c9d2d6; border-radius:99px; }
