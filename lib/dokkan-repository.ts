@@ -8,6 +8,13 @@ export async function getCurrentUser() {
   return data.user
 }
 
+export async function listDokkanStores() {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('dokkan_stores').select('id, name, phone, status, created_at, dokkan_branches(id, name, address, status, created_at)').order('created_at', { ascending: true })
+  if (error) throw new Error('Unable to load stores')
+  return data
+}
+
 export async function listDokkanBranches(storeId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.from('dokkan_branches').select('id, store_id, name, address, status, created_at').eq('store_id', storeId).order('created_at', { ascending: true })
