@@ -71,6 +71,21 @@ This report maps the current typed mock repository to a future Supabase implemen
 7. Run repository contract tests against a disposable Supabase schema.
 8. Switch repository wiring behind a feature flag; keep the mock adapter for local/demo mode.
 
+## Phase 6 integration checklist
+
+- [ ] Confirm actual table names for stores, branches, employees, products, variants, inventory, sales, purchases, customers, suppliers, expenses, and audit events.
+- [ ] Map the authenticated user to an employee/profile record and store membership.
+- [ ] Inspect `dokkan_post_sale` parameters, return shape, inventory behavior, payment handling, and idempotency behavior.
+- [ ] Verify branch membership and store tenancy rules for every read and write.
+- [ ] Verify RLS policies for role and branch scope; never rely on client-side role hiding.
+- [ ] Map mock operations to existing RPCs or create adapter calls without assuming names.
+- [ ] Confirm numeric precision, currency, timezone, enum values, foreign keys, and unique constraints.
+- [ ] Test purchase receiving, transfers, payments, returns, and `dokkan_post_sale` in a disposable environment.
+- [ ] Reconcile opening inventory and customer/supplier balances before cutover.
+- [ ] Add project environment variables only after integration approval: Supabase URL, anon key, and server/service credentials where strictly required.
+- [ ] Preserve the existing `NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL`; verify it is only used for development redirect behavior and is not treated as a database credential.
+- [ ] Confirm production values for `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; add server-only service credentials only if an approved server-side operation requires them.
+
 ## Current blockers before real integration
 
 - Existing database table and RPC names are unknown and must be inspected first.
