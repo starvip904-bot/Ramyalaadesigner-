@@ -29,6 +29,17 @@ export async function listDokkanProducts(storeId: string) {
   return data
 }
 
+export async function listDokkanProductInventory() {
+  const supabase = await createClient()
+  const [{ data: products, error: productsError }, { data: branches, error: branchesError }, { data: movements, error: movementsError }] = await Promise.all([
+    supabase.from('dokkan_products').select('id, store_id, name, category, brand, status, created_at, dokkan_product_variants(id, sku, barcode, size, color, price, cost)').order('created_at', { ascending: true }),
+    supabase.from('dokkan_branches').select('id, store_id, name, address, status').order('created_at', { ascending: true }),
+    supabase.from('dokkan_inventory_movements').select('id, store_id, branch_id, product_variant_id, movement_type, quantity, created_at').order('created_at', { ascending: true }),
+  ])
+  if (productsError || branchesError || movementsError) throw new Error('Unable to load product inventory')
+  return { products: products ?? [], branches: branches ?? [], movements: movements ?? [] }
+}
+
 export async function createDokkanStore(name: string, phone?: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('dokkan_create_store', { store_name: name, store_phone: phone ?? null })
