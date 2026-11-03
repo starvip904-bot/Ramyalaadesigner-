@@ -6,8 +6,24 @@ import { createClient } from '@/lib/supabase/server'
 export async function createProductAction(input: { storeId: string; name: string; category: string; brand?: string; sku: string; barcode?: string; size?: string; color?: string; price: number; cost: number }) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('dokkan_create_product', { target_store_id: input.storeId, product_name: input.name.trim(), product_category: input.category.trim(), product_brand: input.brand?.trim() || null, variant_sku: input.sku.trim(), variant_barcode: input.barcode?.trim() || null, variant_size: input.size?.trim() || null, variant_color: input.color?.trim() || null, variant_price: input.price, variant_cost: input.cost })
-  if (error) throw new Error('Unable to create product')
+  if (error) throw new Error(error.message)
   revalidatePath('/products'); return data as string
+}
+
+export type ProductVariantInput = { sku: string; barcode?: string; size?: string; color?: string; price: number; cost: number }
+
+export async function createProductWithVariantsAction(input: { storeId: string; name: string; category: string; brand?: string; variants: ProductVariantInput[] }) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_create_product_with_variants', { target_store_id: input.storeId, product_name: input.name.trim(), product_category: input.category.trim(), product_brand: input.brand?.trim() || null, variants: input.variants.map((variant) => ({ ...variant, sku: variant.sku.trim(), barcode: variant.barcode?.trim() || null, size: variant.size?.trim() || null, color: variant.color?.trim() || null })) })
+  if (error) throw new Error(error.message)
+  revalidatePath('/products'); revalidatePath('/inventory'); return data as string
+}
+
+export async function updateProductVariantAction(input: { id: string } & ProductVariantInput) {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('dokkan_update_product_variant', { target_variant_id: input.id, variant_sku: input.sku.trim(), variant_barcode: input.barcode?.trim() || null, variant_size: input.size?.trim() || null, variant_color: input.color?.trim() || null, variant_price: input.price, variant_cost: input.cost })
+  if (error) throw new Error(error.message)
+  revalidatePath('/products'); revalidatePath('/inventory')
 }
 
 export async function updateProductAction(input: { id: string; name: string; category: string; brand?: string; status: 'active' | 'inactive' }) {
