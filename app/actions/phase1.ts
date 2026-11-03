@@ -6,11 +6,26 @@ import { createClient } from '@/lib/supabase/server'
 async function callRpc<T>(name: string, args: Record<string, unknown>) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc(name, args)
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error('[v0] Phase 1 RPC failed', { name, code: error.code, message: error.message })
+    if (error.message.includes('not authorized')) throw new Error('ليس لديك صلاحية تنفيذ هذه العملية')
+    if (error.message.includes('invalid customer') || error.message.includes('invalid supplier')) throw new Error('تحقق من البيانات المطلوبة')
+    if (error.message.includes('duplicate') || error.code === '23505') throw new Error('هذا السجل موجود بالفعل')
+    throw new Error('تعذر حفظ البيانات حاليًا')
+  }
   return data as T
 }
 
+async function assertStoreMembership(storeId: string) {
+  const supabase = await createClient()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) throw new Error('انتهت جلسة الدخول، يرجى تسجيل الدخول مرة أخرى')
+  const { data, error } = await supabase.from('dokkan_members').select('store_id').eq('user_id', user.id).eq('store_id', storeId).eq('status', 'active').maybeSingle()
+  if (error || !data) throw new Error('ليس لديك صلاحية لهذا المتجر')
+}
+
 export async function createCustomer(input: { storeId: string; name: string; phone?: string; address?: string; notes?: string }) {
+  await assertStoreMembership(input.storeId)
   const id = await callRpc<string>('dokkan_create_customer', { p_store_id: input.storeId, p_name: input.name, p_phone: input.phone ?? null, p_address: input.address ?? null, p_notes: input.notes ?? null })
   revalidatePath('/customers')
   return id
