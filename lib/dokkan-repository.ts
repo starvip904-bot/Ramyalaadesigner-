@@ -93,6 +93,31 @@ export async function getDokkanStoreSettings(storeId: string) {
   return data
 }
 
+export async function listDokkanPurchases(storeId: string, search?: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_list_purchases', { p_store_id: storeId, p_search: search ?? null })
+  if (error) throw new Error('Unable to load purchases')
+  return data ?? []
+}
+
+export async function getDokkanPurchase(purchaseId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_get_purchase', { p_purchase_id: purchaseId })
+  if (error) throw new Error('Unable to load purchase')
+  return data
+}
+
+export async function listDokkanPurchaseCatalog(storeId: string) {
+  const supabase = await createClient()
+  const [{ data: products, error: productsError }, { data: branches, error: branchesError }, { data: suppliers, error: suppliersError }] = await Promise.all([
+    supabase.from('dokkan_products').select('id, name, store_id, dokkan_product_variants(id, sku, size, color, cost)').eq('store_id', storeId).eq('status', 'active').order('name'),
+    supabase.from('dokkan_branches').select('id, name, status, store_id').eq('store_id', storeId).eq('status', 'active').order('name'),
+    supabase.from('dokkan_suppliers').select('id, name, phone').eq('store_id', storeId).eq('status', 'active').order('name'),
+  ])
+  if (productsError || branchesError || suppliersError) throw new Error('Unable to load purchase catalog')
+  return { products: products ?? [], branches: branches ?? [], suppliers: suppliers ?? [] }
+}
+
 export async function listDokkanAuditEvents(storeId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.from('dokkan_audit_events').select('id, actor_id, action, entity_type, entity_id, metadata, created_at, branch_id').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
