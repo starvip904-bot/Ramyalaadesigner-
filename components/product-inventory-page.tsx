@@ -8,7 +8,7 @@ type Variant = { id: string; sku: string; barcode: string | null; size: string |
 type Product = { id: string; store_id: string; name: string; category: string | null; brand: string | null; status: 'active' | 'inactive'; dokkan_product_variants: Variant[] }
 type Branch = { id: string; store_id: string; name: string; address: string | null; status: 'active' | 'inactive' }
 type Movement = { branch_id: string; product_variant_id: string; movement_type: string; quantity: number }
-type Props = { mode: 'products' | 'inventory'; initialData: { products: Product[]; branches: Branch[]; movements: Movement[] } }
+type Props = { mode: 'products' | 'inventory'; initialData: { products: Product[]; branches: Branch[]; movements: Movement[] }; storeIds: string[] }
 
 type VariantDraft = ProductVariantInput & { id?: string }
 const categories = ['أحذية حريمي', 'أحذية أطفال', 'شنط حريمي']
@@ -18,7 +18,7 @@ const emptyVariant = (): VariantDraft => ({ sku: '', barcode: '', size: '', colo
 
 function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) { return <label className="flex flex-col gap-2 text-sm font-semibold text-[#465260]"><span>{label}</span><input {...props} className="rounded-xl border border-[#e8ebef] bg-white px-3 py-2.5 outline-none focus:border-[#0b5c52]" /></label> }
 
-export default function ProductInventoryPage({ mode, initialData }: Props) {
+export default function ProductInventoryPage({ mode, initialData, storeIds }: Props) {
   const [data, setData] = useState(initialData)
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState(false)
@@ -26,7 +26,7 @@ export default function ProductInventoryPage({ mode, initialData }: Props) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, startTransition] = useTransition()
-  const [form, setForm] = useState({ storeId: initialData.products[0]?.store_id || initialData.branches[0]?.store_id || '', name: '', category: categories[0], brand: '' })
+  const [form, setForm] = useState({ storeId: storeIds[0] || initialData.products[0]?.store_id || initialData.branches[0]?.store_id || '', name: '', category: categories[0], brand: '' })
   const [variants, setVariants] = useState<VariantDraft[]>([emptyVariant()])
   const [movement, setMovement] = useState<{ branchId: string; variantId: string; type: 'opening' | 'purchase' | 'sale' | 'return' | 'adjustment' | 'transfer_out' | 'transfer_in'; quantity: string } | null>(null)
   const products = useMemo(() => data.products.filter((item) => `${item.name} ${item.category || ''} ${item.brand || ''} ${item.dokkan_product_variants.map((v) => `${v.sku} ${v.barcode || ''} ${v.size || ''} ${v.color || ''}`).join(' ')}`.toLowerCase().includes(query.toLowerCase())), [data.products, query])
