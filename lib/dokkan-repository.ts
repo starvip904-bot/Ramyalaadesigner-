@@ -72,6 +72,34 @@ export async function getCurrentMemberContext() {
   return { user, member: member ?? null, storeName: store?.name ?? null, storeIds: (members ?? []).map((item) => item.store_id) }
 }
 
+export async function listDokkanCustomers(storeId: string, search?: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_list_customers', { p_store_id: storeId, p_search: search ?? null })
+  if (error) throw new Error('Unable to load customers')
+  return data ?? []
+}
+
+export async function listDokkanSuppliers(storeId: string, search?: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_list_suppliers', { p_store_id: storeId, p_search: search ?? null })
+  if (error) throw new Error('Unable to load suppliers')
+  return data ?? []
+}
+
+export async function getDokkanStoreSettings(storeId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dokkan_get_store_settings', { p_store_id: storeId })
+  if (error) throw new Error('Unable to load store settings')
+  return data
+}
+
+export async function listDokkanAuditEvents(storeId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('dokkan_audit_events').select('id, actor_id, action, entity_type, entity_id, metadata, created_at, branch_id').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
+  if (error) throw new Error('Unable to load audit log')
+  return data ?? []
+}
+
 export async function getDashboardData() {
   const supabase = await createClient()
   const context = await getCurrentMemberContext()
