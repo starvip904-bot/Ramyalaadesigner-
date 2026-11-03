@@ -27,9 +27,41 @@ export async function receivePurchase(storeId: string, purchaseId: string) {
   revalidatePath('/purchases')
 }
 
-export async function recordSupplierPayment(storeId: string, purchaseId: string, amount: number, paymentMethod: string, notes: string) {
-  const supabase = await assertStore(storeId)
-  const { error } = await supabase.rpc('dokkan_record_supplier_payment', { p_purchase_id: purchaseId, p_amount: amount, payment_method: paymentMethod, p_notes: notes || null })
-  if (error) throw new Error(error.message.includes('invalid payment') ? 'قيمة الدفعة تتجاوز المتبقي أو غير صحيحة' : 'تعذر تسجيل الدفعة')
-  revalidatePath('/purchases')
+export type PaymentResult = {
+  ok: boolean
+  message: string
+  diagnosticId: string
+  paymentId?: string
+}
+
+export async function recordSupplierPayment(storeId: string, purchaseId: string, amount: number, paymentMethod: string, notes: string, idempotencyKey: string): Promise<PaymentResult> {
+  const diagnosticId = `pay-${crypto.randomUUID().slice(0, 12)}`
+  try {
+    if (!Number.isFinite(amount) || amount <= 0 || !idempotencyKey.trim()) {
+      return { ok: false, message: 'تحقق من مبلغ الدفعة وحاول مرة أخرى.', diagnosticId }
+    }
+    const supabase = await assertStore(storeId)
+    const { data, error } = await supabase.rpc('dokkan_record_supplier_payment', {
+      p_purchase_id: purchaseId,
+      p_amount: amount,
+      payment_method: paymentMethod,
+      p_notes: notes || null,
+      p_idempotency_key: idempotencyKey,
+    })
+    if (error) {
+      console.error('[phase1-payment]', { diagnosticId, stage: 'RPC', code: error.code })
+      const message = error.message.includes('invalid payment') ? 'قيمة الدفعة تتجاوز المتبقي أو غير صحيحة.' : error.message.includes('not authorized') ? 'لا تملك صلاحية تسجيل دفعة لهذا المتجر.' : 'تعذر تسجيل الدفعة. حاول مرة أخرى.'
+      return { ok: false, message, diagnosticId }
+    }
+    try {
+      revalidatePath('/purchases')
+    } catch (error) {
+      console.error('[phase1-payment]', { diagnosticId, stage: 'REFRESH', error: error instanceof Error ? error.name : 'unknown' })
+      return { ok: true, message: 'تم تسجيل الدفعة، لكن تعذر تحديث القائمة تلقائيًا.', diagnosticId, paymentId: data as string }
+    }
+    return { ok: true, message: 'تم تسجيل دفعة المورد.', diagnosticId, paymentId: data as string }
+  } catch (error) {
+    console.error('[phase1-payment]', { diagnosticId, stage: 'AUTH_OR_TENANT', error: error instanceof Error ? error.name : 'unknown' })
+    return { ok: false, message: 'تعذر التحقق من الجلسة أو المتجر الحالي.', diagnosticId }
+  }
 }
