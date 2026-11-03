@@ -3,11 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
+function getErrorDigest(error: unknown) {
+  if (error && typeof error === 'object' && 'digest' in error) return String(error.digest)
+  return undefined
+}
+
 async function callRpc<T>(name: string, args: Record<string, unknown>) {
   const supabase = await createClient()
+  console.info('[v0] Phase 1 RPC start', { name })
   const { data, error } = await supabase.rpc(name, args)
   if (error) {
-    console.error('[v0] Phase 1 RPC failed', { name, code: error.code, message: error.message })
+    console.error('[v0] Phase 1 RPC failed', { name, code: error.code, digest: getErrorDigest(error), message: error.message })
     if (error.message.includes('not authorized')) throw new Error('ليس لديك صلاحية تنفيذ هذه العملية')
     if (error.message.includes('invalid customer') || error.message.includes('invalid supplier')) throw new Error('تحقق من البيانات المطلوبة')
     if (error.message.includes('duplicate') || error.code === '23505') throw new Error('هذا السجل موجود بالفعل')
@@ -17,9 +23,13 @@ async function callRpc<T>(name: string, args: Record<string, unknown>) {
 }
 
 async function assertStoreMembership(storeId: string) {
+  console.info('[v0] Phase 1 customer membership check')
   const supabase = await createClient()
   const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) throw new Error('انتهت جلسة الدخول، يرجى تسجيل الدخول مرة أخرى')
+  if (userError || !user) {
+    console.error('[v0] Phase 1 customer auth failed', { code: userError?.name })
+    throw new Error('انتهت جلسة الدخول، يرجى تسجيل الدخول مرة أخرى')
+  }
   const { data, error } = await supabase.from('dokkan_members').select('store_id').eq('user_id', user.id).eq('store_id', storeId).eq('status', 'active').maybeSingle()
   if (error || !data) throw new Error('ليس لديك صلاحية لهذا المتجر')
 }
