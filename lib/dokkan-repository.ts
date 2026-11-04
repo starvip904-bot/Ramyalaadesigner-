@@ -1,6 +1,6 @@
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
-import { REDA_STORE_ID, requireRedaContext, requireRedaStoreId } from '@/lib/reda-scope'
+import { REDA_STORE_ID, requireRedaBranch, requireRedaContext, requireRedaPurchase, requireRedaStoreId } from '@/lib/reda-scope'
 
 export async function getCurrentUser() {
   const supabase = await createClient()
@@ -64,6 +64,7 @@ export async function createDokkanBranch(storeId: string, name: string, address?
 export async function recordDokkanExpense(input: { storeId: string; branchId: string; title: string; category: string; amount: number; notes?: string }) {
   await requireRedaContext(['owner', 'admin'])
   const scopedStoreId = requireRedaStoreId(input.storeId)
+  await requireRedaBranch(input.branchId)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('dokkan_record_expense', { target_store_id: scopedStoreId, target_branch_id: input.branchId, expense_title: input.title, expense_category: input.category, expense_amount: input.amount, expense_notes: input.notes ?? null })
   if (error) throw new Error('Unable to record expense')
@@ -112,7 +113,8 @@ export async function listDokkanPurchases(storeId: string, search?: string) {
 }
 
 export async function getDokkanPurchase(purchaseId: string) {
-  const supabase = await createClient()
+  const { supabase } = await requireRedaContext()
+  await requireRedaPurchase(purchaseId)
   const { data, error } = await supabase.rpc('dokkan_get_purchase', { p_purchase_id: purchaseId })
   if (error) throw new Error('Unable to load purchase')
   return data

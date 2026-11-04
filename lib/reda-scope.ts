@@ -1,13 +1,9 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import { assertRedaStoreId, REDA_STORE_ID, requireRedaStoreId } from '@/lib/reda-scope-guards'
 
-export const REDA_STORE_ID = '737055df-14f0-40c2-8e6a-98fc9e4f68e3' as const
-
-export function assertRedaStoreId(storeId: string | null | undefined) {
-  if (storeId !== REDA_STORE_ID) throw new Error('REDA_SCOPE_VIOLATION')
-  return REDA_STORE_ID
-}
+export { assertRedaStoreId, REDA_STORE_ID, requireRedaStoreId }
 
 export async function requireRedaContext(roles?: string[]) {
   const supabase = await createClient()
@@ -27,11 +23,34 @@ export async function requireRedaContext(roles?: string[]) {
   if (roles?.length && !roles.includes(membership.role)) throw new Error('REDA_ROLE_DENIED')
 
   const store = Array.isArray(membership.dokkan_stores) ? membership.dokkan_stores[0] : membership.dokkan_stores
-  if (!store || store.id !== REDA_STORE_ID) throw new Error('REDA_SCOPE_VIOLATION')
+  if (!store || store.id !== REDA_STORE_ID || store.status !== 'active') throw new Error('REDA_SCOPE_VIOLATION')
 
   return { supabase, user, membership, storeId: REDA_STORE_ID, storeName: store.name }
 }
 
-export function requireRedaStoreId(candidate?: string | null) {
-  return assertRedaStoreId(candidate ?? REDA_STORE_ID)
+export async function requireRedaBranch(branchId: string, options?: { activeOnly?: boolean }) {
+  const { supabase } = await requireRedaContext()
+  let query = supabase
+    .from('dokkan_branches')
+    .select('id, store_id, status')
+    .eq('id', branchId)
+    .eq('store_id', REDA_STORE_ID)
+  if (options?.activeOnly !== false) query = query.eq('status', 'active')
+  const { data, error } = await query.maybeSingle()
+  if (error) throw new Error('REDA_BRANCH_LOOKUP_FAILED')
+  if (!data) throw new Error('REDA_BRANCH_ACCESS_DENIED')
+  return data
+}
+
+export async function requireRedaPurchase(purchaseId: string) {
+  const { supabase } = await requireRedaContext()
+  const { data, error } = await supabase
+    .from('dokkan_purchases')
+    .select('id, store_id')
+    .eq('id', purchaseId)
+    .eq('store_id', REDA_STORE_ID)
+    .maybeSingle()
+  if (error) throw new Error('REDA_PURCHASE_LOOKUP_FAILED')
+  if (!data) throw new Error('REDA_PURCHASE_ACCESS_DENIED')
+  return data
 }
