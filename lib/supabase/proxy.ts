@@ -9,7 +9,7 @@ export async function updateSession(request: NextRequest) {
     { cookies: { getAll() { return request.cookies.getAll() }, setAll(values) { values.forEach(({ name, value, options }) => request.cookies.set(name, value)); response = NextResponse.next({ request }); values.forEach(({ name, value, options }) => response.cookies.set(name, value, options)) } } },
   )
   const { data: { user } } = await supabase.auth.getUser()
-  const isPublic = ['/login', '/register', '/sign-up', '/forgot-password'].includes(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/auth/') || request.nextUrl.pathname.startsWith('/_next/')
+  const isPublic = ['/login', '/register', '/sign-up', '/forgot-password', '/pricing'].includes(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/auth/') || request.nextUrl.pathname.startsWith('/_next/')
   if (!user && !isPublic && request.nextUrl.pathname !== '/reset-password') return NextResponse.redirect(new URL('/login', request.url))
   if (user && ['/login', '/register', '/sign-up'].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL('/dashboard', request.url))
   return response

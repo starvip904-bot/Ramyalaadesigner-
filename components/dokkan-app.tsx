@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Store, Package, Boxes, ShoppingCart, ReceiptText, Truck, Users, WalletCards, BarChart3, UserCog, Bell, Search, Plus, Menu, X, ChevronLeft, ArrowUpLeft, ArrowDownLeft, MoreHorizontal, Filter, Download, CalendarDays, ScanLine, CreditCard, Banknote, CircleDollarSign, ArrowLeftRight, RotateCcw, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Store, Package, Boxes, ShoppingCart, ReceiptText, Truck, Users, WalletCards, BarChart3, UserCog, Bell, Search, Plus, Menu, X, ChevronLeft, ArrowUpLeft, ArrowDownLeft, MoreHorizontal, Filter, Download, CalendarDays, ScanLine, CreditCard, Banknote, CircleDollarSign, ArrowLeftRight, RotateCcw, ClipboardList, Sparkles } from 'lucide-react'
 import PosPage from '@/components/pos-page'
 import ManagementPage from '@/components/management-page'
 import WorkflowPage from '@/components/workflow-page'
@@ -31,7 +31,9 @@ const navGroups = [
     { label: 'المصروفات', href: '/expenses', icon: WalletCards, status: 'development' },
     { label: 'التقارير والأرباح', href: '/reports', icon: BarChart3, status: 'development' },
   ]},
-  { title: 'المتابعة والإعدادات', items: [
+  { title: 'الاشتراك والإعدادات', items: [
+    { label: 'اشتراكي وخطتي', href: '/subscription', icon: CreditCard, status: 'connected' },
+    { label: 'الخطط والأسعار', href: '/pricing', icon: Sparkles, status: 'connected' },
     { label: 'سجل العمليات', href: '/audit-log', icon: ClipboardList, status: 'development' },
     { label: 'إعدادات المتجر والفواتير', href: '/settings', icon: Store, status: 'development' },
   ]},
