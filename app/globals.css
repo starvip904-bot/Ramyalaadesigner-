@@ -1,7 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
-:root { --background:#f7f9fc; --foreground:#172033; --muted:#64748b; --line:#e2e8f0; --brand:#2563eb; --brand-soft:#eaf2ff; --accent:#7c3aed; --card:#ffffff; --card-muted:#f1f5f9; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--background); color:var(--foreground); font-family:'Cairo', sans-serif; }
-button, input { font:inherit; }
-::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-thumb { background:#c9d2d6; border-radius:99px; }
+:root {
+  --background: #f7f9fc;
+  --foreground: #172033;
+  --muted: #64748b;
+  --muted-strong: #475569;
+  --line: #e2e8f0;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-soft: #eaf2ff;
+  --accent: #7c3aed;
+  --accent-soft: #f3e8ff;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --card: #ffffff;
+  --card-muted: #f1f5f9;
+  --radius-card: 1rem;
+  --shadow-card: 0 12px 35px rgba(37, 99, 235, 0.06);
+}
+* { box-sizing: border-box; }
+html { background: var(--background); }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: 'Cairo', sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 25%, transparent); outline-offset: 2px; }
+.dokkan-card { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); box-shadow: var(--shadow-card); }
+.dokkan-surface { background: var(--card-muted); border: 1px solid var(--line); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
