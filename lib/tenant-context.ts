@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { REDA_STORE_ID, requireRedaContext } from '@/lib/reda-scope'
 
 export async function requireAuthenticatedUser() {
   const supabase = await createClient()
@@ -20,6 +21,8 @@ export async function requireStoreMembership(storeId: string, roles?: string[]) 
   if (!membership || (roles?.length && !roles.includes(membership.role))) throw new Error('STORE_ACCESS_DENIED')
   return { ...context, membership }
 }
+
+export { REDA_STORE_ID, requireRedaContext }
 
 export async function requirePlatformOwner() {
   const { supabase, user } = await requireAuthenticatedUser()
