@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
-:root { --background:#f7f8fa; --foreground:#17202b; --muted:#697586; --line:#e8ebef; --brand:#0b5c52; --brand-soft:#e3f2ef; --card:#ffffff; }
+:root { --background:#f7f9fc; --foreground:#172033; --muted:#64748b; --line:#e2e8f0; --brand:#2563eb; --brand-soft:#eaf2ff; --accent:#7c3aed; --card:#ffffff; --card-muted:#f1f5f9; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--background); color:var(--foreground); font-family:'Cairo', sans-serif; }
 button, input { font:inherit; }
