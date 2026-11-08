@@ -57,7 +57,7 @@ type PosPageProps = {
   initialData: PosCatalog
 }
 
-export default function PosPage({ initialData }: PosPageProps)
+export default function PosPage({ initialData }: PosPageProps) {
   const router = useRouter()
   const requestKey = useRef<string | null>(null)
 
