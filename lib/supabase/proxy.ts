@@ -11,6 +11,4 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const isPublic = ['/login', '/register', '/sign-up', '/forgot-password', '/pricing'].includes(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith('/auth/') || request.nextUrl.pathname.startsWith('/_next/')
   if (!user && !isPublic && request.nextUrl.pathname !== '/reset-password') return NextResponse.redirect(new URL('/login', request.url))
-  if (user && ['/login', '/register', '/sign-up'].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL('/dashboard', request.url))
-  return response
-}
+  if (user && ['/login', '/register', '/sign-up'].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL('/auth/callback', request.url))
