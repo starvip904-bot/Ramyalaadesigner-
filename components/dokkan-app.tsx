@@ -59,5 +59,95 @@ function Dashboard() { return <><div className="mb-6 flex flex-col justify-betwe
 function DataTable({headers,rows}:{headers:string[];rows:string[][]}) { return <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[650px] text-right text-sm"><thead><tr className="border-b border-[#edf0f2] text-xs text-[#94a3b8]">{headers.map(h=><th key={h} className="px-3 py-3 font-semibold">{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-b border-[#f3f4f5] last:border-0 hover:bg-[#fafcfc]">{row.map((v,j)=><td key={j} className="px-3 py-4 font-semibold">{j===row.length-1?<Badge tone={v==='نفد'||v==='مسترجعة'?'red':v==='منخفض'?'orange':'green'}>{v}</Badge>:v}</td>)}</tr>)}</tbody></table></div> }
 function GenericPage({type}:{type:string}) { const meta=pageMeta[type]; const isProducts=type==='products'; const isInventory=type==='inventory'; const isSales=type==='sales'; const [query,setQuery]=useState(''); const [showForm,setShowForm]=useState(false); let rows=isProducts?products:isSales?sales:managementRows[type]||managementRows.stores; if(isInventory) rows=products.map(p=>[p[0],p[1],p[2],p[4]]); const visibleRows=rows.filter(row=>row.join(' ').includes(query)); return <><div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center"><div><p className="text-sm text-[#64748b]">إدارة وتنظيم</p><h2 className="mt-1 text-2xl font-extrabold">{meta.title}</h2></div><button onClick={()=>setShowForm(true)} className="flex items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white"><Plus /> إضافة جديد</button></div><div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard label={isInventory?'إجمالي الأصناف':'إجمالي السجلات'} value={isProducts?'٢٤٨':'١٢٤'} change="١٢٪" up icon={isInventory?Boxes:Package}/><StatCard label={isInventory?'قيمة المخزون':'نشط حالياً'} value={isProducts?'٨٤٬٥٠٠':'١٨'} change="٥.٤٪" up icon={CircleDollarSign}/><StatCard label="يحتاج مراجعة" value="١٧" change="٢.١٪" icon={Bell}/></div><section className="rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><label className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] px-3 py-2 text-sm text-[#94a3b8] sm:w-72"><Search /><input aria-label={`ابحث في ${meta.title}`} value={query} onChange={event=>setQuery(event.target.value)} placeholder={`ابحث في ${meta.title}...`} className="w-full bg-transparent text-sm text-[#17202b] outline-none placeholder:text-[#94a3b8]"/></label><button className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] px-3 py-2 text-xs font-semibold text-[#64748b]"><Filter /> تصفية <span className="text-[#c7cdd3]">|</span> <Download /></button></div><DataTable headers={isProducts?['اسم المنتج','التصنيف','المخزون','السعر','الحالة']:isSales?['رقم الفاتورة','العميل','التاريخ','المبلغ','الحالة']:['الاسم','التفاصيل','الحالة','آخر تحديث']} rows={visibleRows}/></section>{showForm&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#17202b]/30 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="text-lg font-extrabold">إضافة {meta.title}</h3><p className="mt-1 text-xs text-[#94a3b8]">هذه البيانات تجريبية ومحفوظة محلياً فقط</p></div><button aria-label="إغلاق" onClick={()=>setShowForm(false)} className="rounded-lg p-2 text-[#64748b] hover:bg-[#f2f5f5]"><X/></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2 text-sm font-bold">الاسم<input className="rounded-xl border border-[#e2e8f0] px-3 py-3 outline-none focus:border-[#2563eb]" placeholder="أدخل الاسم"/></label><label className="flex flex-col gap-2 text-sm font-bold">التفاصيل<input className="rounded-xl border border-[#e2e8f0] px-3 py-3 outline-none focus:border-[#2563eb]" placeholder="أدخل التفاصيل"/></label></div><div className="mt-6 flex gap-3"><button onClick={()=>setShowForm(false)} className="flex-1 rounded-xl border border-[#e2e8f0] py-3 text-sm font-bold text-[#64748b]">إلغاء</button><button onClick={()=>setShowForm(false)} className="flex-1 rounded-xl bg-[#2563eb] py-3 text-sm font-bold text-white">حفظ البيانات</button></div></div></div>}</> }
 function LegacyPosPage(){const [cart,setCart]=useState<string[]>([]); return <><div className="mb-6 flex items-center justify-between"><div><p className="text-sm text-[#64748b]">الفرع الرئيسي</p><h2 className="mt-1 text-2xl font-extrabold">نقطة البيع</h2></div><div className="flex items-center gap-2 rounded-xl bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"><ScanLine/> ماسح الباركود جاهز</div></div><div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]"><section className="rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex gap-3"><div className="flex flex-1 items-center gap-2 rounded-xl border border-[#e2e8f0] px-3 py-3 text-sm text-[#94a3b8]"><Search/><span>ابحث عن منتج أو امسح الباركود...</span></div><button className="rounded-xl bg-[#eaf2ff] px-4 text-[#2563eb]"><ScanLine/></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{products.map((p,i)=><button onClick={()=>setCart([...cart,p[0]])} key={p[0]} className="rounded-xl border border-[#edf0f2] p-3 text-right transition hover:border-[#93c5fd] hover:bg-[#f8fbff]"><div className="flex aspect-[1.5] items-center justify-center rounded-lg bg-[#f1f5f9] text-3xl">{['ق','ف','ح','ج'][i]}</div><p className="mt-3 text-xs font-bold">{p[0]}</p><div className="mt-1 flex items-center justify-between"><span className="text-xs text-[#2563eb]">{p[3]}</span><span className="text-[10px] text-[#94a3b8]">متوفر {p[2]}</span></div></button>)}</div></section><section className="rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex items-center justify-between border-b border-[#f0f1f3] pb-4"><h3 className="font-extrabold">الفاتورة الحالية</h3><span className="text-xs text-[#94a3b8]">{cart.length} منتجات</span></div><div className="flex min-h-48 flex-col gap-3 py-4">{cart.length===0?<div className="flex flex-1 flex-col items-center justify-center text-center text-[#94a3b8]"><ShoppingCart className="mb-3 text-[#94a3b8]"/><p className="text-sm">أضف المنتجات إلى الفاتورة</p><p className="mt-1 text-xs">سيظهر ملخص الطلب هنا</p></div>:cart.map((item,index)=><div key={`${item}-${index}`} className="flex items-center justify-between rounded-xl bg-[#f8fbff] px-3 py-3 text-sm"><span className="font-bold">{item}</span><button onClick={()=>setCart(cart.filter((_,i)=>i!==index))} className="text-xs font-bold text-[#c43e3e]">حذف</button></div>)}</div><div className="border-t border-[#f0f1f3] pt-4"><div className="flex justify-between text-sm text-[#64748b]"><span>المجموع الفرعي</span><b>٠ ج.م</b></div><div className="mt-2 flex justify-between text-sm text-[#64748b]"><span>الضريبة (١٥٪)</span><b>٠ ج.م</b></div><div className="mt-4 flex justify-between text-xl font-extrabold"><span>الإجمالي</span><span className="text-[#2563eb]">٠ ج.م</span></div><button className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563eb] py-3 font-bold text-white"><CreditCard/> إتمام الدفع</button></div></section></div></> }
-export default function DokkanApp({type,user,content}:{type:string;user:{displayName:string;role:string|null;storeName:string|null};content?:React.ReactNode}) { const pathname=usePathname(); const [open,setOpen]=useState(false); const meta=pageMeta[type]||pageMeta.dashboard; const mobileNav=nav.slice(0,4); return <div className="flex min-h-screen bg-[#f7f8fa]"><Sidebar user={user}/><div className={`${open?'block':'hidden'} fixed inset-0 z-40 bg-black/20 lg:hidden`} onClick={()=>setOpen(false)}/>{open&&<Sidebar mobile onClose={()=>setOpen(false)} user={user}/>}<div className="min-w-0 flex-1"><Header meta={meta} onMenu={()=>setOpen(true)} user={user}/><main className="mx-auto max-w-[1600px] p-4 pb-24 md:p-8">{content ?? (type==='dashboard'?<Dashboard/>:type==='pos'?<PosPage/>:['purchases','customers','suppliers','sales','employees','stores','reports','transfers','returns','audit-log'].includes(type)?<WorkflowPage type={type}/>:<ManagementPage type={type}/>)}</
-<main className="mx-auto max-w-[1600px] p-4 pb-24 md:p-8">{content ?? (type==='dashboard'?<Dashboard/>:type==='pos'?<LegacyPosPage/>:['purchases','customers','suppliers','sales','employees','stores','reports','transfers','returns','audit-log'].includes(type)?<WorkflowPage type={type}/>:<ManagementPage type={type}/>)}</main>
+export default function DokkanApp({
+  type,
+  user,
+  content,
+}: {
+  type: string
+  user: {
+    displayName: string
+    role: string | null
+    storeName: string | null
+  }
+  content?: React.ReactNode
+}) {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const meta = pageMeta[type] || pageMeta.dashboard
+  const mobileNav = nav.slice(0, 4)
+
+  return (
+    <div className="flex min-h-screen bg-[#f7f8fa]">
+      <Sidebar user={user} />
+
+      <div
+        className={`${
+          open ? 'block' : 'hidden'
+        } fixed inset-0 z-40 bg-black/20 lg:hidden`}
+        onClick={() => setOpen(false)}
+      />
+
+      {open && (
+        <Sidebar
+          mobile
+          onClose={() => setOpen(false)}
+          user={user}
+        />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <Header
+          meta={meta}
+          onMenu={() => setOpen(true)}
+          user={user}
+        />
+
+        <main className="mx-auto max-w-[1600px] p-4 pb-24 md:p-8">
+          {content ?? (
+            type === 'dashboard' ? (
+              <Dashboard />
+            ) : type === 'pos' ? (
+              <LegacyPosPage />
+            ) : [
+                'purchases',
+                'customers',
+                'suppliers',
+                'sales',
+                'employees',
+                'stores',
+                'reports',
+                'transfers',
+                'returns',
+                'audit-log',
+              ].includes(type) ? (
+              <WorkflowPage type={type} />
+            ) : (
+              <ManagementPage type={type} />
+            )
+          )}
+        </main>
+
+        <nav
+          aria-label="التنقل السريع"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[#e2e8f0] bg-white/95 px-2 py-2 backdrop-blur lg:hidden"
+        >
+          {mobileNav.map(({ label, href, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold ${
+                pathname === href
+                  ? 'bg-[#eaf2ff] text-[#2563eb]'
+                  : 'text-[#94a3b8]'
+              }`}
+            >
+              <Icon />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </div>
+  )
+}
