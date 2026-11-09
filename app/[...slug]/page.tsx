@@ -1,4 +1,5 @@
 
+import SalesPage from '@/components/sales-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
@@ -47,9 +48,11 @@ export default async function Page({
   params: Promise<{ slug: string[] }>
 }) {
   const { slug } = await params
-  const type = slug[0]
+  const type = slug?.[0]
 
-  if (!valid.includes(type)) notFound()
+  if (!type || !valid.includes(type)) {
+    notFound()
+  }
 
   const reda = await requireRedaContext()
 
@@ -63,6 +66,7 @@ export default async function Page({
     storeName: reda.storeName,
   }
 
+  // Dashboard
   if (type === 'dashboard') {
     const data = await getDashboardData()
 
@@ -75,6 +79,7 @@ export default async function Page({
     )
   }
 
+  // Stores
   if (type === 'stores') {
     const stores = await listDokkanStores()
 
@@ -96,6 +101,7 @@ export default async function Page({
     )
   }
 
+  // Products and Inventory
   if (type === 'products' || type === 'inventory') {
     const storeId = reda.storeId
     const data = await listDokkanProductInventory(storeId)
@@ -115,6 +121,7 @@ export default async function Page({
     )
   }
 
+  // POS - Connected to real inventory data
   if (type === 'pos') {
     const storeId = reda.storeId
     const data = await listDokkanProductInventory(storeId)
@@ -123,11 +130,14 @@ export default async function Page({
       <DokkanApp
         type={type}
         user={user}
-        content={<PosPage initialData={data} />}
+        content={
+          <PosPage initialData={data} />
+        }
       />
     )
   }
 
+  // Customers, Suppliers, Settings and Audit Log
   if (
     type === 'customers' ||
     type === 'suppliers' ||
@@ -177,6 +187,7 @@ export default async function Page({
     )
   }
 
+  // Purchases
   if (type === 'purchases') {
     const storeId = reda.storeId
 
@@ -200,5 +211,11 @@ export default async function Page({
     )
   }
 
-  return <DokkanApp type={type} user={user} />
+  // Other sections
+  return (
+    <DokkanApp
+      type={type}
+      user={user}
+    />
+  )
 }
