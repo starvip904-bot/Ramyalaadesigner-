@@ -1,3 +1,4 @@
+
 import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { REDA_STORE_ID, requireRedaBranch, requireRedaContext, requireRedaPurchase, requireRedaStoreId } from '@/lib/reda-scope'
@@ -109,6 +110,52 @@ export async function listDokkanPurchases(storeId: string, search?: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('dokkan_list_purchases', { p_store_id: scopedStoreId, p_search: search ?? null })
   if (error) throw new Error('Unable to load purchases')
+  return data ?? []
+}
+
+export async function listDokkanSales(storeId: string) {
+  await requireRedaContext()
+  const scopedStoreId = requireRedaStoreId(storeId)
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('dokkan_sales')
+    .select(`
+      id,
+      branch_id,
+      subtotal,
+      discount,
+      total,
+      amount_paid,
+      remaining,
+      payment_method,
+      status,
+      notes,
+      created_at,
+      dokkan_branches(name),
+      dokkan_customers(name, phone),
+      dokkan_sale_items(
+        id,
+        quantity,
+        unit_price,
+        discount,
+        dokkan_product_variants(
+          sku,
+          size,
+          color,
+          dokkan_products(name)
+        )
+      )
+    `)
+    .eq('store_id', scopedStoreId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  if (error) {
+    console.error('[Sales] Failed to load sales:', error)
+    throw new Error('تعذر تحميل فواتير المبيعات')
+  }
+
   return data ?? []
 }
 
