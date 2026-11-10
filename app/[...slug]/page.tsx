@@ -1,3 +1,4 @@
+
 import SalesPage from '@/components/sales-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
@@ -7,8 +8,10 @@ import ProductInventoryPage from '@/components/product-inventory-page'
 import Phase1ManagementPage from '@/components/phase1-management-page'
 import PurchasesPage from '@/components/purchases-page'
 import PosPage from '@/components/pos-page'
+import EmployeesManagementPage from '@/components/employees-management-page'
 
 import { requireRedaContext } from '@/lib/reda-scope'
+import { getEmployeesPageData } from '@/lib/employees-repository'
 
 import {
   getDashboardData,
@@ -101,6 +104,25 @@ export default async function Page({
     )
   }
 
+  // Employees - Real database records
+  if (type === 'employees') {
+    const data = await getEmployeesPageData()
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={
+          <EmployeesManagementPage
+            storeId={data.storeId}
+            initialEmployees={data.employees}
+            branches={data.branches}
+          />
+        }
+      />
+    )
+  }
+
   // Products and Inventory
   if (type === 'products' || type === 'inventory') {
     const storeId = reda.storeId
@@ -121,7 +143,7 @@ export default async function Page({
     )
   }
 
-  // POS - Connected to real inventory and customers
+  // POS
   if (type === 'pos') {
     const storeId = reda.storeId
 
@@ -196,7 +218,7 @@ export default async function Page({
     )
   }
 
-  // Sales and Invoices - Connected to real database
+  // Sales
   if (type === 'sales') {
     const storeId = reda.storeId
     const sales = await listDokkanSales(storeId)
