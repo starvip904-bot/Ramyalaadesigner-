@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
@@ -47,10 +46,18 @@ type PosMovement = {
   quantity: number | string
 }
 
+type PosCustomer = {
+  id: string
+  name: string
+  phone: string | null
+  status: string
+}
+
 type PosCatalog = {
   products: PosProduct[]
   branches: PosBranch[]
   movements: PosMovement[]
+  customers: PosCustomer[]
 }
 
 type PosPageProps = {
@@ -69,6 +76,8 @@ export default function PosPage({ initialData }: PosPageProps) {
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [amountPaid, setAmountPaid] = useState('0')
+  const [customerId, setCustomerId] = useState('')
+  const [notes, setNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -79,6 +88,10 @@ export default function PosPage({ initialData }: PosPageProps) {
 
   const products = initialData.products.filter(
     (product) => product.status === 'active'
+  )
+
+  const customers = initialData.customers.filter(
+    (customer) => customer.status === 'active'
   )
 
   const stockMap = useMemo(() => {
@@ -260,8 +273,8 @@ export default function PosPage({ initialData }: PosPageProps) {
         discountPercent: discount,
         amountPaid: paid,
         paymentMethod,
-        customerId: null,
-        notes: '',
+        customerId: customerId || null,
+        notes,
         idempotencyKey: requestKey.current,
       })
 
@@ -274,6 +287,8 @@ export default function PosPage({ initialData }: PosPageProps) {
       setCart([])
       setDiscount(0)
       setAmountPaid('0')
+      setCustomerId('')
+      setNotes('')
 
       setMessage(`تم حفظ الفاتورة بنجاح. رقم الفاتورة: ${result.saleId}`)
 
@@ -457,6 +472,46 @@ export default function PosPage({ initialData }: PosPageProps) {
           </div>
 
           <div className="border-t border-[#f0f1f3] pt-4">
+            <label className="mb-4 block text-sm font-bold">
+              العميل (اختياري)
+              <select
+                value={customerId}
+                onChange={(event) => {
+                  invalidateRequest()
+                  setCustomerId(event.target.value)
+                }}
+                className="mt-2 w-full rounded-lg border border-[#e2e8f0] bg-white p-3 font-normal"
+              >
+                <option value="">عميل نقدي / بدون تحديد عميل</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                    {customer.phone ? ` - ${customer.phone}` : ''}
+                  </option>
+                ))}
+              </select>
+              {customers.length === 0 && (
+                <span className="mt-1 block text-xs font-normal text-[#94a3b8]">
+                  لا يوجد عملاء نشطون مسجلون حاليًا
+                </span>
+              )}
+            </label>
+
+            <label className="mb-4 block text-xs font-bold">
+              ملاحظات الفاتورة (اختياري)
+              <textarea
+                value={notes}
+                onChange={(event) => {
+                  invalidateRequest()
+                  setNotes(event.target.value)
+                }}
+                rows={2}
+                maxLength={500}
+                className="mt-1 w-full rounded-lg border border-[#e2e8f0] p-2 font-normal"
+                placeholder="اكتب أي ملاحظات تخص الفاتورة"
+              />
+            </label>
+
             <div className="flex justify-between text-sm">
               <span>المجموع الفرعي</span>
               <b>{totals.subtotal.toFixed(2)} ج.م</b>
