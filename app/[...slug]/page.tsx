@@ -1,4 +1,3 @@
-
 import SalesPage from '@/components/sales-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
@@ -122,17 +121,26 @@ export default async function Page({
     )
   }
 
-  // POS - Connected to real inventory data
+  // POS - Connected to real inventory and customers
   if (type === 'pos') {
     const storeId = reda.storeId
-    const data = await listDokkanProductInventory(storeId)
+
+    const [data, customers] = await Promise.all([
+      listDokkanProductInventory(storeId),
+      listDokkanCustomers(storeId),
+    ])
 
     return (
       <DokkanApp
         type={type}
         user={user}
         content={
-          <PosPage initialData={data} />
+          <PosPage
+            initialData={{
+              ...data,
+              customers,
+            }}
+          />
         }
       />
     )
