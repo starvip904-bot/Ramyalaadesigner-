@@ -1,21 +1,28 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { createMerchantStore } from '@/app/actions/onboarding'
 
 export default function StoreOnboardingPage() {
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  async function submit() {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
     if (busy) return
 
     setBusy(true)
     setError('')
 
     try {
-      const result = await createMerchantStore()
+      const result = await createMerchantStore({
+        name,
+        phone,
+      })
 
       if (result.error) {
         setError(result.error)
@@ -44,36 +51,85 @@ export default function StoreOnboardingPage() {
         </div>
 
         <p className="mt-10 text-sm text-[#64748b]">
-          خطوة واحدة لبدء العمل
+          أهلاً بك في دكان
         </p>
 
         <h1 className="mt-1 text-2xl font-extrabold">
-          تفعيل حساب مالك المتجر
+          أنشئ متجرك وابدأ العمل
         </h1>
 
         <p className="mt-3 text-sm leading-7 text-[#64748b]">
-          تم تجهيز المتجر والفرع الرئيسي وإعدادات الفواتير مسبقًا.
-          اضغط على الزر لتفعيل عضويتك كمالك وربط حسابك بالمتجر،
-          ثم ستنتقل مباشرة إلى لوحة التحكم.
+          أدخل اسم متجرك لإنشاء مساحة مستقلة خاصة بك،
+          وسيتم تجهيز الفرع الرئيسي وإعدادات الفواتير تلقائيًا.
         </p>
 
-        {error && (
-          <p
-            role="alert"
-            className="mt-6 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"
-          >
-            {error}
-          </p>
-        )}
+        <form onSubmit={submit} className="mt-7 space-y-5">
+          <div>
+            <label
+              htmlFor="store-name"
+              className="mb-2 block text-sm font-bold text-[#334155]"
+            >
+              اسم المتجر
+            </label>
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={busy}
-          className="mt-8 w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white disabled:opacity-60"
-        >
-          {busy ? 'جارٍ تفعيل المتجر...' : 'تفعيل المتجر والدخول'}
-        </button>
+            <input
+              id="store-name"
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="مثال: متجر الأمل"
+              required
+              minLength={2}
+              maxLength={120}
+              disabled={busy}
+              className="w-full rounded-xl border border-[#cbd5e1] px-4 py-3 outline-none focus:border-[#2563eb] disabled:bg-gray-100"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="store-phone"
+              className="mb-2 block text-sm font-bold text-[#334155]"
+            >
+              رقم الهاتف
+              <span className="mr-2 font-normal text-[#94a3b8]">
+                (اختياري)
+              </span>
+            </label>
+
+            <input
+              id="store-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="أدخل رقم الهاتف"
+              maxLength={40}
+              disabled={busy}
+              className="w-full rounded-xl border border-[#cbd5e1] px-4 py-3 outline-none focus:border-[#2563eb] disabled:bg-gray-100"
+            />
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={busy || name.trim().length < 2}
+            className="w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white disabled:opacity-60"
+          >
+            {busy ? 'جارٍ إنشاء المتجر...' : 'إنشاء المتجر والمتابعة'}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-xs leading-6 text-[#94a3b8]">
+          سيتم إنشاء متجر مستقل مرتبط بحسابك.
+        </p>
       </section>
     </main>
   )
