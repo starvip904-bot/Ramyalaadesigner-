@@ -21,6 +21,7 @@ import {
   listDokkanSuppliers,
   listDokkanPurchases,
   listDokkanPurchaseCatalog,
+  listDokkanSales,
 } from '@/lib/dokkan-repository'
 
 const valid = [
@@ -183,6 +184,20 @@ export default async function Page({
             initialAudit={audit}
           />
         }
+      />
+    )
+  }
+
+  // Sales and Invoices - Connected to real database
+  if (type === 'sales') {
+    const storeId = reda.storeId
+    const sales = await listDokkanSales(storeId)
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={<SalesPage initialSales={sales} />}
       />
     )
   }
