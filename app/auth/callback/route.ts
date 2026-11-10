@@ -1,7 +1,6 @@
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
-const REDA_STORE_ID = '737055df-14f0-40c2-8e6a-98fc9e4f68e3'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -20,9 +19,10 @@ export async function GET(request: Request) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (authError || !user) {
     return NextResponse.redirect(new URL('/login', url.origin))
   }
 
@@ -39,11 +39,13 @@ export async function GET(request: Request) {
       .from('dokkan_members')
       .select('id')
       .eq('user_id', user.id)
-      .eq('store_id', REDA_STORE_ID)
       .eq('status', 'active')
+      .limit(1)
       .maybeSingle()
 
   if (membershipError) {
+    console.error('Dokkan membership lookup failed:', membershipError)
+
     return NextResponse.redirect(
       new URL('/login?error=membership', url.origin)
     )
