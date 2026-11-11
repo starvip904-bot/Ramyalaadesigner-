@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
@@ -125,7 +126,7 @@ export default function ProductInventoryPage({
   initialData,
   storeIds,
 }: Props) {
-  const [data, setData] = useState(initialData)
+  const [data] = useState(initialData)
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -563,7 +564,7 @@ export default function ProductInventoryPage({
               </h3>
 
               <p className="mt-1 text-sm text-[#64748b]">
-                يتم الحفظ في Supabase داخل عملية محمية بالصلاحيات.
+                يمكنك إضافة أكثر من مقاس أو لون للمنتج الواحد.
               </p>
             </div>
 
@@ -596,14 +597,19 @@ export default function ProductInventoryPage({
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-extrabold">المتغيرات</h4>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-extrabold">المتغيرات</h4>
+                  <p className="mt-1 text-xs text-[#64748b]">
+                    كل متغير يمثل مقاسًا أو لونًا أو تركيبة مختلفة.
+                  </p>
+                </div>
 
                 {!editing && (
                   <button
                     type="button"
                     onClick={() =>
-                      setVariants([...variants, emptyVariant()])
+                      setVariants((items) => [...items, emptyVariant()])
                     }
                     className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"
                   >
@@ -618,9 +624,9 @@ export default function ProductInventoryPage({
                   className="grid gap-3 rounded-xl border border-[#e2e8f0] p-4 md:grid-cols-3"
                 >
                   <Field
-                    label="SKU"
-                    required
+                    label="SKU (اختياري)"
                     value={variant.sku}
+                    placeholder="يُنشأ تلقائيًا عند تركه فارغًا"
                     onChange={(event) =>
                       updateVariant(index, {
                         sku: event.target.value,
@@ -690,8 +696,8 @@ export default function ProductInventoryPage({
                     <button
                       type="button"
                       onClick={() =>
-                        setVariants(
-                          variants.filter(
+                        setVariants((items) =>
+                          items.filter(
                             (_, itemIndex) => itemIndex !== index
                           )
                         )
@@ -715,8 +721,9 @@ export default function ProductInventoryPage({
               </button>
 
               <button
+                type="submit"
                 disabled={busy}
-                className="rounded-xl bg-[#2563eb] px-5 py-2.5 font-bold text-white"
+                className="rounded-xl bg-[#2563eb] px-5 py-2.5 font-bold text-white disabled:opacity-50"
               >
                 {busy ? 'جارٍ الحفظ...' : 'حفظ'}
               </button>
