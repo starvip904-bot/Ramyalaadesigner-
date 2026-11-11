@@ -27,7 +27,8 @@ const navGroups = [
   { title: 'المشتريات والمالية', items: [
     { label: 'الموردون', href: '/suppliers', icon: Truck, status: 'development' },
     { label: 'المشتريات ومدفوعات الموردين', href: '/purchases', icon: Truck, status: 'development' },
-    { label: 'المصروفات', href: '/expenses', icon: WalletCards, status: 'development' },
+    { label: 'المصروفات', href: '/expenses', icon: WalletCards, status: 'connected' },
+{ label: 'التقارير والأرباح', href: '/reports', icon: BarChart3, status: 'connected' },
     { label: 'التقارير والأرباح', href: '/reports', icon: BarChart3, status: 'development' },
   ]},
   { title: 'الاشتراك والإعدادات', items: [
