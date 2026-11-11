@@ -41,6 +41,8 @@ export async function listDokkanStores() {
       name,
       phone,
       status,
+      plan_code,
+      subscription_status,
       created_at,
       dokkan_branches(id, name, address, status, created_at)
     `)
