@@ -1,11 +1,178 @@
-import { redirect } from 'next/navigation'
-import { PlanGrid, SubscriptionHero, UsageCard } from '@/components/subscription-plans'
-import { getCurrentMemberContext } from '@/lib/dokkan-repository'
 
-export const metadata = { title: 'اشتراكي | DOKKAN', description: 'إدارة خطة اشتراك متجرك واستهلاكه.' }
+import { redirect } from 'next/navigation'
+import {
+  PlanGrid,
+  SubscriptionHero,
+} from '@/components/subscription-plans'
+import { requireRedaContext } from '@/lib/reda-scope'
+
+export const metadata = {
+  title: 'اشتراكي | DOKKAN',
+  description: 'إدارة خطة اشتراك متجرك.',
+}
+
+const planNames: Record<string, string> = {
+  free: 'Free المجانية',
+  starter: 'Starter',
+  pro: 'Pro',
+  business: 'Business',
+  enterprise: 'Enterprise',
+}
+
+function formatDate(value: string | null) {
+  if (!value) return 'غير محدد'
+
+  return new Date(value).toLocaleDateString('ar-EG', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Africa/Cairo',
+  })
+}
 
 export default async function SubscriptionPage() {
-  const context = await getCurrentMemberContext().catch(() => null)
-  if (!context?.member) redirect('/login')
-  return <main className="min-h-screen bg-[#f7f9fc] px-4 py-6 text-slate-950 md:px-8 md:py-10" dir="rtl"><div className="mx-auto flex max-w-[1500px] flex-col gap-8"><header><p className="text-sm font-extrabold tracking-wide text-blue-700">الاشتراك والفوترة</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight">تحكم في نمو متجرك</h1><p className="mt-2 text-sm text-slate-500">تابع خطتك الحالية واستهلاك متجرك، واستكشف الخيارات المتاحة للتوسع.</p></header><SubscriptionHero eyebrow="اشتراك متجرك" title="خطة Pro تمنحك مساحة أكبر للعمل" description="بيانات الاشتراك الحالية المعروضة من واجهة DOKKAN. ربط الحالة الفعلية بجدول الاشتراكات يحتاج تأكيد مخطط قاعدة البيانات قبل التنفيذ." /><section className="grid gap-5 lg:grid-cols-[1.3fr_1fr]"><div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(46,80,120,.06)]"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm text-slate-500">الخطة الحالية</p><h2 className="mt-2 text-2xl font-extrabold">Pro <span className="text-sm font-bold text-slate-400">/ شهريًا</span></h2></div><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">نشطة</span></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">بداية الاشتراك</p><p className="mt-2 font-bold">01 يناير 2025</p></div><div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">التجديد القادم</p><p className="mt-2 font-bold">01 فبراير 2025</p></div></div><div className="mt-6 flex flex-wrap gap-3"><a href="/pricing" className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700">تغيير الخطة</a><button className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">عرض تفاصيل الخطة</button></div></div><div className="rounded-[1.5rem] border border-violet-100 bg-violet-50/60 p-6"><p className="text-sm font-bold text-violet-900">خصم الاشتراك السنوي</p><p className="mt-3 text-sm leading-7 text-violet-800">ادفع سنويًا واحصل على خصم 20٪. الدفع غير مفعّل بعد، ولن يتم تحصيل أي مبلغ من هذه الواجهة.</p><div className="mt-5 rounded-xl border border-violet-100 bg-white/80 p-4 text-xs font-bold text-violet-700">حالة الدفع: غير مفعّلة</div></div></section><section><div className="mb-4"><h2 className="text-xl font-extrabold">استهلاك الخطة</h2><p className="mt-1 text-sm text-slate-500">مؤشرات مرئية فقط إلى حين ربطها بمصادر البيانات الفعلية.</p></div><div className="grid gap-4 md:grid-cols-3"><UsageCard label="الفروع" used={2} limit="3" tone="blue" /><UsageCard label="الموظفون" used={6} limit="10" tone="purple" /><UsageCard label="المنتجات" used={248} limit="غير محدود" tone="green" /></div></section><section><div className="mb-4"><h2 className="text-xl font-extrabold">استكشف الخطط</h2><p className="mt-1 text-sm text-slate-500">لا يتم تنفيذ تغيير أو اشتراك من هذه الواجهة حاليًا.</p></div><PlanGrid currentPlan="pro" /></section></div></main>
+  const context = await requireRedaContext().catch(() => null)
+
+  if (!context) redirect('/login')
+
+  const { data: store, error } = await context.supabase
+    .from('dokkan_stores')
+    .select(`
+      plan_code,
+      subscription_status,
+      subscription_started_at,
+      subscription_ends_at
+    `)
+    .eq('id', context.storeId)
+    .single()
+
+  if (error || !store) {
+    throw new Error('تعذر تحميل بيانات اشتراك المتجر')
+  }
+
+  const planCode = store.plan_code?.toLowerCase() ?? ''
+  const planName = planNames[planCode] ?? 'خطة غير محددة'
+
+  const statusLabels: Record<string, string> = {
+    active: 'نشطة',
+    inactive: 'غير نشطة',
+    cancelled: 'ملغاة',
+    expired: 'منتهية',
+    pending: 'قيد الانتظار',
+  }
+
+  const status =
+    statusLabels[store.subscription_status ?? ''] ??
+    'غير محددة'
+
+  const isPermanentFree =
+    planCode === 'free' &&
+    store.subscription_status === 'active' &&
+    !store.subscription_ends_at
+
+  return (
+    <main
+      className="min-h-screen bg-[#f7f9fc] px-4 py-6 text-slate-950 md:px-8 md:py-10"
+      dir="rtl"
+    >
+      <div className="mx-auto flex max-w-[1500px] flex-col gap-8">
+        <header>
+          <p className="text-sm font-extrabold tracking-wide text-blue-700">
+            الاشتراك والفوترة
+          </p>
+
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
+            خطة متجرك
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-500">
+            بيانات الاشتراك الفعلية المسجلة لمتجرك.
+          </p>
+        </header>
+
+        <SubscriptionHero
+          eyebrow="اشتراك متجرك"
+          title={
+            isPermanentFree
+              ? 'أنت على الخطة المجانية الدائمة'
+              : `خطتك الحالية: ${planName}`
+          }
+          description={
+            isPermanentFree
+              ? 'تستفيد من خطة Dokkan Free دون رسوم اشتراك ودون تاريخ انتهاء. لن يتم تفعيل أي خطة مدفوعة تلقائيًا.'
+              : 'تعرض هذه الصفحة حالة الخطة المسجلة حاليًا في قاعدة البيانات.'
+          }
+        />
+
+        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm text-slate-500">
+                الخطة الحالية
+              </p>
+
+              <h2 className="mt-2 text-2xl font-extrabold">
+                {planName}
+              </h2>
+            </div>
+
+            <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+              {status}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs text-slate-500">
+                بداية الاشتراك
+              </p>
+
+              <p className="mt-2 font-bold">
+                {formatDate(store.subscription_started_at)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs text-slate-500">
+                تاريخ انتهاء الاشتراك
+              </p>
+
+              <p className="mt-2 font-bold">
+                {isPermanentFree
+                  ? 'لا يوجد تاريخ انتهاء'
+                  : formatDate(store.subscription_ends_at)}
+              </p>
+            </div>
+          </div>
+
+          {isPermanentFree && (
+            <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-semibold leading-7 text-emerald-800">
+              خطتك المجانية دائمة. لا يوجد تجديد شهري أو سنوي،
+              ولا يتم تحصيل أي مبالغ منك.
+            </p>
+          )}
+
+          <p className="mt-5 text-sm text-slate-500">
+            الدفع الإلكتروني وتغيير الخطط المدفوعة غير مفعّلين
+            حاليًا.
+          </p>
+        </section>
+
+        <section>
+          <div className="mb-4">
+            <h2 className="text-xl font-extrabold">
+              الخطط المتاحة
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              يمكنك الاطلاع على الخطط. اختيار خطة مدفوعة لا
+              يغيّر اشتراكك حاليًا.
+            </p>
+          </div>
+
+          <PlanGrid currentPlan={planCode} />
+        </section>
+      </div>
+    </main>
+  )
 }
