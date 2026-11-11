@@ -1,7 +1,7 @@
 
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomInt, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import {
   requireRedaBranch,
@@ -22,6 +22,23 @@ function generateVariantSku() {
   return `SKU-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
 }
 
+// إنشاء باركود EAN-13 للاستخدام الداخلي
+function generateVariantBarcode() {
+  const body = `20${randomInt(0, 10_000_000_000)
+    .toString()
+    .padStart(10, '0')}`
+
+  let sum = 0
+
+  for (let index = 0; index < body.length; index++) {
+    sum += Number(body[index]) * (index % 2 === 0 ? 1 : 3)
+  }
+
+  const checkDigit = (10 - (sum % 10)) % 10
+
+  return `${body}${checkDigit}`
+}
+
 export async function createProductAction(input: {
   storeId: string
   name: string
@@ -37,6 +54,8 @@ export async function createProductAction(input: {
   const context = await getAuthorizedStore(input.storeId)
 
   const sku = input.sku.trim() || generateVariantSku()
+  const barcode =
+    input.barcode?.trim() || generateVariantBarcode()
 
   const { data, error } = await context.supabase.rpc(
     'dokkan_create_product',
@@ -46,7 +65,7 @@ export async function createProductAction(input: {
       product_category: input.category.trim(),
       product_brand: input.brand?.trim() || null,
       variant_sku: sku,
-      variant_barcode: input.barcode?.trim() || null,
+      variant_barcode: barcode,
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
       variant_price: input.price,
@@ -56,7 +75,7 @@ export async function createProductAction(input: {
 
   if (error) {
     if (error.code === '23505') {
-      throw new Error('كود SKU أو الباركود مستخدم بالفعل. أدخل كودًا مختلفًا.')
+      throw new Error('كود SKU أو الباركود مستخدم بالفعل. حاول مرة أخرى.')
     }
 
     throw new Error(error.message)
@@ -111,7 +130,8 @@ export async function createProductWithVariantsAction(input: {
 
     return {
       sku: variant.sku.trim() || generateVariantSku(),
-      barcode: variant.barcode?.trim() || null,
+      barcode:
+        variant.barcode?.trim() || generateVariantBarcode(),
       size: variant.size?.trim() || null,
       color: variant.color?.trim() || null,
       price,
@@ -132,7 +152,7 @@ export async function createProductWithVariantsAction(input: {
 
   if (error) {
     if (error.code === '23505') {
-      throw new Error('يوجد SKU أو باركود مكرر. راجع الأكواد وأعد المحاولة.')
+      throw new Error('يوجد SKU أو باركود مكرر. حاول الحفظ مرة أخرى.')
     }
 
     throw new Error(error.message)
@@ -153,8 +173,9 @@ export async function updateProductVariantAction(
     'dokkan_update_product_variant',
     {
       target_variant_id: input.id,
-      variant_sku: input.sku.trim(),
-      variant_barcode: input.barcode?.trim() || null,
+      variant_sku: input.sku.trim() || generateVariantSku(),
+      variant_barcode:
+        input.barcode?.trim() || generateVariantBarcode(),
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
       variant_price: input.price,
