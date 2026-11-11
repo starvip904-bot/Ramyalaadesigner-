@@ -106,6 +106,232 @@ const emptyVariant = (): VariantDraft => ({
   cost: 0,
 })
 
+/* ================================
+   EAN-13 BARCODE GENERATOR FOR PRINT
+================================ */
+
+const EAN_L = [
+  '0001101', '0011001', '0010011', '0111101', '0100011',
+  '0110001', '0101111', '0111011', '0110111', '0001011',
+]
+
+const EAN_G = [
+  '0100111', '0110011', '0011011', '0100001', '0011101',
+  '0111001', '0000101', '0010001', '0001001', '0010111',
+]
+
+const EAN_R = [
+  '1110010', '1100110', '1101100', '1000010', '1011100',
+  '1001110', '1010000', '1000100', '1001000', '1110100',
+]
+
+const EAN_PARITY = [
+  'LLLLLL',
+  'LLGLGG',
+  'LLGGLG',
+  'LLGGGL',
+  'LGLLGG',
+  'LGGLLG',
+  'LGGGLL',
+  'LGLGLG',
+  'LGLGGL',
+  'LGGLGL',
+]
+
+function createBarcodeSvg(value: string) {
+  if (!/^\d{13}$/.test(value)) {
+    throw new Error('رقم الباركود غير صالح.')
+  }
+
+  const digits = value.split('').map(Number)
+  const parity = EAN_PARITY[digits[0]]
+
+  let bits = '101'
+
+  for (let i = 1; i <= 6; i++) {
+    bits +=
+      parity[i - 1] === 'L'
+        ? EAN_L[digits[i]]
+        : EAN_G[digits[i]]
+  }
+
+  bits += '01010'
+
+  for (let i = 7; i <= 12; i++) {
+    bits += EAN_R[digits[i]]
+  }
+
+  bits += '101'
+
+  const quiet = 11
+
+  const bars = bits
+    .split('')
+    .map((bit, index) => {
+      if (bit !== '1') return ''
+
+      const guard =
+        index < 3 ||
+        (index >= 45 && index < 50) ||
+        index >= 92
+
+      return `<rect x="${quiet + index}" y="0" width="1" height="${guard ? 48 : 42}" />`
+    })
+    .join('')
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 117 60"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Barcode ${value}">
+      <rect width="117" height="60" fill="white"/>
+      <g fill="black">${bars}</g>
+      <text
+        x="58.5"
+        y="58"
+        text-anchor="middle"
+        font-family="Arial, sans-serif"
+        font-size="8"
+      >${value}</text>
+    </svg>
+  `
+}
+
+function escapePrintText(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char] || char)
+}
+
+function printVariantBarcode(
+  productName: string,
+  variant: Variant
+) {
+  if (!variant.barcode || !/^\d{13}$/.test(variant.barcode)) {
+    alert('لا يوجد باركود صالح لهذا المتغير.')
+    return
+  }
+
+  const popup = window.open(
+    '',
+    '_blank',
+    'width=600,height=500'
+  )
+
+  if (!popup) {
+    alert(
+      'اسمح بفتح النوافذ المنبثقة حتى تتمكن من طباعة الباركود.'
+    )
+    return
+  }
+
+  const svg = createBarcodeSvg(variant.barcode)
+
+  const details = [
+    variant.size ? `المقاس: ${variant.size}` : '',
+    variant.color ? `اللون: ${variant.color}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  popup.document.write(`
+    <!doctype html>
+    <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8"/>
+        <title>طباعة باركود</title>
+
+        <style>
+          @page {
+            size: 50mm 30mm;
+            margin: 1mm;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 1mm;
+            font-family: Arial, sans-serif;
+            color: #000;
+            text-align: center;
+          }
+
+          .label {
+            width: 48mm;
+            height: 28mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+          }
+
+          .name {
+            font-size: 10pt;
+            font-weight: bold;
+            margin-bottom: 1mm;
+            max-width: 100%;
+          }
+
+          .details {
+            font-size: 7pt;
+            margin-bottom: 1mm;
+          }
+
+          .barcode {
+            width: 46mm;
+            height: 19mm;
+          }
+
+          @media screen {
+            body {
+              padding: 15px;
+            }
+
+            .label {
+              border: 1px dashed #999;
+              margin: 0 auto;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="label">
+          <div class="name">
+            ${escapePrintText(productName)}
+          </div>
+
+          <div class="details">
+            ${escapePrintText(details)}
+          </div>
+
+          <div class="barcode">
+            ${svg}
+          </div>
+        </div>
+      </body>
+    </html>
+  `)
+
+  popup.document.close()
+  popup.focus()
+  popup.print()
+}
+
+/* ================================
+   INPUT FIELD
+================================ */
+
 function Field({
   label,
   ...props
@@ -113,6 +339,7 @@ function Field({
   return (
     <label className="flex flex-col gap-2 text-sm font-semibold text-[#465260]">
       <span>{label}</span>
+
       <input
         {...props}
         className="rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5 outline-none focus:border-[#2563eb]"
@@ -120,6 +347,10 @@ function Field({
     </label>
   )
 }
+
+/* ================================
+   MAIN COMPONENT
+================================ */
 
 export default function ProductInventoryPage({
   mode,
@@ -179,12 +410,14 @@ export default function ProductInventoryPage({
 
   const openCreate = () => {
     setEditing(null)
+
     setForm({
       storeId: storeIds[0] || '',
       name: '',
       category: categories[0],
       brand: '',
     })
+
     setVariants([emptyVariant()])
     setError('')
     setNotice('')
@@ -193,6 +426,7 @@ export default function ProductInventoryPage({
 
   const openEdit = (product: Product) => {
     setEditing(product)
+
     setForm({
       storeId: product.store_id,
       name: product.name,
@@ -220,7 +454,9 @@ export default function ProductInventoryPage({
   ) =>
     setVariants((items) =>
       items.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, ...patch } : item
+        itemIndex === index
+          ? { ...item, ...patch }
+          : item
       )
     )
 
@@ -409,7 +645,9 @@ export default function ProductInventoryPage({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-extrabold">{product.name}</h3>
+                  <h3 className="font-extrabold">
+                    {product.name}
+                  </h3>
 
                   <p className="mt-1 text-sm text-[#64748b]">
                     {product.category || 'بدون تصنيف'} ·{' '}
@@ -425,7 +663,9 @@ export default function ProductInventoryPage({
                         : 'bg-[#ffebeb] text-[#c43e3e]'
                     }`}
                   >
-                    {product.status === 'active' ? 'نشط' : 'مؤرشف'}
+                    {product.status === 'active'
+                      ? 'نشط'
+                      : 'مؤرشف'}
                   </span>
 
                   <button
@@ -457,6 +697,18 @@ export default function ProductInventoryPage({
                       {variant.color || 'لون عام'} ·{' '}
                       {variant.barcode || 'بدون باركود'}
                     </p>
+
+                    {variant.barcode && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          printVariantBarcode(product.name, variant)
+                        }
+                        className="mt-3 rounded-lg bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"
+                      >
+                        طباعة الباركود
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -474,7 +726,10 @@ export default function ProductInventoryPage({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Package size={18} className="text-[#2563eb]" />
+                      <Package
+                        size={18}
+                        className="text-[#2563eb]"
+                      />
 
                       <h3 className="font-extrabold">
                         {product.name} · {variant.sku}
@@ -574,7 +829,10 @@ export default function ProductInventoryPage({
                 required
                 value={form.name}
                 onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
+                  setForm({
+                    ...form,
+                    name: event.target.value,
+                  })
                 }
               />
 
@@ -583,7 +841,10 @@ export default function ProductInventoryPage({
                 required
                 value={form.category}
                 onChange={(event) =>
-                  setForm({ ...form, category: event.target.value })
+                  setForm({
+                    ...form,
+                    category: event.target.value,
+                  })
                 }
               />
 
@@ -591,7 +852,10 @@ export default function ProductInventoryPage({
                 label="العلامة التجارية"
                 value={form.brand}
                 onChange={(event) =>
-                  setForm({ ...form, brand: event.target.value })
+                  setForm({
+                    ...form,
+                    brand: event.target.value,
+                  })
                 }
               />
             </div>
@@ -600,6 +864,7 @@ export default function ProductInventoryPage({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="font-extrabold">المتغيرات</h4>
+
                   <p className="mt-1 text-xs text-[#64748b]">
                     كل متغير يمثل مقاسًا أو لونًا أو تركيبة مختلفة.
                   </p>
@@ -609,7 +874,10 @@ export default function ProductInventoryPage({
                   <button
                     type="button"
                     onClick={() =>
-                      setVariants((items) => [...items, emptyVariant()])
+                      setVariants((items) => [
+                        ...items,
+                        emptyVariant(),
+                      ])
                     }
                     className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"
                   >
