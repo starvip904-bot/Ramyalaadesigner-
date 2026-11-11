@@ -19,7 +19,7 @@ type CreateSaleReturnInput = {
 
 type CreateSaleReturnResult =
   | { ok: true; returnId: string }
-  | { ok: false; message: string }
+  | { ok: false; message: string; retryable?: boolean }
 
 function getReturnErrorMessage(error: unknown) {
   const message =
@@ -174,6 +174,9 @@ export async function createSaleReturn(
       return {
         ok: false,
         message: getReturnErrorMessage(error),
+        // أخطاء قاعدة البيانات ذات الرمز محددة.
+        // الأخطاء التي بلا رمز قد تكون انقطاع اتصال بعد تنفيذ العملية.
+        retryable: !error.code,
       }
     }
 
@@ -181,13 +184,22 @@ export async function createSaleReturn(
       return {
         ok: false,
         message: 'لم يتم استلام رقم المرتجع من قاعدة البيانات',
+        retryable: true,
       }
     }
 
-    revalidatePath('/returns')
-    revalidatePath('/sales')
-    revalidatePath('/inventory')
-    revalidatePath('/dashboard')
+    // فشل تحديث الصفحات لا يعني فشل المرتجع بعد حفظه في قاعدة البيانات.
+    try {
+      revalidatePath('/returns')
+      revalidatePath('/sales')
+      revalidatePath('/inventory')
+      revalidatePath('/dashboard')
+    } catch (refreshError) {
+      console.error(
+        '[Returns] Refresh failed after successful return:',
+        refreshError
+      )
+    }
 
     return {
       ok: true,
@@ -199,6 +211,7 @@ export async function createSaleReturn(
     return {
       ok: false,
       message: getReturnErrorMessage(error),
+      retryable: true,
     }
   }
 }
