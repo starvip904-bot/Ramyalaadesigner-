@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemo, useState } from 'react'
@@ -67,6 +68,18 @@ type Props = {
   returns: SaleReturn[]
 }
 
+type PendingReturnAttempt = {
+  saleId: string
+  branchId: string
+  items: Array<{
+    variantId: string
+    quantity: number
+  }>
+  refundMethod: 'cash' | 'card' | 'transfer'
+  notes: string
+  idempotencyKey: string
+}
+
 const money = (value: number) =>
   new Intl.NumberFormat('ar-EG', {
     style: 'currency',
@@ -103,6 +116,8 @@ export default function ReturnsManagementPage({
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [success, setSuccess] = useState('')
+  const [pendingAttempt, setPendingAttempt] =
+    useState<PendingReturnAttempt | null>(null)
 
   const selectedSale = sales.find(
     (sale) => sale.id === selectedSaleId
@@ -206,6 +221,9 @@ export default function ReturnsManagementPage({
   )
 
   function selectSale(saleId: string) {
+    // لا نسمح بتغيير الفاتورة أثناء وجود عملية غير مؤكدة.
+    if (pendingAttempt || loading) return
+
     setSelectedSaleId(saleId)
     setQuantities({})
     setNotes('')
@@ -214,6 +232,8 @@ export default function ReturnsManagementPage({
   }
 
   function updateQuantity(variantId: string, value: string) {
+    if (pendingAttempt || loading) return
+
     setQuantities((current) => ({
       ...current,
       [variantId]: value,
@@ -221,42 +241,48 @@ export default function ReturnsManagementPage({
   }
 
   async function submitReturn() {
-    if (!selectedSale) {
+    if (loading) return
+
+    if (!selectedSale && !pendingAttempt) {
       setMessage('اختر الفاتورة أولًا')
       return
     }
 
-    const items = saleItems
-      .map((item) => ({
-        variantId: item.variantId,
-        quantity: Number(quantities[item.variantId] || 0),
-        available: item.available,
-      }))
-      .filter((item) => item.quantity > 0)
+    // عند إعادة المحاولة نستخدم نفس الطلب ونفس المفتاح.
+    let attempt = pendingAttempt
 
-    if (items.length === 0) {
-      setMessage('أدخل كمية مرتجعة لصنف واحد على الأقل')
-      return
-    }
+    if (!attempt) {
+      if (!selectedSale) {
+        setMessage('اختر الفاتورة أولًا')
+        return
+      }
 
-    const invalid = items.some(
-      (item) =>
-        !Number.isFinite(item.quantity) ||
-        item.quantity <= 0 ||
-        item.quantity > item.available
-    )
+      const items = saleItems
+        .map((item) => ({
+          variantId: item.variantId,
+          quantity: Number(quantities[item.variantId] || 0),
+          available: item.available,
+        }))
+        .filter((item) => item.quantity > 0)
 
-    if (invalid) {
-      setMessage('راجع الكميات؛ يوجد صنف تجاوز الكمية المتاحة للمرتجع')
-      return
-    }
+      if (items.length === 0) {
+        setMessage('أدخل كمية مرتجعة لصنف واحد على الأقل')
+        return
+      }
 
-    setLoading(true)
-    setMessage('')
-    setSuccess('')
+      const invalid = items.some(
+        (item) =>
+          !Number.isFinite(item.quantity) ||
+          item.quantity <= 0 ||
+          item.quantity > item.available
+      )
 
-    try {
-      const result = await createSaleReturn({
+      if (invalid) {
+        setMessage('راجع الكميات؛ يوجد صنف تجاوز الكمية المتاحة للمرتجع')
+        return
+      }
+
+      attempt = {
         saleId: selectedSale.id,
         branchId: selectedSale.branch_id,
         items: items.map(({ variantId, quantity }) => ({
@@ -266,19 +292,46 @@ export default function ReturnsManagementPage({
         refundMethod,
         notes,
         idempotencyKey: crypto.randomUUID(),
-      })
+      }
+
+      setPendingAttempt(attempt)
+    }
+
+    setLoading(true)
+    setMessage('')
+    setSuccess('')
+
+    try {
+      const result = await createSaleReturn(attempt)
 
       if (!result.ok) {
-        setMessage(result.message)
+        setMessage(
+          result.retryable
+            ? `${result.message}. لو هتعيد المحاولة، استخدم زر إعادة المحاولة بنفس الطلب.`
+            : result.message
+        )
+
+        if (!result.retryable) {
+          setPendingAttempt(null)
+        }
+
         return
       }
 
-      setSuccess(`تم تسجيل المرتجع بنجاح. رقم العملية: ${result.returnId}`)
+      setSuccess(
+        `تم تسجيل المرتجع بنجاح. رقم العملية: ${result.returnId}`
+      )
+
+      setPendingAttempt(null)
       setQuantities({})
       setNotes('')
       router.refresh()
     } catch {
-      setMessage('حدث خطأ غير متوقع أثناء تسجيل المرتجع')
+      // قد تكون قاعدة البيانات حفظت العملية قبل انقطاع الاتصال.
+      // لذلك لا ننشئ مفتاحًا جديدًا عند إعادة المحاولة.
+      setMessage(
+        'تعذر تأكيد النتيجة بسبب الاتصال. اضغط إعادة المحاولة بنفس الطلب، ولا تنشئ مرتجعًا جديدًا.'
+      )
     } finally {
       setLoading(false)
     }
@@ -294,6 +347,7 @@ export default function ReturnsManagementPage({
               المرتجعات والاستبدال
             </h2>
           </div>
+
           <p className="mt-2 text-sm text-slate-500">
             اختر فاتورة وحدد الأصناف والكميات المراد إرجاعها
           </p>
@@ -328,6 +382,7 @@ export default function ReturnsManagementPage({
                 key={sale.id}
                 type="button"
                 onClick={() => selectSale(sale.id)}
+                disabled={Boolean(pendingAttempt) || loading}
                 className={`w-full rounded-xl border p-4 text-right transition ${
                   selectedSaleId === sale.id
                     ? 'border-blue-500 bg-blue-50'
@@ -339,6 +394,7 @@ export default function ReturnsManagementPage({
                     <p className="text-sm font-bold">
                       {sale.dokkan_customers?.name || 'عميل نقدي'}
                     </p>
+
                     <p className="mt-1 text-xs text-slate-500">
                       {sale.dokkan_customers?.phone || 'بدون رقم هاتف'}
                     </p>
@@ -348,6 +404,7 @@ export default function ReturnsManagementPage({
                     <p className="text-sm font-extrabold text-blue-700">
                       {money(Number(sale.total))}
                     </p>
+
                     <p className="mt-1 text-xs text-slate-400">
                       {date(sale.created_at)}
                     </p>
@@ -355,9 +412,17 @@ export default function ReturnsManagementPage({
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-                  <span>الفرع: {sale.dokkan_branches?.name || '—'}</span>
-                  <span>المتبقي: {money(Number(sale.remaining))}</span>
-                  <span>طريقة الدفع: {paymentLabel(sale.payment_method)}</span>
+                  <span>
+                    الفرع: {sale.dokkan_branches?.name || '—'}
+                  </span>
+
+                  <span>
+                    المتبقي: {money(Number(sale.remaining))}
+                  </span>
+
+                  <span>
+                    طريقة الدفع: {paymentLabel(sale.payment_method)}
+                  </span>
                 </div>
               </button>
             ))
@@ -370,30 +435,44 @@ export default function ReturnsManagementPage({
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-5 flex items-center gap-2">
               <ReceiptText className="text-blue-600" />
-              <h3 className="font-extrabold">تفاصيل الفاتورة المختارة</h3>
+              <h3 className="font-extrabold">
+                تفاصيل الفاتورة المختارة
+              </h3>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">إجمالي الفاتورة</p>
-                <p className="mt-2 font-extrabold">{money(Number(selectedSale.total))}</p>
+                <p className="text-xs text-slate-500">
+                  إجمالي الفاتورة
+                </p>
+                <p className="mt-2 font-extrabold">
+                  {money(Number(selectedSale.total))}
+                </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">المدفوع</p>
-                <p className="mt-2 font-extrabold">{money(Number(selectedSale.amount_paid))}</p>
+                <p className="mt-2 font-extrabold">
+                  {money(Number(selectedSale.amount_paid))}
+                </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">المتبقي على العميل</p>
+                <p className="text-xs text-slate-500">
+                  المتبقي على العميل
+                </p>
                 <p className="mt-2 font-extrabold text-orange-600">
                   {money(Number(selectedSale.remaining))}
                 </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">الكميات المتاحة للمرتجع</p>
-                <p className="mt-2 font-extrabold">{totalReturnQuantity}</p>
+                <p className="text-xs text-slate-500">
+                  الكميات المتاحة للمرتجع
+                </p>
+                <p className="mt-2 font-extrabold">
+                  {totalReturnQuantity}
+                </p>
               </div>
             </div>
           </section>
@@ -417,36 +496,52 @@ export default function ReturnsManagementPage({
                   >
                     <div>
                       <p className="font-bold">{item.name}</p>
+
                       <p className="mt-1 text-xs text-slate-500">
                         {[
                           item.sku && `كود: ${item.sku}`,
                           item.size && `المقاس: ${item.size}`,
                           item.color && `اللون: ${item.color}`,
-                        ].filter(Boolean).join(' — ') || 'بدون تفاصيل إضافية'}
+                        ]
+                          .filter(Boolean)
+                          .join(' — ') || 'بدون تفاصيل إضافية'}
                       </p>
+
                       <p className="mt-2 text-xs text-slate-500">
-                        المباع: {item.quantity} — المرتجع سابقًا: {item.alreadyReturned}
+                        المباع: {item.quantity}
+                        {' — '}
+                        المرتجع سابقًا: {item.alreadyReturned}
                       </p>
                     </div>
 
                     <div className="self-center text-sm">
                       <p className="text-slate-500">المتاح</p>
-                      <p className="mt-1 font-extrabold">{item.available}</p>
+                      <p className="mt-1 font-extrabold">
+                        {item.available}
+                      </p>
                     </div>
 
                     <div className="self-center">
                       <label className="mb-1 block text-xs font-bold text-slate-500">
                         كمية المرتجع
                       </label>
+
                       <input
                         type="number"
                         min="0"
                         max={item.available}
                         step="0.01"
-                        disabled={item.available <= 0}
+                        disabled={
+                          item.available <= 0 ||
+                          Boolean(pendingAttempt) ||
+                          loading
+                        }
                         value={quantities[item.variantId] || ''}
                         onChange={(event) =>
-                          updateQuantity(item.variantId, event.target.value)
+                          updateQuantity(
+                            item.variantId,
+                            event.target.value
+                          )
                         }
                         placeholder="0"
                         className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-center outline-none focus:border-blue-500 disabled:bg-slate-100"
@@ -459,15 +554,21 @@ export default function ReturnsManagementPage({
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="mb-4 font-extrabold">بيانات رد المبلغ</h3>
+            <h3 className="mb-4 font-extrabold">
+              بيانات رد المبلغ
+            </h3>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-bold">
                 طريقة رد المبلغ
+
                 <select
-                  value={refundMethod}
+                  value={pendingAttempt?.refundMethod ?? refundMethod}
+                  disabled={Boolean(pendingAttempt) || loading}
                   onChange={(event) =>
-                    setRefundMethod(event.target.value as typeof refundMethod)
+                    setRefundMethod(
+                      event.target.value as typeof refundMethod
+                    )
                   }
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal outline-none focus:border-blue-500"
                 >
@@ -479,8 +580,10 @@ export default function ReturnsManagementPage({
 
               <label className="text-sm font-bold">
                 ملاحظات المرتجع
+
                 <input
-                  value={notes}
+                  value={pendingAttempt?.notes ?? notes}
+                  disabled={Boolean(pendingAttempt) || loading}
                   onChange={(event) => setNotes(event.target.value)}
                   maxLength={1000}
                   placeholder="سبب الإرجاع أو أي ملاحظات..."
@@ -494,6 +597,13 @@ export default function ReturnsManagementPage({
               وإذا زادت قيمة المرتجع عن المتبقي، يتم رد الزيادة بطريقة الدفع المختارة.
               إجمالي الفاتورة الأصلية والمبلغ المدفوع الأصلي لن يتم تغييرهما.
             </p>
+
+            {pendingAttempt && (
+              <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm leading-6 text-orange-800">
+                توجد عملية مرتجع لم يتم تأكيد نتيجتها بعد.
+                استخدم زر إعادة المحاولة بنفس الطلب، ولا تبدأ مرتجعًا جديدًا قبل التأكد من نتيجتها.
+              </div>
+            )}
 
             {message && (
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700">
@@ -512,7 +622,10 @@ export default function ReturnsManagementPage({
             <button
               type="button"
               onClick={submitReturn}
-              disabled={loading || !hasSelectedQuantities}
+              disabled={
+                loading ||
+                (!hasSelectedQuantities && !pendingAttempt)
+              }
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {loading ? (
@@ -523,7 +636,9 @@ export default function ReturnsManagementPage({
               ) : (
                 <>
                   <RotateCcw size={18} />
-                  تسجيل المرتجع
+                  {pendingAttempt
+                    ? 'إعادة محاولة نفس المرتجع'
+                    : 'تسجيل المرتجع'}
                 </>
               )}
             </button>
@@ -531,7 +646,9 @@ export default function ReturnsManagementPage({
 
           {selectedReturns.length > 0 && (
             <section className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="mb-4 font-extrabold">سجل مرتجعات هذه الفاتورة</h3>
+              <h3 className="mb-4 font-extrabold">
+                سجل مرتجعات هذه الفاتورة
+              </h3>
 
               <div className="space-y-3">
                 {selectedReturns.map((record) => (
@@ -543,6 +660,7 @@ export default function ReturnsManagementPage({
                       <span className="text-sm font-bold">
                         مرتجع #{record.id.slice(0, 8)}
                       </span>
+
                       <span className="text-xs text-slate-500">
                         {date(record.created_at)}
                       </span>
@@ -550,13 +668,20 @@ export default function ReturnsManagementPage({
 
                     <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                       <p>
-                        رد نقدي: <b>{money(Number(record.refund_amount))}</b>
+                        رد نقدي:{' '}
+                        <b>{money(Number(record.refund_amount))}</b>
                       </p>
+
                       <p>
-                        خصم من المتبقي: <b>{money(Number(record.applied_to_balance))}</b>
+                        خصم من المتبقي:{' '}
+                        <b>
+                          {money(Number(record.applied_to_balance))}
+                        </b>
                       </p>
+
                       <p>
-                        طريقة الرد: <b>{paymentLabel(record.refund_method)}</b>
+                        طريقة الرد:{' '}
+                        <b>{paymentLabel(record.refund_method)}</b>
                       </p>
                     </div>
 
