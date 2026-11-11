@@ -1,4 +1,3 @@
-
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -158,19 +157,20 @@ export async function recordInventoryMovementAction(input: {
   storeId: string
   branchId: string
   variantId: string
-  type:
-    | 'opening'
-    | 'purchase'
-    | 'sale'
-    | 'return'
-    | 'adjustment'
-    | 'transfer_out'
-    | 'transfer_in'
+  type: 'opening' | 'adjustment'
   quantity: number
 }) {
   const context = await getAuthorizedStore(input.storeId)
 
   await requireRedaBranch(input.branchId)
+
+  if (
+    !Number.isFinite(input.quantity) ||
+    input.quantity === 0 ||
+    (input.type === 'opening' && input.quantity < 0)
+  ) {
+    throw new Error('INVALID_INVENTORY_QUANTITY')
+  }
 
   const { error } = await context.supabase.rpc(
     'dokkan_record_inventory_movement',
