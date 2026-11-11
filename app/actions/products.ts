@@ -1,5 +1,7 @@
+
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import {
   requireRedaBranch,
@@ -16,6 +18,10 @@ async function getAuthorizedStore(storeId: string) {
   return context
 }
 
+function generateVariantSku() {
+  return `SKU-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
+}
+
 export async function createProductAction(input: {
   storeId: string
   name: string
@@ -30,6 +36,8 @@ export async function createProductAction(input: {
 }) {
   const context = await getAuthorizedStore(input.storeId)
 
+  const sku = input.sku.trim() || generateVariantSku()
+
   const { data, error } = await context.supabase.rpc(
     'dokkan_create_product',
     {
@@ -37,7 +45,7 @@ export async function createProductAction(input: {
       product_name: input.name.trim(),
       product_category: input.category.trim(),
       product_brand: input.brand?.trim() || null,
-      variant_sku: input.sku.trim(),
+      variant_sku: sku,
       variant_barcode: input.barcode?.trim() || null,
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
@@ -46,9 +54,16 @@ export async function createProductAction(input: {
     }
   )
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('كود SKU أو الباركود مستخدم بالفعل. أدخل كودًا مختلفًا.')
+    }
+
+    throw new Error(error.message)
+  }
 
   revalidatePath('/products')
+  revalidatePath('/inventory')
 
   return data as string
 }
@@ -72,12 +87,37 @@ export async function createProductWithVariantsAction(input: {
   const context = await getAuthorizedStore(input.storeId)
 
   if (
+    !input.name.trim() ||
+    !input.category.trim() ||
     !Array.isArray(input.variants) ||
     input.variants.length === 0 ||
     input.variants.length > 200
   ) {
-    throw new Error('INVALID_PRODUCT_VARIANTS')
+    throw new Error('بيانات المنتج أو المتغيرات غير مكتملة.')
   }
+
+  const variants = input.variants.map((variant) => {
+    const price = Number(variant.price)
+    const cost = Number(variant.cost)
+
+    if (
+      !Number.isFinite(price) ||
+      !Number.isFinite(cost) ||
+      price < 0 ||
+      cost < 0
+    ) {
+      throw new Error('راجع سعر البيع والتكلفة لكل متغير.')
+    }
+
+    return {
+      sku: variant.sku.trim() || generateVariantSku(),
+      barcode: variant.barcode?.trim() || null,
+      size: variant.size?.trim() || null,
+      color: variant.color?.trim() || null,
+      price,
+      cost,
+    }
+  })
 
   const { data, error } = await context.supabase.rpc(
     'dokkan_create_product_with_variants',
@@ -86,17 +126,17 @@ export async function createProductWithVariantsAction(input: {
       product_name: input.name.trim(),
       product_category: input.category.trim(),
       product_brand: input.brand?.trim() || null,
-      variants: input.variants.map((variant) => ({
-        ...variant,
-        sku: variant.sku.trim(),
-        barcode: variant.barcode?.trim() || null,
-        size: variant.size?.trim() || null,
-        color: variant.color?.trim() || null,
-      })),
+      variants,
     }
   )
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('يوجد SKU أو باركود مكرر. راجع الأكواد وأعد المحاولة.')
+    }
+
+    throw new Error(error.message)
+  }
 
   revalidatePath('/products')
   revalidatePath('/inventory')
@@ -122,7 +162,13 @@ export async function updateProductVariantAction(
     }
   )
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('كود SKU أو الباركود مستخدم بالفعل.')
+    }
+
+    throw new Error(error.message)
+  }
 
   revalidatePath('/products')
   revalidatePath('/inventory')
