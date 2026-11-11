@@ -73,8 +73,47 @@ export async function getReturnsPageData() {
     throw new Error('تعذر تحميل سجل المرتجعات')
   }
 
+  const sales = (salesResult.data ?? []).map((sale) => {
+    const branch = Array.isArray(sale.dokkan_branches)
+      ? sale.dokkan_branches[0] ?? null
+      : sale.dokkan_branches
+
+    const customer = Array.isArray(sale.dokkan_customers)
+      ? sale.dokkan_customers[0] ?? null
+      : sale.dokkan_customers
+
+    const items = (sale.dokkan_sale_items ?? []).map((item) => {
+      const variant = Array.isArray(item.dokkan_product_variants)
+        ? item.dokkan_product_variants[0] ?? null
+        : item.dokkan_product_variants
+
+      const product = variant
+        ? Array.isArray(variant.dokkan_products)
+          ? variant.dokkan_products[0] ?? null
+          : variant.dokkan_products
+        : null
+
+      return {
+        ...item,
+        dokkan_product_variants: variant
+          ? {
+              ...variant,
+              dokkan_products: product,
+            }
+          : null,
+      }
+    })
+
+    return {
+      ...sale,
+      dokkan_branches: branch,
+      dokkan_customers: customer,
+      dokkan_sale_items: items,
+    }
+  })
+
   return {
-    sales: salesResult.data ?? [],
+    sales,
     returns: returnsResult.data ?? [],
   }
 }
