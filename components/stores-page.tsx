@@ -58,7 +58,7 @@ export default function StoresPage({
 }: {
   initialStores: StoreRecord[]
 }) {
-  const [stores, setStores] = useState(initialStores)
+  const [stores] = useState(initialStores)
   const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(
     initialStores[0] ?? null
   )
@@ -78,8 +78,11 @@ export default function StoresPage({
     selectedStore?.plan_code === 'free' &&
     selectedStore?.subscription_status === 'active'
 
-  const branchLimitReached =
-    Boolean(isFreePlan && selectedStore && selectedStore.dokkan_branches.length >= 1)
+  const branchLimitReached = Boolean(
+    isFreePlan &&
+      selectedStore &&
+      selectedStore.dokkan_branches.length >= 1
+  )
 
   const submitStore = (event: React.FormEvent) => {
     event.preventDefault()
@@ -109,7 +112,6 @@ export default function StoresPage({
 
     if (!selectedStore) return
 
-    // منع إضافي في الواجهة، مع وجود الحماية الأساسية في قاعدة البيانات.
     if (!editingBranch && branchLimitReached) {
       setError(
         'الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي. قم بترقية خطتك لإضافة فروع أخرى.'
@@ -141,10 +143,12 @@ export default function StoresPage({
         setAddress('')
         refresh()
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : ''
+        const message = err instanceof Error ? err.message : ''
 
-        if (message.includes('FREE_PLAN_BRANCH_LIMIT_REACHED')) {
+        if (
+          message.includes('FREE_PLAN_BRANCH_LIMIT_REACHED') ||
+          message.includes('الخطة المجانية')
+        ) {
           setError(
             'الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي. قم بترقية خطتك لإضافة فروع أخرى.'
           )
@@ -157,7 +161,6 @@ export default function StoresPage({
 
   const openStore = (store: StoreRecord) => {
     setSelectedStore(store)
-    setStores(stores)
     setError('')
     setShowBranchForm(false)
     setEditingBranch(null)
