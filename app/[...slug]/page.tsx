@@ -10,10 +10,12 @@ import PurchasesPage from '@/components/purchases-page'
 import PosPage from '@/components/pos-page'
 import EmployeesManagementPage from '@/components/employees-management-page'
 import ExpensesPage from '@/components/expenses-page'
+import ReportsPage from '@/components/reports-page'
 
 import { requireRedaContext } from '@/lib/reda-scope'
 import { getEmployeesPageData } from '@/lib/employees-repository'
 import { getExpensesPageData } from '@/lib/expenses-repository'
+import { getReportsPageData } from '@/lib/reports-repository'
 
 import {
   getDashboardData,
@@ -139,6 +141,19 @@ export default async function Page({
             initialExpenses={data.expenses}
           />
         }
+      />
+    )
+  }
+
+  // Reports - Real database records
+  if (type === 'reports') {
+    const data = await getReportsPageData()
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={<ReportsPage {...data} />}
       />
     )
   }
