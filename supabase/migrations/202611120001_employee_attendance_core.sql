@@ -154,6 +154,21 @@ create table if not exists public.dokkan_employee_attendance (
     )
 );
 
+-- IMPORTANT: Create this unique key BEFORE the breaks table.
+-- The breaks table uses it in its composite foreign key.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.dokkan_employee_attendance'::regclass
+      and conname = 'dokkan_attendance_id_store_branch_unique'
+  ) then
+    alter table public.dokkan_employee_attendance
+      add constraint dokkan_attendance_id_store_branch_unique
+      unique (id, store_id, branch_id);
+  end if;
+end $$;
+
 -- Breaks are tied to the exact attendance record, store and branch.
 create table if not exists public.dokkan_employee_attendance_breaks (
   id uuid primary key default gen_random_uuid(),
@@ -175,20 +190,6 @@ create table if not exists public.dokkan_employee_attendance_breaks (
   constraint dokkan_break_time_check
     check (ended_at is null or ended_at >= started_at)
 );
-
--- Unique key needed by the break table composite foreign key.
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.dokkan_employee_attendance'::regclass
-      and conname = 'dokkan_attendance_id_store_branch_unique'
-  ) then
-    alter table public.dokkan_employee_attendance
-      add constraint dokkan_attendance_id_store_branch_unique
-      unique (id, store_id, branch_id);
-  end if;
-end $$;
 
 -- Query indexes.
 create index if not exists dokkan_weekly_shifts_employee_idx
