@@ -1,4 +1,3 @@
-
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -219,6 +218,7 @@ export async function getEmployeeAttendance(
       scheduled_end_at,
       grace_minutes,
       late_minutes,
+      early_leave_minutes,
       check_in_at,
       check_out_at,
       status,
@@ -354,6 +354,7 @@ export async function recordEmployeeCheckIn(
     scheduled_end_at: scheduledEndAt,
     grace_minutes: graceMinutes,
     late_minutes: lateMinutes,
+    early_leave_minutes: 0,
     check_in_at: nowIso,
     status: 'present',
     updated_by: context.user.id,
@@ -436,7 +437,6 @@ export async function recordEmployeeCheckOut(
     throw new Error('تم تسجيل الانصراف بالفعل')
   }
 
-  // Checkout is blocked until every break has been ended.
   const openBreak = await getOpenBreak(
     context,
     attendanceId,
@@ -452,6 +452,18 @@ export async function recordEmployeeCheckOut(
   const scheduledEnd = new Date(
     attendance.scheduled_end_at
   ).getTime()
+
+  if (!Number.isFinite(scheduledEnd)) {
+    throw new Error('موعد نهاية الوردية غير صحيح')
+  }
+
+  // Early departure is calculated independently from overtime.
+  const earlyLeaveMinutes = Math.max(
+    0,
+    Math.floor(
+      (scheduledEnd - now.getTime()) / 60000
+    )
+  )
 
   // Only break time overlapping the overtime period is deducted.
   let overtimeBreakMinutes = 0
@@ -509,6 +521,7 @@ export async function recordEmployeeCheckOut(
     .from('dokkan_employee_attendance')
     .update({
       check_out_at: nowIso,
+      early_leave_minutes: earlyLeaveMinutes,
       overtime_minutes: overtimeMinutes,
       overtime_status:
         overtimeMinutes > 0 ? 'pending' : 'none',
