@@ -46,6 +46,7 @@ create table if not exists public.dokkan_employee_weekly_shifts (
   fixed_break_minutes integer not null default 0
     check (fixed_break_minutes between 0 and 600),
   is_active boolean not null default true,
+  change_reason text not null,
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -60,6 +61,9 @@ create table if not exists public.dokkan_employee_weekly_shifts (
 
   constraint dokkan_weekly_shift_unique
     unique (employee_id, weekday, shift_number),
+
+  constraint dokkan_weekly_reason_check
+    check (length(trim(change_reason)) > 0),
 
   constraint dokkan_weekly_break_check
     check (
@@ -154,8 +158,7 @@ create table if not exists public.dokkan_employee_attendance (
     )
 );
 
--- IMPORTANT: Create this unique key BEFORE the breaks table.
--- The breaks table uses it in its composite foreign key.
+-- Create attendance unique key before creating breaks.
 do $$
 begin
   if not exists (
@@ -190,6 +193,85 @@ create table if not exists public.dokkan_employee_attendance_breaks (
   constraint dokkan_break_time_check
     check (ended_at is null or ended_at >= started_at)
 );
+
+-- Automatically append a history snapshot after every schedule insert/update.
+-- This function is kept in the private schema and performs explicit authorization.
+create or replace function private.dokkan_log_employee_schedule_history()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor_id uuid;
+begin
+  v_actor_id := auth.uid();
+
+  if v_actor_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  if not private.dokkan_has_role(
+    new.store_id,
+    array['owner', 'admin', 'manager']::text[]
+  ) then
+    raise exception 'NOT_AUTHORIZED_FOR_STORE';
+  end if;
+
+  if not private.dokkan_can_branch(new.branch_id) then
+    raise exception 'NOT_AUTHORIZED_FOR_BRANCH';
+  end if;
+
+  if new.change_reason is null
+     or length(trim(new.change_reason)) = 0 then
+    raise exception 'SCHEDULE_CHANGE_REASON_REQUIRED';
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if new.store_id is distinct from old.store_id
+       or new.branch_id is distinct from old.branch_id
+       or new.employee_id is distinct from old.employee_id then
+      raise exception 'SCHEDULE_IDENTITY_FIELDS_CANNOT_CHANGE';
+    end if;
+  end if;
+
+  insert into public.dokkan_employee_schedule_history (
+    store_id,
+    branch_id,
+    employee_id,
+    changed_by,
+    change_reason,
+    schedule_snapshot
+  )
+  values (
+    new.store_id,
+    new.branch_id,
+    new.employee_id,
+    v_actor_id,
+    new.change_reason,
+    jsonb_build_object(
+      'operation', tg_op,
+      'before',
+        case
+          when tg_op = 'UPDATE' then to_jsonb(old)
+          else null
+        end,
+      'after', to_jsonb(new)
+    )
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists dokkan_weekly_shifts_history_trigger
+on public.dokkan_employee_weekly_shifts;
+
+create trigger dokkan_weekly_shifts_history_trigger
+after insert or update
+on public.dokkan_employee_weekly_shifts
+for each row
+execute function private.dokkan_log_employee_schedule_history();
 
 -- Query indexes.
 create index if not exists dokkan_weekly_shifts_employee_idx
@@ -283,7 +365,8 @@ with check (
   and private.dokkan_can_branch(branch_id)
 );
 
--- Schedule history: read and append only.
+-- Schedule history is read-only for authenticated users.
+-- Inserts are performed only by the protected trigger function.
 create policy dokkan_schedule_history_manager_read
 on public.dokkan_employee_schedule_history
 for select to authenticated
@@ -292,17 +375,6 @@ using (
     store_id, array['owner', 'admin', 'manager']::text[]
   )
   and private.dokkan_can_branch(branch_id)
-);
-
-create policy dokkan_schedule_history_manager_insert
-on public.dokkan_employee_schedule_history
-for insert to authenticated
-with check (
-  private.dokkan_has_role(
-    store_id, array['owner', 'admin', 'manager']::text[]
-  )
-  and private.dokkan_can_branch(branch_id)
-  and changed_by = (select auth.uid())
 );
 
 -- Attendance.
@@ -422,8 +494,16 @@ on public.dokkan_employee_weekly_shifts,
    public.dokkan_employee_attendance_breaks
 to authenticated;
 
-grant select, insert
+-- History can be read but cannot be manually inserted, changed or deleted.
+grant select
 on public.dokkan_employee_schedule_history
+to authenticated;
+
+revoke all on function private.dokkan_log_employee_schedule_history()
+from public, anon, authenticated;
+
+grant execute
+on function private.dokkan_log_employee_schedule_history()
 to authenticated;
 
 commit;
