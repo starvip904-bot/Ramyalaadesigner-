@@ -1,3 +1,4 @@
+
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -357,6 +358,9 @@ export async function recordEmployeeCheckIn(
     early_leave_minutes: 0,
     check_in_at: nowIso,
     status: 'present',
+    change_reason: existing
+      ? 'تسجيل حضور الموظف'
+      : 'إنشاء سجل وتسجيل حضور الموظف',
     updated_by: context.user.id,
     updated_at: nowIso,
   }
@@ -525,6 +529,7 @@ export async function recordEmployeeCheckOut(
       overtime_minutes: overtimeMinutes,
       overtime_status:
         overtimeMinutes > 0 ? 'pending' : 'none',
+      change_reason: 'تسجيل انصراف الموظف',
       updated_by: context.user.id,
       updated_at: nowIso,
     })
