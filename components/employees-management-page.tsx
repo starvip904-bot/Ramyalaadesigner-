@@ -11,7 +11,6 @@ import {
   Users,
   X,
   Clock3,
-  CalendarDays,
 } from 'lucide-react'
 import EmployeeAttendancePanel from '@/components/employee-attendance-panel'
 import {
