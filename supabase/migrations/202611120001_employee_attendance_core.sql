@@ -1,16 +1,15 @@
 
 -- Dokkan Employee Attendance Core
--- Development migration: employee schedules, attendance and breaks.
--- No employee login accounts are created.
+-- Development migration only.
+-- Employees do not receive login accounts.
 
 begin;
 
--- Ensure employees can be safely referenced together with their store.
+-- Composite employee keys enforce the same store AND branch.
 do $$
 begin
   if not exists (
-    select 1
-    from pg_constraint
+    select 1 from pg_constraint
     where conrelid = 'public.dokkan_employees'::regclass
       and conname = 'dokkan_employees_id_store_unique'
   ) then
@@ -18,9 +17,19 @@ begin
       add constraint dokkan_employees_id_store_unique
       unique (id, store_id);
   end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.dokkan_employees'::regclass
+      and conname = 'dokkan_employees_id_store_branch_unique'
+  ) then
+    alter table public.dokkan_employees
+      add constraint dokkan_employees_id_store_branch_unique
+      unique (id, store_id, branch_id);
+  end if;
 end $$;
 
--- Weekly shift templates: up to two shifts per weekday.
+-- Weekly schedule: maximum two shifts per weekday.
 create table if not exists public.dokkan_employee_weekly_shifts (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null,
@@ -41,18 +50,18 @@ create table if not exists public.dokkan_employee_weekly_shifts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  constraint dokkan_weekly_shifts_employee_fk
-    foreign key (employee_id, store_id)
-    references public.dokkan_employees(id, store_id),
+  constraint dokkan_weekly_employee_branch_fk
+    foreign key (employee_id, store_id, branch_id)
+    references public.dokkan_employees(id, store_id, branch_id),
 
-  constraint dokkan_weekly_shifts_branch_fk
+  constraint dokkan_weekly_branch_fk
     foreign key (branch_id, store_id)
     references public.dokkan_branches(id, store_id),
 
-  constraint dokkan_weekly_shifts_unique
+  constraint dokkan_weekly_shift_unique
     unique (employee_id, weekday, shift_number),
 
-  constraint dokkan_weekly_shifts_break_check
+  constraint dokkan_weekly_break_check
     check (
       (break_mode = 'none' and fixed_break_minutes = 0)
       or (break_mode = 'fixed' and fixed_break_minutes > 0)
@@ -60,28 +69,30 @@ create table if not exists public.dokkan_employee_weekly_shifts (
     )
 );
 
--- Immutable snapshots of schedule changes.
+-- Schedule change history.
 create table if not exists public.dokkan_employee_schedule_history (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null,
   branch_id uuid not null,
   employee_id uuid not null,
   changed_by uuid not null references auth.users(id),
-  change_reason text,
+  change_reason text not null,
   schedule_snapshot jsonb not null,
   created_at timestamptz not null default now(),
 
-  constraint dokkan_schedule_history_employee_fk
-    foreign key (employee_id, store_id)
-    references public.dokkan_employees(id, store_id),
+  constraint dokkan_schedule_employee_branch_fk
+    foreign key (employee_id, store_id, branch_id)
+    references public.dokkan_employees(id, store_id, branch_id),
 
-  constraint dokkan_schedule_history_branch_fk
+  constraint dokkan_schedule_branch_fk
     foreign key (branch_id, store_id)
-    references public.dokkan_branches(id, store_id)
+    references public.dokkan_branches(id, store_id),
+
+  constraint dokkan_schedule_reason_check
+    check (length(trim(change_reason)) > 0)
 );
 
--- One record per employee, work date and shift.
--- scheduled timestamps support shifts crossing midnight.
+-- Attendance: timestamps support overnight shifts.
 create table if not exists public.dokkan_employee_attendance (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null,
@@ -115,9 +126,9 @@ create table if not exists public.dokkan_employee_attendance (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  constraint dokkan_attendance_employee_fk
-    foreign key (employee_id, store_id)
-    references public.dokkan_employees(id, store_id),
+  constraint dokkan_attendance_employee_branch_fk
+    foreign key (employee_id, store_id, branch_id)
+    references public.dokkan_employees(id, store_id, branch_id),
 
   constraint dokkan_attendance_branch_fk
     foreign key (branch_id, store_id)
@@ -143,10 +154,11 @@ create table if not exists public.dokkan_employee_attendance (
     )
 );
 
--- Break periods belonging to one attendance record.
+-- Breaks are tied to the exact attendance record, store and branch.
 create table if not exists public.dokkan_employee_attendance_breaks (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null,
+  branch_id uuid not null,
   attendance_id uuid not null,
   started_at timestamptz not null,
   ended_at timestamptz,
@@ -156,15 +168,29 @@ create table if not exists public.dokkan_employee_attendance_breaks (
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
 
-  constraint dokkan_attendance_break_attendance_fk
-    foreign key (attendance_id, store_id)
-    references public.dokkan_employee_attendance(id, store_id),
+  constraint dokkan_break_attendance_branch_fk
+    foreign key (attendance_id, store_id, branch_id)
+    references public.dokkan_employee_attendance(id, store_id, branch_id),
 
-  constraint dokkan_attendance_break_time_check
+  constraint dokkan_break_time_check
     check (ended_at is null or ended_at >= started_at)
 );
 
--- Indexes for common employee, branch and date queries.
+-- Unique key needed by the break table composite foreign key.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.dokkan_employee_attendance'::regclass
+      and conname = 'dokkan_attendance_id_store_branch_unique'
+  ) then
+    alter table public.dokkan_employee_attendance
+      add constraint dokkan_attendance_id_store_branch_unique
+      unique (id, store_id, branch_id);
+  end if;
+end $$;
+
+-- Query indexes.
 create index if not exists dokkan_weekly_shifts_employee_idx
   on public.dokkan_employee_weekly_shifts
   (store_id, branch_id, employee_id, weekday);
@@ -185,13 +211,13 @@ create index if not exists dokkan_attendance_breaks_record_idx
   on public.dokkan_employee_attendance_breaks
   (store_id, attendance_id, started_at);
 
--- Enable RLS on every new table.
+-- Enable row-level security.
 alter table public.dokkan_employee_weekly_shifts enable row level security;
 alter table public.dokkan_employee_schedule_history enable row level security;
 alter table public.dokkan_employee_attendance enable row level security;
 alter table public.dokkan_employee_attendance_breaks enable row level security;
 
--- Remove only policies with names owned by this migration, if rerun.
+-- Remove policies owned by this migration before recreating them.
 drop policy if exists dokkan_weekly_shifts_manager_read
   on public.dokkan_employee_weekly_shifts;
 drop policy if exists dokkan_weekly_shifts_manager_insert
@@ -218,7 +244,7 @@ drop policy if exists dokkan_attendance_breaks_manager_insert
 drop policy if exists dokkan_attendance_breaks_manager_update
   on public.dokkan_employee_attendance_breaks;
 
--- Weekly shifts: managers can read and manage schedules in assigned branches.
+-- Weekly shifts.
 create policy dokkan_weekly_shifts_manager_read
 on public.dokkan_employee_weekly_shifts
 for select to authenticated
@@ -256,7 +282,7 @@ with check (
   and private.dokkan_can_branch(branch_id)
 );
 
--- Schedule history: append and read only; no update or delete policies.
+-- Schedule history: read and append only.
 create policy dokkan_schedule_history_manager_read
 on public.dokkan_employee_schedule_history
 for select to authenticated
@@ -278,7 +304,7 @@ with check (
   and changed_by = (select auth.uid())
 );
 
--- Attendance: managers can read and manage attendance in assigned branches.
+-- Attendance.
 create policy dokkan_attendance_manager_read
 on public.dokkan_employee_attendance
 for select to authenticated
@@ -316,7 +342,7 @@ with check (
   and private.dokkan_can_branch(branch_id)
 );
 
--- Breaks inherit branch access through their attendance record.
+-- Breaks inherit branch access from their attendance record.
 create policy dokkan_attendance_breaks_manager_read
 on public.dokkan_employee_attendance_breaks
 for select to authenticated
@@ -329,6 +355,7 @@ using (
     from public.dokkan_employee_attendance a
     where a.id = attendance_id
       and a.store_id = dokkan_employee_attendance_breaks.store_id
+      and a.branch_id = dokkan_employee_attendance_breaks.branch_id
       and private.dokkan_can_branch(a.branch_id)
   )
 );
@@ -346,6 +373,7 @@ with check (
     from public.dokkan_employee_attendance a
     where a.id = attendance_id
       and a.store_id = dokkan_employee_attendance_breaks.store_id
+      and a.branch_id = dokkan_employee_attendance_breaks.branch_id
       and private.dokkan_can_branch(a.branch_id)
   )
 );
@@ -362,6 +390,7 @@ using (
     from public.dokkan_employee_attendance a
     where a.id = attendance_id
       and a.store_id = dokkan_employee_attendance_breaks.store_id
+      and a.branch_id = dokkan_employee_attendance_breaks.branch_id
       and private.dokkan_can_branch(a.branch_id)
   )
 )
@@ -374,11 +403,18 @@ with check (
     from public.dokkan_employee_attendance a
     where a.id = attendance_id
       and a.store_id = dokkan_employee_attendance_breaks.store_id
+      and a.branch_id = dokkan_employee_attendance_breaks.branch_id
       and private.dokkan_can_branch(a.branch_id)
   )
 );
 
--- Explicit grants: no DELETE access is provided.
+-- Explicit permissions. No DELETE access for authenticated users.
+revoke all on public.dokkan_employee_weekly_shifts,
+  public.dokkan_employee_schedule_history,
+  public.dokkan_employee_attendance,
+  public.dokkan_employee_attendance_breaks
+from anon, authenticated;
+
 grant select, insert, update
 on public.dokkan_employee_weekly_shifts,
    public.dokkan_employee_attendance,
