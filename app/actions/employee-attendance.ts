@@ -14,7 +14,7 @@ type AttendanceInput = {
 type BreakType = 'regular' | 'personal' | 'other'
 
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 const TIME_ZONE = 'Africa/Cairo'
 
@@ -60,6 +60,7 @@ function cairoTimeToUtc(date: string, time: string) {
   }
 
   const [, hour, minute, second] = match
+
   const target = Date.UTC(
     Number(date.slice(0, 4)),
     Number(date.slice(5, 7)) - 1,
@@ -161,6 +162,27 @@ function validateAttendanceInput(input: AttendanceInput) {
   }
 }
 
+async function getOpenBreak(
+  context: Awaited<ReturnType<typeof getAttendanceContext>>,
+  attendanceId: string,
+  branchId: string
+) {
+  const { data, error } = await context.supabase
+    .from('dokkan_employee_attendance_breaks')
+    .select('id')
+    .eq('store_id', context.storeId)
+    .eq('branch_id', branchId)
+    .eq('attendance_id', attendanceId)
+    .is('ended_at', null)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error('تعذر التحقق من الاستراحات')
+  }
+
+  return data
+}
+
 export async function getEmployeeAttendance(
   branchId: string,
   fromDate: string,
@@ -196,6 +218,7 @@ export async function getEmployeeAttendance(
       scheduled_start_at,
       scheduled_end_at,
       grace_minutes,
+      late_minutes,
       check_in_at,
       check_out_at,
       status,
@@ -287,11 +310,39 @@ export async function recordEmployeeCheckIn(
   const startsAt = shift.starts_at
   const endsAt = shift.ends_at
 
-  const endsOn = endsAt <= startsAt
-    ? addOneDay(input.workDate)
-    : input.workDate
+  const endsOn =
+    endsAt <= startsAt
+      ? addOneDay(input.workDate)
+      : input.workDate
 
-  const now = new Date().toISOString()
+  const now = new Date()
+  const nowIso = now.toISOString()
+
+  const scheduledStartAt = cairoTimeToUtc(
+    input.workDate,
+    startsAt
+  )
+
+  const scheduledEndAt = cairoTimeToUtc(
+    endsOn,
+    endsAt
+  )
+
+  const graceMinutes = Math.max(
+    0,
+    Number(shift.grace_minutes) || 0
+  )
+
+  const allowedStart =
+    new Date(scheduledStartAt).getTime() +
+    graceMinutes * 60000
+
+  const lateMinutes = Math.max(
+    0,
+    Math.floor(
+      (now.getTime() - allowedStart) / 60000
+    )
+  )
 
   const payload = {
     store_id: context.storeId,
@@ -299,13 +350,14 @@ export async function recordEmployeeCheckIn(
     employee_id: input.employeeId,
     work_date: input.workDate,
     shift_number: input.shiftNumber,
-    scheduled_start_at: cairoTimeToUtc(input.workDate, startsAt),
-    scheduled_end_at: cairoTimeToUtc(endsOn, endsAt),
-    grace_minutes: shift.grace_minutes,
-    check_in_at: now,
+    scheduled_start_at: scheduledStartAt,
+    scheduled_end_at: scheduledEndAt,
+    grace_minutes: graceMinutes,
+    late_minutes: lateMinutes,
+    check_in_at: nowIso,
     status: 'present',
     updated_by: context.user.id,
-    updated_at: now,
+    updated_at: nowIso,
   }
 
   let attendanceId: string
@@ -361,7 +413,12 @@ export async function recordEmployeeCheckOut(
   const { data: attendance, error: loadError } =
     await context.supabase
       .from('dokkan_employee_attendance')
-      .select('id, check_in_at, check_out_at, scheduled_end_at')
+      .select(`
+        id,
+        check_in_at,
+        check_out_at,
+        scheduled_end_at
+      `)
       .eq('id', attendanceId)
       .eq('store_id', context.storeId)
       .eq('branch_id', branchId)
@@ -379,23 +436,82 @@ export async function recordEmployeeCheckOut(
     throw new Error('تم تسجيل الانصراف بالفعل')
   }
 
+  // Checkout is blocked until every break has been ended.
+  const openBreak = await getOpenBreak(
+    context,
+    attendanceId,
+    branchId
+  )
+
+  if (openBreak) {
+    throw new Error('يجب إنهاء الاستراحة المفتوحة قبل تسجيل الانصراف')
+  }
+
   const now = new Date()
   const nowIso = now.toISOString()
+  const scheduledEnd = new Date(
+    attendance.scheduled_end_at
+  ).getTime()
+
+  // Only break time overlapping the overtime period is deducted.
+  let overtimeBreakMinutes = 0
+
+  if (now.getTime() > scheduledEnd) {
+    const { data: breaks, error: breaksError } =
+      await context.supabase
+        .from('dokkan_employee_attendance_breaks')
+        .select('started_at, ended_at')
+        .eq('store_id', context.storeId)
+        .eq('branch_id', branchId)
+        .eq('attendance_id', attendanceId)
+        .not('ended_at', 'is', null)
+
+    if (breaksError) {
+      throw new Error('تعذر حساب وقت الاستراحات')
+    }
+
+    for (const item of breaks ?? []) {
+      if (!item.ended_at) continue
+
+      const breakStart = new Date(item.started_at).getTime()
+      const breakEnd = new Date(item.ended_at).getTime()
+
+      const overlapStart = Math.max(
+        breakStart,
+        scheduledEnd
+      )
+
+      const overlapEnd = Math.min(
+        breakEnd,
+        now.getTime()
+      )
+
+      if (overlapEnd > overlapStart) {
+        overtimeBreakMinutes +=
+          (overlapEnd - overlapStart) / 60000
+      }
+    }
+  }
+
+  const rawOvertimeMinutes = Math.max(
+    0,
+    (now.getTime() - scheduledEnd) / 60000
+  )
 
   const overtimeMinutes = Math.max(
     0,
     Math.floor(
-      (now.getTime() -
-        new Date(attendance.scheduled_end_at).getTime()) / 60000
+      rawOvertimeMinutes - overtimeBreakMinutes
     )
   )
 
-  const { error } = await context.supabase
+  const { data: updated, error } = await context.supabase
     .from('dokkan_employee_attendance')
     .update({
       check_out_at: nowIso,
       overtime_minutes: overtimeMinutes,
-      overtime_status: overtimeMinutes > 0 ? 'pending' : 'none',
+      overtime_status:
+        overtimeMinutes > 0 ? 'pending' : 'none',
       updated_by: context.user.id,
       updated_at: nowIso,
     })
@@ -403,10 +519,12 @@ export async function recordEmployeeCheckOut(
     .eq('store_id', context.storeId)
     .eq('branch_id', branchId)
     .is('check_out_at', null)
+    .select('id')
+    .maybeSingle()
 
-  if (error) {
-    console.error('[EmployeeAttendance] Check-out failed:', error.code)
-    throw new Error('تعذر تسجيل الانصراف')
+  if (error || !updated) {
+    console.error('[EmployeeAttendance] Check-out failed:', error?.code)
+    throw new Error('تعذر تسجيل الانصراف، ربما تم تسجيله بالفعل')
   }
 
   revalidatePath('/employees')
@@ -450,19 +568,11 @@ export async function startEmployeeBreak(
     throw new Error('لا يمكن بدء استراحة خارج وقت العمل')
   }
 
-  const { data: openBreak, error: breakError } =
-    await context.supabase
-      .from('dokkan_employee_attendance_breaks')
-      .select('id')
-      .eq('store_id', context.storeId)
-      .eq('branch_id', branchId)
-      .eq('attendance_id', attendanceId)
-      .is('ended_at', null)
-      .maybeSingle()
-
-  if (breakError) {
-    throw new Error('تعذر التحقق من الاستراحات')
-  }
+  const openBreak = await getOpenBreak(
+    context,
+    attendanceId,
+    branchId
+  )
 
   if (openBreak) {
     throw new Error('هناك استراحة لم يتم إنهاؤها بعد')
@@ -483,6 +593,7 @@ export async function startEmployeeBreak(
     .single()
 
   if (error || !data) {
+    console.error('[EmployeeAttendance] Break start failed:', error?.code)
     throw new Error('تعذر تسجيل بداية الاستراحة')
   }
 
@@ -502,10 +613,30 @@ export async function endEmployeeBreak(
 
   const context = await getAttendanceContext(branchId)
 
+  const { data: attendance, error: attendanceError } =
+    await context.supabase
+      .from('dokkan_employee_attendance')
+      .select('id, check_in_at, check_out_at')
+      .eq('id', attendanceId)
+      .eq('store_id', context.storeId)
+      .eq('branch_id', branchId)
+      .maybeSingle()
+
+  if (attendanceError || !attendance) {
+    throw new Error('سجل الحضور غير موجود')
+  }
+
+  if (!attendance.check_in_at || attendance.check_out_at) {
+    throw new Error('لا يمكن إنهاء استراحة خارج وقت العمل')
+  }
+
+  const endedAt = new Date().toISOString()
+
   const { data, error } = await context.supabase
     .from('dokkan_employee_attendance_breaks')
     .update({
-      ended_at: new Date().toISOString(),
+      ended_at: endedAt,
+      ended_by: context.user.id,
     })
     .eq('id', breakId)
     .eq('attendance_id', attendanceId)
@@ -516,6 +647,7 @@ export async function endEmployeeBreak(
     .maybeSingle()
 
   if (error || !data) {
+    console.error('[EmployeeAttendance] Break end failed:', error?.code)
     throw new Error('تعذر إنهاء الاستراحة أو أنها منتهية بالفعل')
   }
 
