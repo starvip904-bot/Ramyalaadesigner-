@@ -1,3 +1,4 @@
+
 {
   "name": "dokkan-saas",
   "version": "1.0.0",
@@ -7,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
+    "test:scope": "node --experimental-strip-types lib/reda-scope.test.ts",
     "test:pos": "node --experimental-strip-types lib/pos.test.ts",
     "test:workflows": "node --experimental-strip-types lib/workflows.test.ts"
   },
