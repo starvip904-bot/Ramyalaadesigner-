@@ -1,10 +1,25 @@
-export const REDA_STORE_ID = '737055df-14f0-40c2-8e6a-98fc9e4f68e3' as const
+export function assertStoreScope(
+  requestedStoreId: string | null | undefined,
+  currentStoreId: string | null | undefined
+) {
+  if (!currentStoreId) {
+    throw new Error('STORE_CONTEXT_REQUIRED')
+  }
 
-export function assertRedaStoreId(storeId: string | null | undefined) {
-  if (storeId !== REDA_STORE_ID) throw new Error('REDA_SCOPE_VIOLATION')
-  return REDA_STORE_ID
+  if (!requestedStoreId) {
+    throw new Error('STORE_ID_REQUIRED')
+  }
+
+  if (requestedStoreId !== currentStoreId) {
+    throw new Error('STORE_ACCESS_DENIED')
+  }
+
+  return currentStoreId
 }
 
-export function requireRedaStoreId(candidate?: string | null) {
-  return assertRedaStoreId(candidate ?? REDA_STORE_ID)
+export function requireStoreScope(
+  requestedStoreId: string | null | undefined,
+  currentStoreId: string | null | undefined
+) {
+  return assertStoreScope(requestedStoreId, currentStoreId)
 }
