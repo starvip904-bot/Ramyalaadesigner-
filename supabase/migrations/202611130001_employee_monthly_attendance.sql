@@ -6,7 +6,6 @@ begin;
 
 create table if not exists public.dokkan_employee_monthly_attendance (
   id uuid primary key default gen_random_uuid(),
-
   store_id uuid not null,
   branch_id uuid not null,
   employee_id uuid not null,
@@ -27,16 +26,19 @@ create table if not exists public.dokkan_employee_monthly_attendance (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  constraint dokkan_monthly_attendance_employee_branch_fk
+  constraint dokkan_monthly_employee_branch_fk
     foreign key (employee_id, store_id, branch_id)
     references public.dokkan_employees(id, store_id, branch_id),
 
-  constraint dokkan_monthly_attendance_branch_fk
+  constraint dokkan_monthly_branch_fk
     foreign key (branch_id, store_id)
     references public.dokkan_branches(id, store_id),
 
   constraint dokkan_monthly_attendance_unique_day
     unique (employee_id, work_date),
+
+  constraint dokkan_monthly_attendance_id_store_branch_unique
+    unique (id, store_id, branch_id),
 
   constraint dokkan_monthly_attendance_time_check
     check (
@@ -91,31 +93,14 @@ create table if not exists public.dokkan_employee_monthly_attendance_history (
 
   changed_at timestamptz not null default now(),
 
-  constraint dokkan_monthly_attendance_history_record_fk
+  constraint dokkan_monthly_history_record_fk
     foreign key (attendance_id, store_id, branch_id)
     references public.dokkan_employee_monthly_attendance
       (id, store_id, branch_id),
 
-  constraint dokkan_monthly_attendance_history_reason_check
+  constraint dokkan_monthly_history_reason_check
     check (length(trim(change_reason)) >= 3)
 );
-
--- Unique key required by the history foreign key.
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conrelid =
-      'public.dokkan_employee_monthly_attendance'::regclass
-      and conname =
-      'dokkan_monthly_attendance_id_store_branch_unique'
-  ) then
-    alter table public.dokkan_employee_monthly_attendance
-      add constraint dokkan_monthly_attendance_id_store_branch_unique
-      unique (id, store_id, branch_id);
-  end if;
-end $$;
 
 create index if not exists dokkan_monthly_attendance_history_record_idx
   on public.dokkan_employee_monthly_attendance_history
@@ -281,6 +266,14 @@ using (
   )
   and private.dokkan_can_branch(branch_id)
 );
+
+-- Explicit table permissions.
+revoke all on public.dokkan_employee_monthly_attendance
+from anon, authenticated;
+
+grant select, insert, update
+on public.dokkan_employee_monthly_attendance
+to authenticated;
 
 revoke all on public.dokkan_employee_monthly_attendance_history
 from anon, authenticated;
