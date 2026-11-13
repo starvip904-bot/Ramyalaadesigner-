@@ -134,7 +134,7 @@ function Header({
             type="button"
             aria-label="فتح القائمة"
             onClick={onMenu}
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-[#475569] transition hover:bg-[#f1f5f9] active:bg-[#e2e8f0] md:hidden"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-[#475569] transition hover:bg-[#f1f5f9] active:bg-[#e2e8f0] lg:hidden"
           >
             <Menu size={21} />
           </button>
