@@ -1,4 +1,5 @@
-export type PaymentMethod = 'cash' | 'card' | 'transfer'
+
+export type PaymentMethod = 'cash' | 'card' | 'wallet' | 'transfer'
 export type RecordStatus = 'active' | 'inactive' | 'low' | 'out_of_stock' | 'pending' | 'paid'
 export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'stock_manager' | 'viewer'
 
