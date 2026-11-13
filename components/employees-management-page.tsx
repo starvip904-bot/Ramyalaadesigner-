@@ -11,10 +11,8 @@ import {
   Users,
   X,
   Clock3,
-  CalendarDays,
 } from 'lucide-react'
-import EmployeeAttendancePanel from '@/components/employee-attendance-panel'
-import EmployeeWeeklySchedule from '@/components/employee-weekly-schedule'
+import EmployeeMonthlyAttendancePanel from '@/components/employee-monthly-attendance-panel'
 import {
   createEmployee,
   updateEmployee,
@@ -61,7 +59,7 @@ const emptyForm = {
   branchId: '',
 }
 
-type ActiveTab = 'employees' | 'attendance' | 'schedule'
+type ActiveTab = 'employees' | 'attendance'
 
 export default function EmployeesManagementPage({
   initialEmployees,
@@ -186,11 +184,11 @@ export default function EmployeesManagementPage({
       <div>
         <h2 className="text-2xl font-extrabold">إدارة الموظفين</h2>
         <p className="mt-1 text-sm text-slate-500">
-          إدارة بيانات الموظفين ومتابعة الحضور والانصراف ومواعيد الورديات
+          إدارة بيانات الموظفين ومتابعة الحضور والانصراف الشهري
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() => setActiveTab('employees')}
@@ -216,28 +214,10 @@ export default function EmployeesManagementPage({
           <Clock3 size={19} />
           الحضور والانصراف
         </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('schedule')}
-          className={`flex flex-col sm:flex-row items-center justify-center gap-2 rounded-xl border px-2 py-4 text-xs sm:text-sm font-bold transition ${
-            activeTab === 'schedule'
-              ? 'border-blue-600 bg-blue-600 text-white'
-              : 'border-slate-200 bg-white text-slate-700'
-          }`}
-        >
-          <CalendarDays size={19} />
-          مواعيد الورديات
-        </button>
       </div>
 
       {activeTab === 'attendance' ? (
-        <EmployeeAttendancePanel
-          employees={employees}
-          branches={branches}
-        />
-      ) : activeTab === 'schedule' ? (
-        <EmployeeWeeklySchedule
+        <EmployeeMonthlyAttendancePanel
           employees={employees}
           branches={branches}
         />
