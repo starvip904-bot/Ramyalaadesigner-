@@ -11,8 +11,10 @@ import {
   Users,
   X,
   Clock3,
+  CalendarDays,
 } from 'lucide-react'
 import EmployeeAttendancePanel from '@/components/employee-attendance-panel'
+import EmployeeWeeklySchedule from '@/components/employee-weekly-schedule'
 import {
   createEmployee,
   updateEmployee,
@@ -59,6 +61,8 @@ const emptyForm = {
   branchId: '',
 }
 
+type ActiveTab = 'employees' | 'attendance' | 'schedule'
+
 export default function EmployeesManagementPage({
   initialEmployees,
   branches,
@@ -70,9 +74,7 @@ export default function EmployeesManagementPage({
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'employees' | 'attendance'>(
-    'employees'
-  )
+  const [activeTab, setActiveTab] = useState<ActiveTab>('employees')
 
   const activeBranches = branches.filter(
     (branch) => branch.status === 'active'
@@ -184,15 +186,15 @@ export default function EmployeesManagementPage({
       <div>
         <h2 className="text-2xl font-extrabold">إدارة الموظفين</h2>
         <p className="mt-1 text-sm text-slate-500">
-          إدارة بيانات الموظفين ومتابعة الحضور والانصراف
+          إدارة بيانات الموظفين ومتابعة الحضور والانصراف ومواعيد الورديات
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <button
           type="button"
           onClick={() => setActiveTab('employees')}
-          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-4 text-sm font-bold transition ${
+          className={`flex flex-col sm:flex-row items-center justify-center gap-2 rounded-xl border px-2 py-4 text-xs sm:text-sm font-bold transition ${
             activeTab === 'employees'
               ? 'border-blue-600 bg-blue-600 text-white'
               : 'border-slate-200 bg-white text-slate-700'
@@ -205,7 +207,7 @@ export default function EmployeesManagementPage({
         <button
           type="button"
           onClick={() => setActiveTab('attendance')}
-          className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-4 text-sm font-bold transition ${
+          className={`flex flex-col sm:flex-row items-center justify-center gap-2 rounded-xl border px-2 py-4 text-xs sm:text-sm font-bold transition ${
             activeTab === 'attendance'
               ? 'border-blue-600 bg-blue-600 text-white'
               : 'border-slate-200 bg-white text-slate-700'
@@ -214,10 +216,28 @@ export default function EmployeesManagementPage({
           <Clock3 size={19} />
           الحضور والانصراف
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('schedule')}
+          className={`flex flex-col sm:flex-row items-center justify-center gap-2 rounded-xl border px-2 py-4 text-xs sm:text-sm font-bold transition ${
+            activeTab === 'schedule'
+              ? 'border-blue-600 bg-blue-600 text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          <CalendarDays size={19} />
+          مواعيد الورديات
+        </button>
       </div>
 
       {activeTab === 'attendance' ? (
         <EmployeeAttendancePanel
+          employees={employees}
+          branches={branches}
+        />
+      ) : activeTab === 'schedule' ? (
+        <EmployeeWeeklySchedule
           employees={employees}
           branches={branches}
         />
