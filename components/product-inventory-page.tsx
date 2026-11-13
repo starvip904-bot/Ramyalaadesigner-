@@ -106,10 +106,6 @@ const emptyVariant = (): VariantDraft => ({
   cost: 0,
 })
 
-/* ================================
-   EAN-13 BARCODE GENERATOR FOR PRINT
-================================ */
-
 const EAN_L = [
   '0001101', '0011001', '0010011', '0111101', '0100011',
   '0110001', '0101111', '0111011', '0110111', '0001011',
@@ -328,29 +324,21 @@ function printVariantBarcode(
   popup.print()
 }
 
-/* ================================
-   INPUT FIELD
-================================ */
-
 function Field({
   label,
   ...props
 }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="flex flex-col gap-2 text-sm font-semibold text-[#465260]">
+    <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-[#465260]">
       <span>{label}</span>
 
       <input
         {...props}
-        className="rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5 outline-none focus:border-[#2563eb]"
+        className="w-full min-w-0 rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base outline-none transition focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/10"
       />
     </label>
   )
 }
-
-/* ================================
-   MAIN COMPONENT
-================================ */
 
 export default function ProductInventoryPage({
   mode,
@@ -575,20 +563,21 @@ export default function ProductInventoryPage({
   }
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <p className="text-sm text-[#64748b]">
+    <section className="w-full min-w-0 space-y-5 sm:space-y-6">
+      {/* رأس الصفحة */}
+      <div className="flex min-w-0 flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#64748b] sm:text-sm">
             Supabase · بيانات حقيقية
           </p>
 
-          <h2 className="mt-1 text-2xl font-extrabold">
+          <h2 className="mt-2 break-words text-xl font-extrabold text-[#0f172a] sm:text-2xl">
             {mode === 'products'
               ? 'المنتجات والمتغيرات'
               : 'المخزون والحركات'}
           </h2>
 
-          <p className="mt-1 text-sm text-[#94a3b8]">
+          <p className="mt-2 text-xs leading-6 text-[#94a3b8] sm:text-sm">
             {mode === 'products'
               ? 'المنتجات، التصنيفات، المقاسات، الألوان والباركود'
               : 'الأرصدة حسب الفرع مع سجل الحركات والتنبيهات'}
@@ -597,19 +586,22 @@ export default function ProductInventoryPage({
 
         {mode === 'products' && (
           <button
+            type="button"
             onClick={openCreate}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white"
             disabled={busy}
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] disabled:opacity-50 sm:w-auto"
           >
-            <Plus /> إضافة منتج
+            <Plus size={19} />
+            إضافة منتج
           </button>
         )}
       </div>
 
+      {/* رسائل الحالة */}
       {error && (
         <p
           role="alert"
-          className="rounded-xl bg-[#ffebeb] p-3 text-sm font-bold text-[#c43e3e]"
+          className="rounded-xl border border-[#fecaca] bg-[#ffebeb] p-3 text-sm font-bold leading-6 text-[#c43e3e]"
         >
           {error}
         </p>
@@ -618,212 +610,283 @@ export default function ProductInventoryPage({
       {notice && (
         <p
           role="status"
-          className="rounded-xl bg-[#e4f4ef] p-3 text-sm font-bold text-[#2563eb]"
+          className="rounded-xl border border-[#bbf7d0] bg-[#e4f4ef] p-3 text-sm font-bold leading-6 text-[#2563eb]"
         >
           {notice}
         </p>
       )}
 
-      <div className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2">
-        <Search className="text-[#94a3b8]" />
+      {/* البحث */}
+      <div className="flex min-w-0 items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 shadow-sm transition focus-within:border-[#2563eb]">
+        <Search size={20} className="shrink-0 text-[#94a3b8]" />
 
         <input
           aria-label="البحث بالاسم أو الباركود"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="ابحث بالاسم أو SKU أو الباركود"
-          className="w-full bg-transparent p-2 outline-none"
+          className="w-full min-w-0 bg-transparent px-1 py-2.5 text-base outline-none placeholder:text-sm placeholder:text-[#94a3b8]"
         />
       </div>
 
+      {/* قائمة المنتجات */}
       {mode === 'products' ? (
-        <div className="grid gap-4">
-          {products.map((product) => (
-            <article
-              key={product.id}
-              className="rounded-2xl border border-[#e2e8f0] bg-white p-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-extrabold">
-                    {product.name}
-                  </h3>
-
-                  <p className="mt-1 text-sm text-[#64748b]">
-                    {product.category || 'بدون تصنيف'} ·{' '}
-                    {product.brand || 'بدون علامة'}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${
-                      product.status === 'active'
-                        ? 'bg-[#e4f4ef] text-[#2563eb]'
-                        : 'bg-[#ffebeb] text-[#c43e3e]'
-                    }`}
-                  >
-                    {product.status === 'active'
-                      ? 'نشط'
-                      : 'مؤرشف'}
-                  </span>
-
-                  <button
-                    aria-label={`تعديل ${product.name}`}
-                    onClick={() => openEdit(product)}
-                    className="rounded-lg p-2 text-[#2563eb] hover:bg-[#eaf2ff]"
-                  >
-                    <Edit3 size={17} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2 md:grid-cols-2">
-                {product.dokkan_product_variants.map((variant) => (
-                  <div
-                    key={variant.id}
-                    className="rounded-xl bg-[#f7f9fa] p-3 text-sm"
-                  >
-                    <div className="flex justify-between font-bold">
-                      <span>{variant.sku}</span>
-
-                      <span>
-                        {variant.price.toLocaleString('ar-EG')} ج.م
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-xs text-[#64748b]">
-                      {variant.size || 'مقاس عام'} ·{' '}
-                      {variant.color || 'لون عام'} ·{' '}
-                      {variant.barcode || 'بدون باركود'}
-                    </p>
-
-                    {variant.barcode && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          printVariantBarcode(product.name, variant)
-                        }
-                        className="mt-3 rounded-lg bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"
-                      >
-                        طباعة الباركود
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {products.flatMap((product) =>
-            product.dokkan_product_variants.map((variant) => (
+        <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+          {products.length === 0 ? (
+            <div className="col-span-full rounded-2xl border border-dashed border-[#cbd5e1] bg-white p-8 text-center">
+              <Package
+                size={34}
+                className="mx-auto text-[#94a3b8]"
+              />
+              <p className="mt-3 font-bold text-[#334155]">
+                لا توجد منتجات مطابقة
+              </p>
+              <p className="mt-1 text-sm text-[#94a3b8]">
+                جرّب تغيير كلمة البحث أو أضف منتجًا جديدًا.
+              </p>
+            </div>
+          ) : (
+            products.map((product) => (
               <article
-                key={variant.id}
-                className="rounded-2xl border border-[#e2e8f0] bg-white p-5"
+                key={product.id}
+                className="min-w-0 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm transition hover:border-[#cbd5e1] sm:p-5"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Package
-                        size={18}
-                        className="text-[#2563eb]"
-                      />
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-base font-extrabold text-[#0f172a]">
+                      {product.name}
+                    </h3>
 
-                      <h3 className="font-extrabold">
-                        {product.name} · {variant.sku}
-                      </h3>
-                    </div>
-
-                    <p className="mt-1 text-sm text-[#64748b]">
-                      {variant.size || 'مقاس عام'} ·{' '}
-                      {variant.color || 'لون عام'}
+                    <p className="mt-2 break-words text-xs leading-6 text-[#64748b] sm:text-sm">
+                      {product.category || 'بدون تصنيف'} ·{' '}
+                      {product.brand || 'بدون علامة'}
                     </p>
                   </div>
 
-                  <button
-                    onClick={() =>
-                      setMovement({
-                        branchId: data.branches[0]?.id || '',
-                        variantId: variant.id,
-                        type: 'opening',
-                        quantity: '',
-                      })
-                    }
-                    className="rounded-xl bg-[#2563eb] px-3 py-2 text-xs font-bold text-white"
-                  >
-                    تسجيل حركة
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                        product.status === 'active'
+                          ? 'bg-[#e4f4ef] text-[#15803d]'
+                          : 'bg-[#ffebeb] text-[#c43e3e]'
+                      }`}
+                    >
+                      {product.status === 'active'
+                        ? 'نشط'
+                        : 'مؤرشف'}
+                    </span>
+
+                    <button
+                      type="button"
+                      aria-label={`تعديل ${product.name}`}
+                      onClick={() => openEdit(product)}
+                      className="rounded-xl bg-[#eaf2ff] p-2.5 text-[#2563eb] transition hover:bg-[#dbeafe]"
+                    >
+                      <Edit3 size={17} />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {data.branches
-                    .filter(
-                      (branch) => branch.store_id === product.store_id
-                    )
-                    .map((branch) => {
-                      const quantity = balance(
-                        data.movements,
-                        branch.id,
-                        variant.id
-                      )
+                <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+                  {product.dokkan_product_variants.map((variant) => (
+                    <div
+                      key={variant.id}
+                      className="min-w-0 rounded-xl border border-[#eef2f7] bg-[#f8fafc] p-3"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="break-all text-sm font-bold text-[#334155]">
+                          {variant.sku}
+                        </span>
 
-                      return (
-                        <div
-                          key={branch.id}
-                          className={`rounded-xl p-4 ${
-                            quantity <= 0
-                              ? 'bg-[#fff4e6]'
-                              : quantity < 5
-                                ? 'bg-[#fff9e8]'
-                                : 'bg-[#f1faf7]'
-                          }`}
+                        <span className="shrink-0 text-sm font-extrabold text-[#2563eb]">
+                          {variant.price.toLocaleString('ar-EG')} ج.م
+                        </span>
+                      </div>
+
+                      <p className="mt-2 break-words text-xs leading-6 text-[#64748b]">
+                        {variant.size || 'مقاس عام'} ·{' '}
+                        {variant.color || 'لون عام'}
+                      </p>
+
+                      <p className="mt-1 break-all text-xs text-[#94a3b8]">
+                        {variant.barcode || 'بدون باركود'}
+                      </p>
+
+                      {variant.barcode && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            printVariantBarcode(product.name, variant)
+                          }
+                          className="mt-3 w-full rounded-lg bg-[#eaf2ff] px-3 py-2.5 text-xs font-bold text-[#2563eb] transition hover:bg-[#dbeafe] sm:w-auto"
                         >
-                          <div className="flex justify-between text-sm font-bold">
-                            <span>{branch.name}</span>
+                          طباعة الباركود
+                        </button>
+                      )}
+                    </div>
+                  ))}
 
-                            <span>
-                              {quantity.toLocaleString('ar-EG')} قطعة
-                            </span>
-                          </div>
-
-                          <p className="mt-1 text-xs text-[#64748b]">
-                            {quantity <= 0
-                              ? 'نفد المخزون'
-                              : quantity < 5
-                                ? 'مخزون منخفض'
-                                : 'متوفر'}
-                          </p>
-                        </div>
-                      )
-                    })}
+                  {product.dokkan_product_variants.length === 0 && (
+                    <p className="col-span-full rounded-xl bg-[#f8fafc] p-3 text-center text-xs text-[#94a3b8]">
+                      لا توجد متغيرات لهذا المنتج.
+                    </p>
+                  )}
                 </div>
               </article>
             ))
           )}
         </div>
-      )}
-
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            onSubmit={saveProduct}
-            className="max-h-[90vh] w-full max-w-3xl space-y-5 overflow-y-auto rounded-2xl bg-white p-6"
-          >
-            <div>
-              <h3 className="text-xl font-extrabold">
-                {editing
-                  ? 'تعديل المنتج والمتغيرات'
-                  : 'إضافة منتج ومتغيراته'}
-              </h3>
-
-              <p className="mt-1 text-sm text-[#64748b]">
-                يمكنك إضافة أكثر من مقاس أو لون للمنتج الواحد.
+      ) : (
+        /* قائمة المخزون */
+        <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+          {products.length === 0 ? (
+            <div className="col-span-full rounded-2xl border border-dashed border-[#cbd5e1] bg-white p-8 text-center">
+              <Package
+                size={34}
+                className="mx-auto text-[#94a3b8]"
+              />
+              <p className="mt-3 font-bold text-[#334155]">
+                لا توجد أصناف مطابقة
+              </p>
+              <p className="mt-1 text-sm text-[#94a3b8]">
+                جرّب تغيير كلمة البحث.
               </p>
             </div>
+          ) : (
+            products.flatMap((product) =>
+              product.dokkan_product_variants.map((variant) => (
+                <article
+                  key={variant.id}
+                  className="min-w-0 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5"
+                >
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <Package
+                          size={19}
+                          className="mt-0.5 shrink-0 text-[#2563eb]"
+                        />
 
-            <div className="grid gap-4 md:grid-cols-3">
+                        <h3 className="break-words text-sm font-extrabold leading-6 text-[#0f172a] sm:text-base">
+                          {product.name} · {variant.sku}
+                        </h3>
+                      </div>
+
+                      <p className="mt-2 break-words text-xs leading-6 text-[#64748b]">
+                        {variant.size || 'مقاس عام'} ·{' '}
+                        {variant.color || 'لون عام'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMovement({
+                          branchId:
+                            data.branches.find(
+                              (branch) =>
+                                branch.store_id === product.store_id
+                            )?.id || '',
+                          variantId: variant.id,
+                          type: 'opening',
+                          quantity: '',
+                        })
+                      }
+                      className="w-full shrink-0 rounded-xl bg-[#2563eb] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#1d4ed8] sm:w-auto"
+                    >
+                      تسجيل حركة
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+                    {data.branches
+                      .filter(
+                        (branch) => branch.store_id === product.store_id
+                      )
+                      .map((branch) => {
+                        const quantity = balance(
+                          data.movements,
+                          branch.id,
+                          variant.id
+                        )
+
+                        return (
+                          <div
+                            key={branch.id}
+                            className={`min-w-0 rounded-xl border p-3 ${
+                              quantity <= 0
+                                ? 'border-[#fed7aa] bg-[#fff7ed]'
+                                : quantity < 5
+                                  ? 'border-[#fde68a] bg-[#fffbeb]'
+                                  : 'border-[#bbf7d0] bg-[#f0fdf4]'
+                            }`}
+                          >
+                            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                              <span className="break-words text-sm font-bold text-[#334155]">
+                                {branch.name}
+                              </span>
+
+                              <span className="shrink-0 text-sm font-extrabold text-[#0f172a]">
+                                {quantity.toLocaleString('ar-EG')} قطعة
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-xs font-semibold text-[#64748b]">
+                              {quantity <= 0
+                                ? 'نفد المخزون'
+                                : quantity < 5
+                                  ? 'مخزون منخفض'
+                                  : 'متوفر'}
+                            </p>
+                          </div>
+                        )
+                      })}
+
+                    {data.branches.filter(
+                      (branch) => branch.store_id === product.store_id
+                    ).length === 0 && (
+                      <p className="col-span-full rounded-xl bg-[#f8fafc] p-3 text-center text-xs text-[#94a3b8]">
+                        لا توجد فروع لهذا المتجر.
+                      </p>
+                    )}
+                  </div>
+                </article>
+              ))
+            )
+          )}
+        </div>
+      )}
+
+      {/* نافذة إضافة وتعديل المنتج */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4">
+          <form
+            onSubmit={saveProduct}
+            className="max-h-[94dvh] w-full max-w-3xl space-y-5 overflow-y-auto rounded-t-2xl bg-white p-4 shadow-2xl sm:max-h-[90vh] sm:rounded-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-extrabold text-[#0f172a] sm:text-xl">
+                  {editing
+                    ? 'تعديل المنتج والمتغيرات'
+                    : 'إضافة منتج ومتغيراته'}
+                </h3>
+
+                <p className="mt-2 text-xs leading-6 text-[#64748b] sm:text-sm">
+                  يمكنك إضافة أكثر من مقاس أو لون للمنتج الواحد.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModal(false)}
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-bold text-[#64748b] hover:bg-[#f1f5f9]"
+              >
+                إغلاق
+              </button>
+            </div>
+
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
               <Field
                 label="اسم المنتج"
                 required
@@ -863,9 +926,11 @@ export default function ProductInventoryPage({
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h4 className="font-extrabold">المتغيرات</h4>
+                  <h4 className="font-extrabold text-[#0f172a]">
+                    المتغيرات
+                  </h4>
 
-                  <p className="mt-1 text-xs text-[#64748b]">
+                  <p className="mt-1 text-xs leading-5 text-[#64748b]">
                     كل متغير يمثل مقاسًا أو لونًا أو تركيبة مختلفة.
                   </p>
                 </div>
@@ -879,9 +944,10 @@ export default function ProductInventoryPage({
                         emptyVariant(),
                       ])
                     }
-                    className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2 text-xs font-bold text-[#2563eb]"
+                    className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2.5 text-xs font-bold text-[#2563eb]"
                   >
-                    <Plus size={15} /> إضافة متغير
+                    <Plus size={15} />
+                    إضافة متغير
                   </button>
                 )}
               </div>
@@ -889,7 +955,7 @@ export default function ProductInventoryPage({
               {variants.map((variant, index) => (
                 <div
                   key={variant.id || index}
-                  className="grid gap-3 rounded-xl border border-[#e2e8f0] p-4 md:grid-cols-3"
+                  className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-[#e2e8f0] bg-[#fafcff] p-3 sm:grid-cols-2 sm:p-4 md:grid-cols-3"
                 >
                   <Field
                     label="SKU (اختياري)"
@@ -970,20 +1036,21 @@ export default function ProductInventoryPage({
                           )
                         )
                       }
-                      className="flex items-center gap-2 text-sm font-bold text-[#c43e3e]"
+                      className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold text-[#c43e3e] hover:bg-[#ffebeb] sm:col-span-2 md:col-span-3"
                     >
-                      <Trash2 size={16} /> حذف المتغير
+                      <Trash2 size={16} />
+                      حذف المتغير
                     </button>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[#e2e8f0] bg-white pt-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setModal(false)}
-                className="rounded-xl border border-[#e2e8f0] px-4 py-2.5 font-bold"
+                className="rounded-xl border border-[#e2e8f0] px-5 py-3 text-sm font-bold text-[#475569]"
               >
                 إلغاء
               </button>
@@ -991,23 +1058,30 @@ export default function ProductInventoryPage({
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-xl bg-[#2563eb] px-5 py-2.5 font-bold text-white disabled:opacity-50"
+                className="rounded-xl bg-[#2563eb] px-6 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
-                {busy ? 'جارٍ الحفظ...' : 'حفظ'}
+                {busy ? 'جارٍ الحفظ...' : 'حفظ المنتج'}
               </button>
             </div>
           </form>
         </div>
       )}
 
+      {/* نافذة تسجيل حركة المخزون */}
       {movement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6">
-            <h3 className="text-xl font-extrabold">
-              تسجيل حركة مخزون
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-md space-y-4 rounded-t-2xl bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6">
+            <div>
+              <h3 className="text-lg font-extrabold text-[#0f172a] sm:text-xl">
+                تسجيل حركة مخزون
+              </h3>
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-[#465260]">
+              <p className="mt-1 text-xs leading-5 text-[#64748b]">
+                اختر الفرع ونوع الحركة والكمية المطلوبة.
+              </p>
+            </div>
+
+            <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-[#465260]">
               <span>الفرع</span>
 
               <select
@@ -1018,7 +1092,7 @@ export default function ProductInventoryPage({
                     branchId: event.target.value,
                   })
                 }
-                className="rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5"
+                className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
               >
                 {data.branches
                   .filter((branch) =>
@@ -1038,7 +1112,7 @@ export default function ProductInventoryPage({
               </select>
             </label>
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-[#465260]">
+            <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-[#465260]">
               <span>نوع الحركة</span>
 
               <select
@@ -1049,7 +1123,7 @@ export default function ProductInventoryPage({
                     type: event.target.value as typeof movement.type,
                   })
                 }
-                className="rounded-xl border border-[#e2e8f0] bg-white px-3 py-2.5"
+                className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
               >
                 {movementTypes.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -1077,18 +1151,20 @@ export default function ProductInventoryPage({
               }
             />
 
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col-reverse gap-2 border-t border-[#e2e8f0] pt-4 sm:flex-row sm:justify-end">
               <button
+                type="button"
                 onClick={() => setMovement(null)}
-                className="rounded-xl border border-[#e2e8f0] px-4 py-2.5 font-bold"
+                className="rounded-xl border border-[#e2e8f0] px-5 py-3 text-sm font-bold"
               >
                 إلغاء
               </button>
 
               <button
+                type="button"
                 disabled={busy}
                 onClick={saveMovement}
-                className="rounded-xl bg-[#2563eb] px-5 py-2.5 font-bold text-white"
+                className="rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
                 {busy ? 'جارٍ التسجيل...' : 'تسجيل الحركة'}
               </button>
