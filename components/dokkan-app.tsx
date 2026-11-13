@@ -1,7 +1,10 @@
+
 'use client'
+
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import DokkanSidebar from '@/components/dokkan-sidebar'
 import { LayoutDashboard, Store, Package, Boxes, ShoppingCart, ReceiptText, Truck, Users, WalletCards, BarChart3, UserCog, Bell, Search, Plus, Menu, X, ChevronLeft, ArrowUpLeft, ArrowDownLeft, MoreHorizontal, Filter, Download, CalendarDays, ScanLine, CreditCard, Banknote, CircleDollarSign, ArrowLeftRight, RotateCcw, ClipboardList, Sparkles } from 'lucide-react'
 import ManagementPage from '@/components/management-page'
 import WorkflowPage from '@/components/workflow-page'
@@ -247,6 +250,7 @@ function Sidebar({mobile,onClose,user}:{mobile?:boolean;onClose?:()=>void;user:{
     </aside>
   )
 }
+
 function Dashboard() { return <><div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center"><div><p className="text-sm text-[#64748b]">صباح الخير، محمد</p><h2 className="mt-1 text-2xl font-extrabold">إليك ملخص متجرك اليوم</h2></div><button className="flex items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-[#2563eb]/15"><Download /> تصدير التقرير</button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="إجمالي المبيعات اليوم" value="١٢٬٤٨٠ ج.م" change="١٢.٥٪" up icon={CircleDollarSign}/><StatCard label="عدد الطلبات" value="١٢٨" change="٨.٢٪" up icon={ShoppingCart}/><StatCard label="متوسط قيمة الطلب" value="٩٧.٥ ج.م" change="٣.٤٪" up icon={BarChart3}/><StatCard label="المنتجات منخفضة المخزون" value="١٧" change="٤.٦٪" icon={Boxes}/></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_1fr]"><section className="rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex items-center justify-between"><div><h3 className="font-extrabold">المبيعات خلال الأسبوع</h3><p className="mt-1 text-xs text-[#94a3b8]">مقارنة بآخر ٧ أيام</p></div><button className="flex items-center gap-2 rounded-lg border border-[#e2e8f0] px-3 py-2 text-xs text-[#64748b]"><CalendarDays /> هذا الأسبوع</button></div><div className="mt-7 flex h-52 items-end justify-between gap-2 px-2">{['السبت','الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'].map((d,i)=><div key={d} className="flex h-full flex-1 flex-col items-center justify-end gap-2"><div className={`w-full max-w-10 rounded-t-lg ${i===5?'bg-[#2563eb]':'bg-[#dbeafe]'}`} style={{height:`${[42,66,54,81,61,93,72][i]}%`}}/><span className="text-[10px] text-[#94a3b8]">{d}</span></div>)}</div></section><section className="rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex items-center justify-between"><h3 className="font-extrabold">أكثر المنتجات مبيعاً</h3><Link href="/products" className="text-xs font-bold text-[#2563eb]">عرض الكل</Link></div><div className="mt-5 flex flex-col gap-4">{[['قميص كتان صيفي','١٢٨ قطعة','bg-[#e1f1f0]'],['فستان سهرة أسود','٩٦ قطعة','bg-[#f4e8df]'],['حذاء رياضي أبيض','٧٤ قطعة','bg-[#e9eef6]'],['حقيبة جلدية كلاسيك','٥٨ قطعة','bg-[#f4edda]']].map(([n,s,c],i)=><div key={n} className="flex items-center gap-3"><div className={`flex size-10 items-center justify-center rounded-xl text-sm font-extrabold text-[#2563eb] ${c}`}>{i+1}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{n}</p><p className="text-[11px] text-[#94a3b8]">{s}</p></div><ChevronLeft className="text-[#b0b8c2]"/></div>)}</div></section></div><section className="mt-6 rounded-2xl border border-[#e2e8f0] bg-white p-5"><div className="flex items-center justify-between"><h3 className="font-extrabold">آخر المبيعات</h3><Link href="/sales" className="text-xs font-bold text-[#2563eb]">عرض سجل المبيعات</Link></div><DataTable headers={['رقم الفاتورة','العميل','التاريخ','المبلغ','الحالة']} rows={sales} /></section></> }
 
 function DataTable({headers,rows}:{headers:string[];rows:string[][]}) { return <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[650px] text-right text-sm"><thead><tr className="border-b border-[#edf0f2] text-xs text-[#94a3b8]">{headers.map(h=><th key={h} className="px-3 py-3 font-semibold">{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i} className="border-b border-[#f3f4f5] last:border-0 hover:bg-[#fafcfc]">{row.map((v,j)=><td key={j} className="px-3 py-4 font-semibold">{j===row.length-1?<Badge tone={v==='نفد'||v==='مسترجعة'?'red':v==='منخفض'?'orange':'green'}>{v}</Badge>:v}</td>)}</tr>)}</tbody></table></div> }
@@ -275,7 +279,7 @@ export default function DokkanApp({
 
   return (
     <div className="flex min-h-screen bg-[#f7f8fa]">
-      <Sidebar user={user} />
+      <DokkanSidebar user={user} />
 
       <div
         className={`${
@@ -285,7 +289,7 @@ export default function DokkanApp({
       />
 
       {open && (
-        <Sidebar
+        <DokkanSidebar
           mobile
           onClose={() => setOpen(false)}
           user={user}
