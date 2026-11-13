@@ -2,6 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 
 type Relation<T> = T | T[] | null
 
@@ -373,7 +374,24 @@ export default function SalesPage({
               </p>
             )}
 
-            <p className="mt-8 text-center text-sm text-slate-500">
+            <div className="mt-8 flex flex-col items-center border-t pt-6 text-center">
+              <p className="mb-3 text-sm font-bold">
+                امسح الكود للتعرف على الفاتورة
+              </p>
+
+              <QRCodeSVG
+                value={`DOKKAN|SALE|${selected.id}`}
+                size={144}
+                level="M"
+                includeMargin
+              />
+
+              <p className="mt-2 text-xs font-semibold text-slate-600">
+                {invoiceNumber(selected.id)}
+              </p>
+            </div>
+
+            <p className="mt-6 text-center text-sm text-slate-500">
               شكراً لتعاملكم معنا
             </p>
           </section>
