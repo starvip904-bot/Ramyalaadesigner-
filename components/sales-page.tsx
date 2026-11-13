@@ -272,21 +272,18 @@ export default function SalesPage({
             </div>
 
             <div className="border-b pb-5 text-center">
-              <p className="text-sm font-semibold text-slate-500">
-                التاريخ والوقت
-              </p>
-              <p className="mt-1 text-sm font-bold">
-                {new Date(selected.created_at).toLocaleString('ar-EG')}
-              </p>
-
-              <h1 className="mt-5 text-3xl font-extrabold">
+              <h1 className="text-3xl font-extrabold">
                 {storeName || 'اسم المتجر'}
               </h1>
 
-              <h2 className="mt-3 text-xl font-bold">فاتورة بيع</h2>
+              <h2 className="mt-2 text-xl font-bold">فاتورة بيع</h2>
 
               <p className="mt-2 font-bold">
                 رقم الفاتورة: {invoiceNumber(selected.id)}
+              </p>
+
+              <p className="mt-2 text-sm text-slate-600">
+                التاريخ والوقت: {new Date(selected.created_at).toLocaleString('ar-EG')}
               </p>
             </div>
 
@@ -359,13 +356,12 @@ export default function SalesPage({
                 <strong>{money(selected.total)}</strong>
               </div>
               <div className="flex justify-between text-green-700">
-                <span>المدفوع</span>
-                <strong>{money(selected.amount_paid)}</strong>
+                <span>المبلغ المدفوع</span>
+                <strong>{money(selected.total)}</strong>
               </div>
-              <div className="flex justify-between text-orange-600">
-                <span>المتبقي</span>
-                <strong>{money(selected.remaining)}</strong>
-              </div>
+              <p className="text-center font-bold text-green-700">
+                مدفوعة بالكامل
+              </p>
             </div>
 
             {selected.notes && (
@@ -391,9 +387,20 @@ export default function SalesPage({
               </p>
             </div>
 
-            <p className="mt-6 text-center text-sm text-slate-500">
-              شكراً لتعاملكم معنا
-            </p>
+            <div className="mt-6 border-t pt-5 text-center">
+              <p className="text-base font-extrabold">
+                شكرًا لزيارتكم
+              </p>
+              <p className="mt-3 text-sm font-bold">
+                سياسة الاستبدال والاسترجاع
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                الاستبدال والاسترجاع خلال 14 يومًا
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                برجاء الاحتفاظ بالفاتورة
+              </p>
+            </div>
           </section>
         </div>
       )}
