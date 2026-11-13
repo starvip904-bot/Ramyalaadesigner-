@@ -5,18 +5,14 @@ import {
   SubscriptionHero,
 } from '@/components/subscription-plans'
 import { requireRedaContext } from '@/lib/reda-scope'
+import {
+  getPlanDefinition,
+  isPermanentFreePlan,
+} from '@/lib/subscription-plans'
 
 export const metadata = {
   title: 'اشتراكي | DOKKAN',
   description: 'إدارة خطة اشتراك متجرك.',
-}
-
-const planNames: Record<string, string> = {
-  free: 'Free المجانية',
-  starter: 'Starter',
-  pro: 'Pro',
-  business: 'Business',
-  enterprise: 'Enterprise',
 }
 
 function formatDate(value: string | null) {
@@ -51,7 +47,11 @@ export default async function SubscriptionPage() {
   }
 
   const planCode = store.plan_code?.toLowerCase() ?? ''
-  const planName = planNames[planCode] ?? 'خطة غير محددة'
+  const planDefinition = getPlanDefinition(planCode)
+
+  const planName =
+    planDefinition?.name ??
+    (planCode ? 'خطة قديمة تحتاج إلى مراجعة' : 'خطة غير محددة')
 
   const statusLabels: Record<string, string> = {
     active: 'نشطة',
@@ -65,10 +65,11 @@ export default async function SubscriptionPage() {
     statusLabels[store.subscription_status ?? ''] ??
     'غير محددة'
 
-  const isPermanentFree =
-    planCode === 'free' &&
-    store.subscription_status === 'active' &&
-    !store.subscription_ends_at
+  const isPermanentFree = isPermanentFreePlan(
+    planCode,
+    store.subscription_status,
+    store.subscription_ends_at
+  )
 
   return (
     <main
