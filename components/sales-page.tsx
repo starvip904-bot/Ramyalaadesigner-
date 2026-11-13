@@ -51,7 +51,8 @@ const invoiceNumber = (id: string) => `INV-${id.slice(0, 8).toUpperCase()}`
 const paymentLabel = (value: string) => ({
   cash: 'نقدي',
   card: 'بطاقة',
-  transfer: 'تحويل',
+  wallet: 'محفظة إلكترونية',
+  transfer: 'تحويل بنكي',
 }[value] || value)
 
 const statusLabel = (value: string) => ({
@@ -62,8 +63,10 @@ const statusLabel = (value: string) => ({
 
 export default function SalesPage({
   initialSales,
+  storeName,
 }: {
   initialSales: DokkanSale[]
+  storeName: string
 }) {
   const [sales] = useState(initialSales)
   const [selected, setSelected] = useState<DokkanSale | null>(null)
@@ -268,10 +271,21 @@ export default function SalesPage({
             </div>
 
             <div className="border-b pb-5 text-center">
-              <h2 className="text-2xl font-extrabold">فاتورة بيع</h2>
-              <p className="mt-2 font-bold">{invoiceNumber(selected.id)}</p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="text-sm font-semibold text-slate-500">
+                التاريخ والوقت
+              </p>
+              <p className="mt-1 text-sm font-bold">
                 {new Date(selected.created_at).toLocaleString('ar-EG')}
+              </p>
+
+              <h1 className="mt-5 text-3xl font-extrabold">
+                {storeName || 'اسم المتجر'}
+              </h1>
+
+              <h2 className="mt-3 text-xl font-bold">فاتورة بيع</h2>
+
+              <p className="mt-2 font-bold">
+                رقم الفاتورة: {invoiceNumber(selected.id)}
               </p>
             </div>
 
