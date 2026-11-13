@@ -262,7 +262,12 @@ export default async function Page({
       <DokkanApp
         type={type}
         user={user}
-        content={<SalesPage initialSales={sales} />}
+        content={
+          <SalesPage
+            initialSales={sales}
+            storeName={reda.storeName}
+          />
+        }
       />
     )
   }
