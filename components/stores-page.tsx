@@ -53,6 +53,39 @@ function Field({
   )
 }
 
+function getActiveBranchCount(store: StoreRecord) {
+  return store.dokkan_branches.filter(
+    (branch) => branch.status === 'active'
+  ).length
+}
+
+function isKnownActiveSubscription(store: StoreRecord) {
+  const knownPlans = [
+    'free',
+    'basic',
+    'professional',
+    'enterprise',
+  ]
+
+  return (
+    !!store.plan_code &&
+    knownPlans.includes(store.plan_code) &&
+    store.subscription_status === 'active'
+  )
+}
+
+function getSubscriptionErrorMessage(message: string) {
+  if (message.includes('FREE_PLAN_BRANCH_LIMIT_REACHED')) {
+    return 'الخطة المجانية تسمح بفرع نشط واحد فقط. أوقف فرعًا آخر قبل إعادة تنشيط هذا الفرع.'
+  }
+
+  if (message.includes('SUBSCRIPTION_PLAN_UNRESOLVED')) {
+    return 'لا يمكن تنفيذ العملية لأن خطة المتجر غير محددة أو الاشتراك غير نشط. يرجى مراجعة بيانات الاشتراك أولًا.'
+  }
+
+  return 'تعذر تنفيذ العملية. تحقق من الصلاحيات والبيانات.'
+}
+
 export default function StoresPage({
   initialStores,
 }: {
@@ -74,15 +107,28 @@ export default function StoresPage({
 
   const refresh = () => window.location.reload()
 
+  const subscriptionResolved = selectedStore
+    ? isKnownActiveSubscription(selectedStore)
+    : false
+
   const isFreePlan =
     selectedStore?.plan_code === 'free' &&
     selectedStore?.subscription_status === 'active'
 
+  const activeBranchCount = selectedStore
+    ? getActiveBranchCount(selectedStore)
+    : 0
+
   const branchLimitReached = Boolean(
-    isFreePlan &&
-      selectedStore &&
-      selectedStore.dokkan_branches.length >= 1
+    isFreePlan && activeBranchCount >= 1
   )
+
+  const canCreateBranch =
+    subscriptionResolved && !branchLimitReached
+
+  const canReactivateBranch =
+    subscriptionResolved &&
+    (!isFreePlan || activeBranchCount < 1)
 
   const submitStore = (event: React.FormEvent) => {
     event.preventDefault()
@@ -112,9 +158,11 @@ export default function StoresPage({
 
     if (!selectedStore) return
 
-    if (!editingBranch && branchLimitReached) {
+    if (!editingBranch && !canCreateBranch) {
       setError(
-        'الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي. قم بترقية خطتك لإضافة فروع أخرى.'
+        !subscriptionResolved
+          ? 'خطة المتجر غير محددة أو الاشتراك غير نشط. لا يمكن إضافة فروع قبل مراجعة الاشتراك.'
+          : 'الخطة المجانية تسمح بفرع نشط واحد فقط.'
       )
       return
     }
@@ -145,16 +193,7 @@ export default function StoresPage({
       } catch (err) {
         const message = err instanceof Error ? err.message : ''
 
-        if (
-          message.includes('FREE_PLAN_BRANCH_LIMIT_REACHED') ||
-          message.includes('الخطة المجانية')
-        ) {
-          setError(
-            'الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي. قم بترقية خطتك لإضافة فروع أخرى.'
-          )
-        } else {
-          setError('تعذر حفظ الفرع. تحقق من الصلاحيات والبيانات.')
-        }
+        setError(getSubscriptionErrorMessage(message))
       }
     })
   }
@@ -164,6 +203,35 @@ export default function StoresPage({
     setError('')
     setShowBranchForm(false)
     setEditingBranch(null)
+  }
+
+  const changeBranchStatus = (
+    branch: Branch,
+    nextStatus: 'active' | 'inactive'
+  ) => {
+    if (
+      nextStatus === 'active' &&
+      !canReactivateBranch
+    ) {
+      setError(
+        !subscriptionResolved
+          ? 'لا يمكن إعادة تنشيط الفرع لأن خطة المتجر غير محددة أو الاشتراك غير نشط.'
+          : 'لا يمكن إعادة تنشيط الفرع. الخطة المجانية تسمح بفرع نشط واحد فقط.'
+      )
+      return
+    }
+
+    setError('')
+
+    startTransition(async () => {
+      try {
+        await setBranchStatusAction(branch.id, nextStatus)
+        refresh()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : ''
+        setError(getSubscriptionErrorMessage(message))
+      }
+    })
   }
 
   return (
@@ -205,45 +273,49 @@ export default function StoresPage({
 
       <div className="grid gap-6 xl:grid-cols-[.9fr_1.4fr]">
         <div className="space-y-3">
-          {stores.map((store) => (
-            <button
-              key={store.id}
-              onClick={() => openStore(store)}
-              className={`w-full rounded-2xl border p-5 text-right transition ${
-                selectedStore?.id === store.id
-                  ? 'border-[#76bdb0] bg-[#f4faf8]'
-                  : 'border-[#e2e8f0] bg-white hover:border-[#b6d9d2]'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-11 items-center justify-center rounded-xl bg-[#eaf2ff] text-[#2563eb]">
-                    <Store />
+          {stores.map((store) => {
+            const activeCount = getActiveBranchCount(store)
+
+            return (
+              <button
+                key={store.id}
+                onClick={() => openStore(store)}
+                className={`w-full rounded-2xl border p-5 text-right transition ${
+                  selectedStore?.id === store.id
+                    ? 'border-[#76bdb0] bg-[#f4faf8]'
+                    : 'border-[#e2e8f0] bg-white hover:border-[#b6d9d2]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-[#eaf2ff] text-[#2563eb]">
+                      <Store />
+                    </div>
+                    <div>
+                      <p className="font-extrabold">{store.name}</p>
+                      <p className="mt-1 text-xs text-[#94a3b8]">
+                        {store.phone || 'لا يوجد رقم هاتف'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-extrabold">{store.name}</p>
-                    <p className="mt-1 text-xs text-[#94a3b8]">
-                      {store.phone || 'لا يوجد رقم هاتف'}
-                    </p>
-                  </div>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-[11px] font-bold ${
+                      store.status === 'active'
+                        ? 'bg-[#e4f4ef] text-[#2563eb]'
+                        : 'bg-[#ffebeb] text-[#c43e3e]'
+                    }`}
+                  >
+                    {store.status === 'active' ? 'نشط' : 'مؤرشف'}
+                  </span>
                 </div>
 
-                <span
-                  className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                    store.status === 'active'
-                      ? 'bg-[#e4f4ef] text-[#2563eb]'
-                      : 'bg-[#ffebeb] text-[#c43e3e]'
-                  }`}
-                >
-                  {store.status === 'active' ? 'نشط' : 'مؤرشف'}
-                </span>
-              </div>
-
-              <p className="mt-4 text-xs text-[#64748b]">
-                {store.dokkan_branches.length} فروع
-              </p>
-            </button>
-          ))}
+                <p className="mt-4 text-xs text-[#64748b]">
+                  {activeCount} فروع نشطة من أصل {store.dokkan_branches.length}
+                </p>
+              </button>
+            )
+          })}
 
           {!stores.length && (
             <div className="rounded-2xl border border-dashed border-[#b9d5d0] bg-white p-8 text-center text-sm text-[#94a3b8]">
@@ -298,10 +370,10 @@ export default function StoresPage({
 
             <div className="mt-5 flex items-center justify-between">
               <p className="text-sm font-bold text-[#64748b]">
-                الفروع
+                الفروع ({activeBranchCount} نشط)
               </p>
 
-              {!branchLimitReached && (
+              {canCreateBranch && (
                 <button
                   onClick={() => {
                     setEditingBranch(null)
@@ -317,74 +389,89 @@ export default function StoresPage({
               )}
             </div>
 
-            {branchLimitReached && (
+            {!subscriptionResolved && (
               <div className="mt-3 rounded-xl border border-[#f0dfb4] bg-[#fffaf0] p-3 text-sm text-[#8a641d]">
-                الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي.
-                قم بترقية خطتك لإضافة فروع أخرى.
+                خطة المتجر غير محددة أو الاشتراك غير نشط. لا يمكن إضافة فروع أو إعادة تنشيط فروع قبل مراجعة بيانات الاشتراك.
+              </div>
+            )}
+
+            {subscriptionResolved && branchLimitReached && (
+              <div className="mt-3 rounded-xl border border-[#f0dfb4] bg-[#fffaf0] p-3 text-sm text-[#8a641d]">
+                الخطة المجانية تسمح بفرع نشط واحد فقط. يمكنك إيقاف الفرع الحالي قبل تنشيط فرع آخر.
               </div>
             )}
 
             <div className="mt-4 grid gap-3">
-              {selectedStore.dokkan_branches.map((branch) => (
-                <div
-                  key={branch.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#edf0f2] p-4"
-                >
-                  <div>
-                    <p className="font-bold">{branch.name}</p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-[#94a3b8]">
-                      <MapPin className="size-3" />
-                      {branch.address || 'لا يوجد عنوان'}
-                    </p>
+              {selectedStore.dokkan_branches.map((branch) => {
+                const isReactivationBlocked =
+                  branch.status === 'inactive' &&
+                  !canReactivateBranch
+
+                return (
+                  <div
+                    key={branch.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#edf0f2] p-4"
+                  >
+                    <div>
+                      <p className="font-bold">{branch.name}</p>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-[#94a3b8]">
+                        <MapPin className="size-3" />
+                        {branch.address || 'لا يوجد عنوان'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-[11px] font-bold ${
+                          branch.status === 'active'
+                            ? 'bg-[#e4f4ef] text-[#2563eb]'
+                            : 'bg-[#ffebeb] text-[#c43e3e]'
+                        }`}
+                      >
+                        {branch.status === 'active' ? 'نشط' : 'متوقف'}
+                      </span>
+
+                      <button
+                        aria-label={`تعديل ${branch.name}`}
+                        onClick={() => {
+                          setEditingBranch(branch)
+                          setName(branch.name)
+                          setAddress(branch.address || '')
+                          setShowBranchForm(true)
+                        }}
+                        className="rounded-lg border border-[#e2e8f0] p-2"
+                      >
+                        <Edit3 className="size-4" />
+                      </button>
+
+                      <button
+                        aria-label={
+                          branch.status === 'active'
+                            ? `إيقاف ${branch.name}`
+                            : `إعادة تنشيط ${branch.name}`
+                        }
+                        title={
+                          isReactivationBlocked
+                            ? 'راجع الخطة أو حد الفروع النشطة'
+                            : undefined
+                        }
+                        disabled={busy || isReactivationBlocked}
+                        onClick={() =>
+                          changeBranchStatus(
+                            branch,
+                            branch.status === 'active'
+                              ? 'inactive'
+                              : 'active'
+                          )
+                        }
+                        className="rounded-lg border border-[#e2e8f0] p-2 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Power className="size-4" />
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                        branch.status === 'active'
-                          ? 'bg-[#e4f4ef] text-[#2563eb]'
-                          : 'bg-[#ffebeb] text-[#c43e3e]'
-                      }`}
-                    >
-                      {branch.status === 'active' ? 'نشط' : 'متوقف'}
-                    </span>
-
-                    <button
-                      aria-label={`تعديل ${branch.name}`}
-                      onClick={() => {
-                        setEditingBranch(branch)
-                        setName(branch.name)
-                        setAddress(branch.address || '')
-                        setShowBranchForm(true)
-                      }}
-                      className="rounded-lg border border-[#e2e8f0] p-2"
-                    >
-                      <Edit3 className="size-4" />
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        startTransition(async () => {
-                          try {
-                            await setBranchStatusAction(
-                              branch.id,
-                              branch.status === 'active'
-                                ? 'inactive'
-                                : 'active'
-                            )
-                            refresh()
-                          } catch {
-                            setError('تعذر تحديث حالة الفرع.')
-                          }
-                        })
-                      }
-                      className="rounded-lg border border-[#e2e8f0] p-2"
-                    >
-                      <Power className="size-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
 
               {!selectedStore.dokkan_branches.length && (
                 <p className="rounded-xl bg-[#f7f9f9] p-6 text-center text-sm text-[#94a3b8]">
