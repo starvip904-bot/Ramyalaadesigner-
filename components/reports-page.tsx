@@ -103,19 +103,39 @@ function Metric({
   label,
   value,
   description,
+  accent = 'slate',
 }: {
   label: string
   value: string
   description?: string
+  accent?: 'slate' | 'blue' | 'red' | 'green' | 'orange'
 }) {
+  const accents = {
+    slate: 'bg-slate-100 text-slate-700',
+    blue: 'bg-blue-50 text-blue-700',
+    red: 'bg-red-50 text-red-700',
+    green: 'bg-green-50 text-green-700',
+    orange: 'bg-orange-50 text-orange-700',
+  }
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <p className="mt-3 text-xl font-extrabold text-slate-900">
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold leading-6 text-slate-500 sm:text-sm">
+          {label}
+        </p>
+
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${accents[accent]}`} />
+      </div>
+
+      <p className="mt-3 break-words text-lg font-extrabold leading-8 text-slate-900 sm:text-xl">
         {value}
       </p>
+
       {description && (
-        <p className="mt-2 text-xs text-slate-500">{description}</p>
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          {description}
+        </p>
       )}
     </article>
   )
@@ -260,7 +280,6 @@ export default function ReportsPage({
       missingReturnCostCount,
     }
   }, [
-    branches,
     sales,
     saleItems,
     returns,
@@ -271,153 +290,294 @@ export default function ReportsPage({
     to,
   ])
 
+  function resetFilters() {
+    setBranchId('all')
+    setFrom('')
+    setTo('')
+  }
+
+  const hasFilters = branchId !== 'all' || from !== '' || to !== ''
+
   return (
-    <div className="space-y-6" dir="rtl">
+    <main
+      className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-3 sm:space-y-6 sm:p-5 lg:p-6"
+      dir="rtl"
+    >
+      {/* عنوان الصفحة */}
       <header>
-        <h1 className="text-2xl font-extrabold text-slate-900">
+        <p className="text-xs font-semibold text-slate-500 sm:text-sm">
+          الإدارة المالية
+        </p>
+
+        <h1 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
           التقارير والأرباح
         </h1>
-        <p className="mt-2 text-sm text-slate-500">
+
+        <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
           متابعة المبيعات والمرتجعات وتكلفة البضاعة والمصروفات وصافي الربح.
         </p>
       </header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3">
-        <label className="flex flex-col gap-2 text-sm font-semibold">
-          الفرع
-          <select
-            value={branchId}
-            onChange={(event) => setBranchId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white p-3"
+      {/* الفلاتر */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4">
+          <h2 className="font-extrabold text-slate-900">
+            تحديد فترة التقرير
+          </h2>
+
+          <p className="mt-1 text-xs text-slate-500">
+            اختر الفرع والفترة التي تريد مراجعة نتائجها.
+          </p>
+        </div>
+
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+            الفرع
+
+            <select
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none transition focus:border-blue-500"
+            >
+              <option value="all">كل الفروع</option>
+
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+            من تاريخ
+
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(event) => setFrom(event.target.value)}
+              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+            />
+          </label>
+
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+            إلى تاريخ
+
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(event) => setTo(event.target.value)}
+              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+            />
+          </label>
+        </div>
+
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="mt-4 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200"
           >
-            <option value="all">كل الفروع</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-2 text-sm font-semibold">
-          من تاريخ
-          <input
-            type="date"
-            value={from}
-            onChange={(event) => setFrom(event.target.value)}
-            className="rounded-xl border border-slate-200 p-3"
-          />
-        </label>
-
-        <label className="flex flex-col gap-2 text-sm font-semibold">
-          إلى تاريخ
-          <input
-            type="date"
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-            min={from || undefined}
-            className="rounded-xl border border-slate-200 p-3"
-          />
-        </label>
+            إعادة ضبط الفلاتر
+          </button>
+        )}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Metric
-          label="إجمالي المبيعات"
-          value={money(report.salesTotal)}
-          description={`${report.salesCount.toLocaleString('ar-EG')} فاتورة`}
-        />
+      {/* أهم النتائج */}
+      <section>
+        <div className="mb-3">
+          <h2 className="font-extrabold text-slate-900">
+            ملخص النتائج المالية
+          </h2>
 
-        <Metric
-          label="قيمة المرتجعات"
-          value={money(report.returnsTotal)}
-          description={`${report.returnsCount.toLocaleString('ar-EG')} عملية إرجاع`}
-        />
+          <p className="mt-1 text-xs text-slate-500">
+            النتائج حسب الفرع والفترة المحددين.
+          </p>
+        </div>
 
-        <Metric
-          label="صافي المبيعات"
-          value={money(report.netSales)}
-          description="المبيعات بعد خصم المرتجعات"
-        />
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Metric
+            label="إجمالي المبيعات"
+            value={money(report.salesTotal)}
+            description={`${report.salesCount.toLocaleString('ar-EG')} فاتورة`}
+            accent="blue"
+          />
 
-        <Metric
-          label="تكلفة البضاعة المباعة"
-          value={money(report.soldCost)}
-          description="حسب التكلفة المحفوظة وقت البيع"
-        />
+          <Metric
+            label="قيمة المرتجعات"
+            value={money(report.returnsTotal)}
+            description={`${report.returnsCount.toLocaleString('ar-EG')} عملية إرجاع`}
+            accent="red"
+          />
 
-        <Metric
-          label="تكلفة البضاعة المرتجعة"
-          value={money(report.returnedCost)}
-          description="تُخصم من تكلفة البضاعة المباعة"
-        />
+          <Metric
+            label="صافي المبيعات"
+            value={money(report.netSales)}
+            description="المبيعات بعد خصم المرتجعات"
+            accent="green"
+          />
 
-        <Metric
-          label="صافي تكلفة البضاعة"
-          value={money(report.netCost)}
-        />
+          <Metric
+            label="تكلفة البضاعة المباعة"
+            value={money(report.soldCost)}
+            description="حسب التكلفة المحفوظة وقت البيع"
+          />
 
-        <Metric
-          label="المصروفات"
-          value={money(report.expensesTotal)}
-          description={`${report.expensesCount.toLocaleString('ar-EG')} مصروف`}
-        />
+          <Metric
+            label="تكلفة البضاعة المرتجعة"
+            value={money(report.returnedCost)}
+            description="تُخصم من تكلفة البضاعة المباعة"
+            accent="orange"
+          />
 
-        <Metric
-          label="مجمل الربح المعروف"
-          value={money(report.grossProfit)}
-          description="صافي المبيعات ناقص صافي تكلفة البضاعة"
-        />
+          <Metric
+            label="صافي تكلفة البضاعة"
+            value={money(report.netCost)}
+          />
 
-        <Metric
-          label="صافي الربح المعروف"
-          value={money(report.netProfit)}
-          description="مجمل الربح المعروف ناقص المصروفات"
-        />
+          <Metric
+            label="المصروفات"
+            value={money(report.expensesTotal)}
+            description={`${report.expensesCount.toLocaleString('ar-EG')} مصروف`}
+            accent="red"
+          />
+
+          <Metric
+            label="مجمل الربح المعروف"
+            value={money(report.grossProfit)}
+            description="صافي المبيعات ناقص صافي تكلفة البضاعة"
+            accent="green"
+          />
+
+          <Metric
+            label="صافي الربح المعروف"
+            value={money(report.netProfit)}
+            description="مجمل الربح المعروف ناقص المصروفات"
+            accent="green"
+          />
+        </div>
       </section>
 
+      {/* تنبيه التكلفة */}
       {report.missingCostCount > 0 && (
         <section
           role="alert"
-          className="rounded-2xl border border-amber-300 bg-amber-50 p-5"
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5"
         >
-          <h2 className="font-extrabold text-amber-900">
-            تنبيه: حساب الربح غير مكتمل
-          </h2>
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-lg text-amber-800">
+              !
+            </span>
 
-          <p className="mt-2 text-sm leading-7 text-amber-800">
-            يوجد {report.missingCostCount.toLocaleString('ar-EG')} بند
-            بيع أو مرتجع لا تتوفر له تكلفة تاريخية محفوظة.
-            الأرقام المعروضة للربح هي الربح المعروف من البنود التي تتوفر
-            تكلفتها فقط، وليست صافي الربح النهائي المؤكد.
-          </p>
+            <div className="min-w-0">
+              <h2 className="font-extrabold text-amber-900">
+                تنبيه: حساب الربح غير مكتمل
+              </h2>
 
-          <p className="mt-2 text-xs text-amber-800">
-            بنود بيع بلا تكلفة: {report.missingSaleCostCount.toLocaleString('ar-EG')}
-            {' — '}
-            بنود مرتجعات بلا تكلفة: {report.missingReturnCostCount.toLocaleString('ar-EG')}
-          </p>
+              <p className="mt-2 text-xs leading-7 text-amber-800 sm:text-sm">
+                يوجد {report.missingCostCount.toLocaleString('ar-EG')} بند بيع أو مرتجع
+                لا تتوفر له تكلفة تاريخية محفوظة.
+                الأرقام المعروضة للربح هي الربح المعروف من البنود التي تتوفر
+                تكلفتها فقط، وليست صافي الربح النهائي المؤكد.
+              </p>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 text-xs font-semibold text-amber-900 sm:grid-cols-2">
+                <p className="rounded-lg bg-amber-100/70 p-3">
+                  بنود بيع بلا تكلفة:
+                  {' '}
+                  {report.missingSaleCostCount.toLocaleString('ar-EG')}
+                </p>
+
+                <p className="rounded-lg bg-amber-100/70 p-3">
+                  بنود مرتجعات بلا تكلفة:
+                  {' '}
+                  {report.missingReturnCostCount.toLocaleString('ar-EG')}
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
       {report.missingCostCount === 0 && (
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
-          تتوفر التكلفة التاريخية لجميع بنود البيع والمرتجعات في الفترة المحددة.
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 font-bold text-emerald-700">
+              ✓
+            </span>
+
+            <div>
+              <h2 className="text-sm font-extrabold text-emerald-900">
+                بيانات التكلفة مكتملة
+              </h2>
+
+              <p className="mt-1 text-xs leading-6 text-emerald-800">
+                تتوفر التكلفة التاريخية لجميع بنود البيع والمرتجعات في الفترة المحددة.
+              </p>
+            </div>
+          </div>
         </section>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      {/* طريقة الحساب */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="font-extrabold text-slate-900">
           ملخص طريقة الحساب
         </h2>
 
-        <div className="mt-4 space-y-3 text-sm text-slate-600">
-          <p>صافي المبيعات = إجمالي المبيعات − قيمة المرتجعات.</p>
-          <p>صافي تكلفة البضاعة = تكلفة المبيعات − تكلفة البضاعة المرتجعة.</p>
-          <p>مجمل الربح = صافي المبيعات − صافي تكلفة البضاعة.</p>
-          <p>صافي الربح = مجمل الربح − المصروفات.</p>
+        <p className="mt-1 text-xs text-slate-500">
+          المعادلات المستخدمة في التقرير.
+        </p>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-500">
+              صافي المبيعات
+            </p>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+              إجمالي المبيعات − قيمة المرتجعات
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-500">
+              صافي تكلفة البضاعة
+            </p>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+              تكلفة المبيعات − تكلفة البضاعة المرتجعة
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-500">
+              مجمل الربح
+            </p>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+              صافي المبيعات − صافي تكلفة البضاعة
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-500">
+              صافي الربح
+            </p>
+
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+              مجمل الربح − المصروفات
+            </p>
+          </div>
         </div>
+
+        <p className="mt-4 rounded-lg border border-slate-100 p-3 text-xs leading-6 text-slate-500">
+          ملاحظة: الأرقام تعتمد على البيانات المسجلة في النظام والتكلفة التاريخية
+          المحفوظة لكل بند بيع أو مرتجع.
+        </p>
       </section>
-    </div>
+    </main>
   )
 }
