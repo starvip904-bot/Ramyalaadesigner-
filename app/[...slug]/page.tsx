@@ -29,7 +29,6 @@ import {
   listDokkanSuppliers,
   listDokkanPurchases,
   listDokkanPurchaseCatalog,
-  listDokkanSales,
 } from '@/lib/dokkan-repository'
 
 const valid = [
@@ -279,10 +278,9 @@ export default async function Page({
     )
   }
 
-  // Sales
+  // Sales and linked returns
   if (type === 'sales') {
-    const storeId = reda.storeId
-    const sales = await listDokkanSales(storeId)
+    const data = await getReturnsPageData()
 
     return (
       <DokkanApp
@@ -290,7 +288,8 @@ export default async function Page({
         user={user}
         content={
           <SalesPage
-            initialSales={sales}
+            initialSales={data.sales}
+            initialReturns={data.returns}
             storeName={reda.storeName}
           />
         }
