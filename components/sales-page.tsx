@@ -24,6 +24,9 @@ export type DokkanSale = {
   branch_id: string
   subtotal: number
   discount: number
+  tax_enabled: boolean
+  tax_rate: number
+  tax_amount: number
   total: number
   amount_paid: number
   remaining: number
@@ -608,7 +611,7 @@ export default function SalesPage({
               </table>
             </div>
 
-            {/* إجماليات الفاتورة */}
+            {/* إجماليات الفاتورة والضريبة */}
             <div className="mr-auto w-full max-w-sm space-y-3 border-t border-slate-200 pt-5 text-sm">
               <div className="flex justify-between gap-3">
                 <span className="text-slate-600">المجموع الفرعي</span>
@@ -620,8 +623,32 @@ export default function SalesPage({
                 <strong>{money(selected.discount)}</strong>
               </div>
 
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-600">المبلغ بعد الخصم</span>
+                <strong>
+                  {money(
+                    Math.max(
+                      0,
+                      Number(selected.subtotal) - Number(selected.discount)
+                    )
+                  )}
+                </strong>
+              </div>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-600">
+                  الضريبة
+                  {selected.tax_enabled
+                    ? ` (${Number(selected.tax_rate || 0).toLocaleString('ar-EG')}%)`
+                    : ' (غير مفعلة)'}
+                </span>
+                <strong>
+                  {money(selected.tax_amount)}
+                </strong>
+              </div>
+
               <div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base">
-                <span className="font-bold">الإجمالي</span>
+                <span className="font-bold">الإجمالي شامل الضريبة</span>
                 <strong>{money(selected.total)}</strong>
               </div>
 
