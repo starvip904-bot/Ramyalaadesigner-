@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemo, useState, type FormEvent } from 'react'
@@ -23,6 +24,29 @@ export default function WorkflowPage({ type }: { type: string }) {
   if (type === 'purchases') return <PurchasesPage refresh={refresh} message={message} />
   if (type === 'sales') return <ReturnsPage refresh={refresh} message={message} />
   if (type === 'reports') return <ReportsPage />
+
+  // التحويلات غير مفعلة حاليًا؛ لا نعرض سجل العمليات بدلًا منها.
+  if (type === 'transfers') {
+    return (
+      <section className="rounded-2xl border border-[#e2e8f0] bg-white p-6 text-right">
+        <div className="flex items-center gap-3">
+          <WalletCards className="h-6 w-6 text-[#2563eb]" />
+          <h2 className="font-extrabold">التحويلات بين الفروع</h2>
+        </div>
+        <div className="mt-5 rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-5">
+          <p className="font-bold text-[#334155]">هذه الخدمة غير متاحة حاليًا</p>
+          <p className="mt-2 text-sm leading-7 text-[#64748b]">
+            نعمل على تجهيز نظام التحويلات بين الفروع، وسيتم تفعيله بعد اكتمال
+            مراجعة طلبات التحويل والموافقة عليها وتأكيد استلام المخزون.
+          </p>
+          <p className="mt-3 text-xs text-[#94a3b8]">
+            لن يتم تنفيذ أي تحويل أو تغيير كميات المخزون من هذه الصفحة حاليًا.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
   return <section className="rounded-2xl border border-[#e2e8f0] bg-white p-6"><WalletCards className="text-[#2563eb]" /><p className="mt-4 font-extrabold">سجل العمليات</p><Notice message={message} /></section>
 }
 
