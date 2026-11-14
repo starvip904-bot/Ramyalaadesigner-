@@ -1,4 +1,3 @@
-
 import 'server-only'
 
 import { requireRedaContext } from '@/lib/reda-scope'
@@ -55,7 +54,13 @@ export async function getReturnsPageData() {
         dokkan_sale_return_items(
           product_variant_id,
           quantity,
-          amount
+          amount,
+          dokkan_product_variants(
+            sku,
+            size,
+            color,
+            dokkan_products(name)
+          )
         )
       `)
       .eq('store_id', storeId)
@@ -112,8 +117,42 @@ export async function getReturnsPageData() {
     }
   })
 
+  const salesById = new Map(
+    sales.map((sale) => [sale.id, sale])
+  )
+
+  const returns = (returnsResult.data ?? []).map((record) => {
+    const items = (record.dokkan_sale_return_items ?? []).map((item) => {
+      const variant = Array.isArray(item.dokkan_product_variants)
+        ? item.dokkan_product_variants[0] ?? null
+        : item.dokkan_product_variants
+
+      const product = variant
+        ? Array.isArray(variant.dokkan_products)
+          ? variant.dokkan_products[0] ?? null
+          : variant.dokkan_products
+        : null
+
+      return {
+        ...item,
+        dokkan_product_variants: variant
+          ? {
+              ...variant,
+              dokkan_products: product,
+            }
+          : null,
+      }
+    })
+
+    return {
+      ...record,
+      dokkan_sale_return_items: items,
+      original_sale: salesById.get(record.sale_id) ?? null,
+    }
+  })
+
   return {
     sales,
-    returns: returnsResult.data ?? [],
+    returns,
   }
 }
