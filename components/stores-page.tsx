@@ -12,17 +12,13 @@ import {
   Phone,
   X,
   GitBranch,
-  CheckCircle2,
   AlertCircle,
   RefreshCw,
 } from 'lucide-react'
 import {
-  archiveStoreAction,
   createBranchAction,
-  createStoreAction,
   setBranchStatusAction,
   updateBranchAction,
-  updateStoreAction,
 } from '@/app/actions/stores'
 
 type Branch = {
@@ -73,12 +69,7 @@ function getActiveBranchCount(store: StoreRecord) {
 }
 
 function isKnownActiveSubscription(store: StoreRecord) {
-  const knownPlans = [
-    'free',
-    'basic',
-    'professional',
-    'enterprise',
-  ]
+  const knownPlans = ['free', 'basic', 'professional', 'enterprise']
 
   return (
     !!store.plan_code &&
@@ -108,12 +99,9 @@ export default function StoresPage({
   const [selectedStore, setSelectedStore] = useState<StoreRecord | null>(
     initialStores[0] ?? null
   )
-  const [editingStore, setEditingStore] = useState<StoreRecord | null>(null)
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null)
-  const [showStoreForm, setShowStoreForm] = useState(false)
   const [showBranchForm, setShowBranchForm] = useState(false)
   const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
   const [error, setError] = useState('')
   const [busy, startTransition] = useTransition()
@@ -152,29 +140,6 @@ export default function StoresPage({
     (total, store) => total + getActiveBranchCount(store),
     0
   )
-
-  const submitStore = (event: React.FormEvent) => {
-    event.preventDefault()
-    setError('')
-
-    startTransition(async () => {
-      try {
-        if (editingStore) {
-          await updateStoreAction({ id: editingStore.id, name, phone })
-        } else {
-          await createStoreAction({ name, phone })
-        }
-
-        setShowStoreForm(false)
-        setEditingStore(null)
-        setName('')
-        setPhone('')
-        refresh()
-      } catch {
-        setError('تعذر حفظ المتجر. تحقق من الصلاحيات والبيانات.')
-      }
-    })
-  }
 
   const submitBranch = (event: React.FormEvent) => {
     event.preventDefault()
@@ -231,10 +196,7 @@ export default function StoresPage({
     branch: Branch,
     nextStatus: 'active' | 'inactive'
   ) => {
-    if (
-      nextStatus === 'active' &&
-      !canReactivateBranch
-    ) {
+    if (nextStatus === 'active' && !canReactivateBranch) {
       setError(
         !subscriptionResolved
           ? 'لا يمكن إعادة تنشيط الفرع لأن خطة المتجر غير محددة أو الاشتراك غير نشط.'
@@ -258,7 +220,6 @@ export default function StoresPage({
 
   return (
     <section className="space-y-5 sm:space-y-6" dir="rtl">
-      {/* Header */}
       <header className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-l from-blue-50 via-white to-white p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -277,30 +238,30 @@ export default function StoresPage({
 
           <button
             type="button"
-            onClick={() => {
-              setEditingStore(null)
-              setName('')
-              setPhone('')
-              setError('')
-              setShowStoreForm(true)
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 sm:w-auto"
+            disabled
+            title="إنشاء المتاجر غير متاح حاليًا"
+            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-300 px-5 py-3 text-sm font-bold text-slate-600 sm:w-auto"
           >
             <Plus size={19} />
             إنشاء متجر
           </button>
         </div>
+
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-800 sm:text-sm">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <p>
+            إنشاء المتاجر وتعديل بياناتها وأرشفتها غير متاح حاليًا.
+            ستظل بيانات المتاجر الحالية محفوظة دون تغيير.
+          </p>
+        </div>
       </header>
 
-      {/* Summary */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 sm:h-10 sm:w-10">
             <Store size={20} />
           </div>
-          <p className="text-[11px] text-slate-500 sm:text-sm">
-            المتاجر
-          </p>
+          <p className="text-[11px] text-slate-500 sm:text-sm">المتاجر</p>
           <p className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
             {stores.length}
           </p>
@@ -310,9 +271,7 @@ export default function StoresPage({
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-green-50 text-green-600 sm:h-10 sm:w-10">
             <GitBranch size={20} />
           </div>
-          <p className="text-[11px] text-slate-500 sm:text-sm">
-            الفروع النشطة
-          </p>
+          <p className="text-[11px] text-slate-500 sm:text-sm">الفروع النشطة</p>
           <p className="mt-1 text-xl font-extrabold text-green-700 sm:text-2xl">
             {totalActiveBranches}
           </p>
@@ -322,9 +281,7 @@ export default function StoresPage({
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:h-10 sm:w-10">
             <Building2 size={20} />
           </div>
-          <p className="text-[11px] text-slate-500 sm:text-sm">
-            إجمالي الفروع
-          </p>
+          <p className="text-[11px] text-slate-500 sm:text-sm">إجمالي الفروع</p>
           <p className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
             {totalBranches}
           </p>
@@ -349,24 +306,13 @@ export default function StoresPage({
         </div>
       )}
 
-      {/* Main content */}
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)]">
-        {/* Stores list */}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h3 className="font-extrabold text-slate-900">
-                  قائمة المتاجر
-                </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  اختر متجرًا لعرض فروعه
-                </p>
-              </div>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                {stores.length} متجر
-              </span>
-            </div>
+            <h3 className="font-extrabold text-slate-900">قائمة المتاجر</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              اختر متجرًا لعرض فروعه
+            </p>
           </div>
 
           <div className="space-y-2 p-3">
@@ -434,22 +380,16 @@ export default function StoresPage({
             {!stores.length && (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                 <Store className="mx-auto mb-3 text-slate-400" size={32} />
-                <p className="font-bold text-slate-700">
-                  لا توجد متاجر بعد
-                </p>
-                <p className="mt-1 text-xs leading-6 text-slate-500">
-                  أنشئ أول متجر للبدء في إدارة الفروع
-                </p>
+                <p className="font-bold text-slate-700">لا توجد متاجر بعد</p>
               </div>
             )}
           </div>
         </section>
 
-        {/* Selected store details */}
         {selectedStore ? (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                     <Building2 size={22} />
@@ -464,18 +404,12 @@ export default function StoresPage({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:flex">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditingStore(selectedStore)
-                      setName(selectedStore.name)
-                      setPhone(selectedStore.phone || '')
-                      setError('')
-                      setShowStoreForm(true)
-                    }}
-                    disabled={busy}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
+                    disabled
+                    title="تعديل المتجر غير متاح حاليًا"
+                    className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-400 sm:text-sm"
                   >
                     <Edit3 size={16} />
                     تعديل المتجر
@@ -483,18 +417,9 @@ export default function StoresPage({
 
                   <button
                     type="button"
-                    onClick={() =>
-                      startTransition(async () => {
-                        try {
-                          await archiveStoreAction(selectedStore.id)
-                          refresh()
-                        } catch {
-                          setError('تعذر أرشفة المتجر.')
-                        }
-                      })
-                    }
-                    disabled={busy || selectedStore.status === 'inactive'}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-red-100 px-3 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-40 sm:text-sm"
+                    disabled
+                    title="أرشفة المتجر غير متاحة حاليًا"
+                    className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-400 sm:text-sm"
                   >
                     <Power size={16} />
                     أرشفة
@@ -503,13 +428,10 @@ export default function StoresPage({
               </div>
             </div>
 
-            {/* Branch summary and controls */}
             <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="font-extrabold text-slate-900">
-                    فروع المتجر
-                  </h4>
+                  <h4 className="font-extrabold text-slate-900">فروع المتجر</h4>
                   <p className="mt-1 text-xs text-slate-500">
                     {activeBranchCount} فرع نشط من أصل{' '}
                     {selectedStore.dokkan_branches.length}
@@ -557,8 +479,7 @@ export default function StoresPage({
               <div className="mt-4 space-y-3">
                 {selectedStore.dokkan_branches.map((branch) => {
                   const isReactivationBlocked =
-                    branch.status === 'inactive' &&
-                    !canReactivateBranch
+                    branch.status === 'inactive' && !canReactivateBranch
 
                   return (
                     <article
@@ -633,9 +554,7 @@ export default function StoresPage({
                           onClick={() =>
                             changeBranchStatus(
                               branch,
-                              branch.status === 'active'
-                                ? 'inactive'
-                                : 'active'
+                              branch.status === 'active' ? 'inactive' : 'active'
                             )
                           }
                           className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm ${
@@ -669,96 +588,11 @@ export default function StoresPage({
         ) : (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
             <Store className="mb-3 text-slate-400" size={36} />
-            <p className="font-bold text-slate-700">
-              اختر متجرًا لعرض تفاصيله
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              ستظهر هنا الفروع وإعدادات المتجر
-            </p>
+            <p className="font-bold text-slate-700">اختر متجرًا لعرض تفاصيله</p>
           </div>
         )}
       </div>
 
-      {/* Store modal */}
-      {showStoreForm && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !busy) {
-              setShowStoreForm(false)
-            }
-          }}
-        >
-          <form
-            onSubmit={submitStore}
-            className="my-auto max-h-[94dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                  <Store size={20} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900">
-                    {editingStore ? 'تعديل المتجر' : 'إنشاء متجر جديد'}
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    أدخل بيانات المتجر
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowStoreForm(false)}
-                disabled={busy}
-                aria-label="إغلاق"
-                className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <X size={19} />
-              </button>
-            </div>
-
-            <Field
-              label="اسم المتجر"
-              value={name}
-              onChange={setName}
-              required
-            />
-            <Field
-              label="رقم الهاتف"
-              value={phone}
-              onChange={setPhone}
-            />
-
-            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowStoreForm(false)}
-                disabled={busy}
-                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 disabled:opacity-50"
-              >
-                إلغاء
-              </button>
-              <button
-                type="submit"
-                disabled={busy}
-                className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
-              >
-                {busy ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    جارٍ الحفظ...
-                  </>
-                ) : (
-                  'حفظ المتجر'
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Branch modal */}
       {showBranchForm && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -797,17 +631,8 @@ export default function StoresPage({
               </button>
             </div>
 
-            <Field
-              label="اسم الفرع"
-              value={name}
-              onChange={setName}
-              required
-            />
-            <Field
-              label="العنوان"
-              value={address}
-              onChange={setAddress}
-            />
+            <Field label="اسم الفرع" value={name} onChange={setName} required />
+            <Field label="العنوان" value={address} onChange={setAddress} />
 
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
