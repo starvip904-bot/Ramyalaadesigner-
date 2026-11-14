@@ -1,13 +1,36 @@
 
 -- Dokkan subscription requests and private payment proofs.
--- Does not activate subscriptions or modify existing stores.
+-- Preserves legacy plan codes and existing store data.
+-- Does not activate subscriptions.
 
 BEGIN;
 
+-- Support the currently approved plan names while preserving
+-- legacy values already allowed by the previous constraint.
+ALTER TABLE public.dokkan_stores
+  DROP CONSTRAINT IF EXISTS dokkan_stores_plan_code_check;
+
+ALTER TABLE public.dokkan_stores
+  ADD CONSTRAINT dokkan_stores_plan_code_check
+  CHECK (
+    plan_code IS NULL OR
+    plan_code IN (
+      'free',
+      'basic',
+      'professional',
+      'enterprise',
+      'starter',
+      'pro',
+      'business'
+    )
+  );
+
 CREATE TABLE IF NOT EXISTS public.dokkan_subscription_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  store_id uuid NOT NULL REFERENCES public.dokkan_stores(id) ON DELETE RESTRICT,
-  requested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  store_id uuid NOT NULL
+    REFERENCES public.dokkan_stores(id) ON DELETE RESTRICT,
+  requested_by uuid NOT NULL
+    REFERENCES auth.users(id) ON DELETE RESTRICT,
 
   plan_code text NOT NULL
     CHECK (plan_code IN ('basic', 'professional', 'enterprise')),
@@ -53,7 +76,8 @@ ON public.dokkan_subscription_requests (status, created_at DESC);
 ALTER TABLE public.dokkan_subscription_requests
   ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public.dokkan_subscription_requests FROM anon, authenticated;
+REVOKE ALL ON public.dokkan_subscription_requests
+  FROM anon, authenticated;
 
 GRANT SELECT, INSERT
 ON public.dokkan_subscription_requests TO authenticated;
@@ -100,7 +124,7 @@ WITH CHECK (
   )
 );
 
--- Private payment-proof bucket.
+-- Private payment proof bucket.
 INSERT INTO storage.buckets (
   id,
   name,
@@ -115,7 +139,11 @@ VALUES (
   10485760,
   ARRAY['image/jpeg', 'image/png', 'application/pdf']
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  public = false,
+  file_size_limit = 10485760,
+  allowed_mime_types =
+    ARRAY['image/jpeg', 'image/png', 'application/pdf'];
 
 CREATE POLICY "Store owners can upload payment proofs"
 ON storage.objects
@@ -141,7 +169,7 @@ TO authenticated
 USING (
   bucket_id = 'subscription-payment-proofs'
   AND (
-    public.dokkan_is_platform_owner() IS TRUE
+    (SELECT public.dokkan_is_platform_owner()) IS TRUE
     OR EXISTS (
       SELECT 1
       FROM public.dokkan_members m
