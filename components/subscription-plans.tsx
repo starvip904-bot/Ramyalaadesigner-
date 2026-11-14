@@ -10,10 +10,9 @@ export type Plan = {
   price: string
   cadence: string
   description: string
-  accent: string
+  accent: 'slate' | 'blue' | 'purple' | 'violet'
   limits: string[]
   features: string[]
-  featured?: boolean
   available: boolean
 }
 
@@ -27,7 +26,7 @@ export const plans: Plan[] = [
     accent: 'slate',
     limits: [
       'متجر واحد',
-      'فرع واحد',
+      'فرع نشط واحد',
       'حسابا دخول كحد أقصى',
     ],
     features: [],
@@ -38,7 +37,8 @@ export const plans: Plan[] = [
     name: 'Basic',
     price: 'قريبًا',
     cadence: '',
-    description: 'خطة مدفوعة قيد التجهيز، وسيتم الإعلان عن تفاصيلها بعد اعتمادها.',
+    description:
+      'خطة مدفوعة قيد التجهيز، وسيتم الإعلان عن تفاصيلها بعد اعتمادها.',
     accent: 'blue',
     limits: ['تفاصيل الحدود قيد التجهيز'],
     features: [],
@@ -49,19 +49,20 @@ export const plans: Plan[] = [
     name: 'Professional',
     price: 'قريبًا',
     cadence: '',
-    description: 'خطة مدفوعة قيد التجهيز للمتاجر التي تحتاج إمكانيات أوسع.',
+    description:
+      'خطة مدفوعة قيد التجهيز للمتاجر التي تحتاج إمكانيات أوسع.',
     accent: 'purple',
     limits: ['تفاصيل الحدود قيد التجهيز'],
     features: [],
-    featured: true,
     available: false,
   },
   {
     code: 'enterprise',
     name: 'Enterprise',
-    price: 'حسب الاتفاق',
+    price: 'قريبًا',
     cadence: '',
-    description: 'خطة مخصصة قيد التجهيز للأنشطة والاحتياجات الكبيرة.',
+    description:
+      'خطة مخصصة قيد التجهيز للأنشطة والاحتياجات الكبيرة.',
     accent: 'violet',
     limits: ['الحدود والمميزات قيد التحديد'],
     features: [],
@@ -73,7 +74,7 @@ function accentClasses(accent: Plan['accent']) {
   return {
     slate: 'border-slate-200',
     blue: 'border-blue-200',
-    purple: 'border-violet-300',
+    purple: 'border-violet-200',
     violet: 'border-purple-200',
   }[accent]
 }
@@ -88,18 +89,8 @@ export function PlanGrid({
       {plans.map((plan) => (
         <article
           key={plan.code}
-          className={`relative flex flex-col rounded-[1.5rem] border bg-white p-6 shadow-[0_12px_40px_rgba(46,80,120,.06)] ${accentClasses(plan.accent)} ${
-            plan.featured
-              ? 'ring-2 ring-violet-200 ring-offset-2'
-              : ''
-          }`}
+          className={`relative flex flex-col rounded-[1.5rem] border bg-white p-6 shadow-[0_12px_40px_rgba(46,80,120,.06)] ${accentClasses(plan.accent)}`}
         >
-          {plan.featured && (
-            <div className="absolute -top-3 right-5 rounded-full bg-violet-600 px-3 py-1 text-xs font-bold text-white">
-              الخطة الاحترافية
-            </div>
-          )}
-
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-slate-500">
@@ -118,7 +109,7 @@ export function PlanGrid({
             </div>
 
             {plan.code === currentPlan && (
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+              <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
                 خطتك الحالية
               </span>
             )}
@@ -186,13 +177,19 @@ export function UsageCard({
   limit: string
   tone?: 'blue' | 'purple' | 'green'
 }) {
-  const percentage =
-    limit === 'غير محدود'
-      ? 18
-      : Math.min(
-          Math.round((used / Number(limit)) * 100),
-          100
-        )
+  const numericLimit = Number(limit)
+
+  const hasNumericLimit =
+    limit.trim() !== '' &&
+    Number.isFinite(numericLimit) &&
+    numericLimit > 0
+
+  const percentage = hasNumericLimit
+    ? Math.min(
+        Math.round((used / numericLimit) * 100),
+        100
+      )
+    : 0
 
   const colors = {
     blue: 'bg-blue-600',
@@ -206,23 +203,32 @@ export function UsageCard({
         <p className="text-sm font-bold text-slate-700">
           {label}
         </p>
+
         <p className="text-xs text-slate-500">
           {used} / {limit}
         </p>
       </div>
 
-      <div className="mt-4 h-2 rounded-full bg-slate-100">
-        <div
-          className={`h-2 rounded-full ${colors[tone]}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+      {hasNumericLimit ? (
+        <>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-2 rounded-full transition-all ${colors[tone]}`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
 
-      <p className="mt-3 text-xs text-slate-500">
-        {limit === 'غير محدود'
-          ? 'استخدام مرن ضمن خطتك'
-          : `${percentage}% من الحد المتاح`}
-      </p>
+          <p className="mt-3 text-xs text-slate-500">
+            {percentage}% من الحد المتاح
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-xs leading-6 text-slate-500">
+          {limit === 'غير محدود'
+            ? 'استخدام مرن ضمن خطتك'
+            : 'سيتم تحديد الحد عند اعتماد تفاصيل الخطة'}
+        </p>
+      )}
     </div>
   )
 }
