@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Printer,
 } from 'lucide-react'
 
 type SaleItem = {
@@ -30,6 +31,7 @@ type SaleItem = {
 
 type Sale = {
   id: string
+  store_id?: string
   branch_id: string
   total: number
   amount_paid: number
@@ -49,6 +51,12 @@ type ReturnItem = {
   product_variant_id: string
   quantity: number
   amount: number
+  dokkan_product_variants?: {
+    sku?: string | null
+    size?: string | null
+    color?: string | null
+    dokkan_products?: { name?: string | null } | null
+  } | null
 }
 
 type SaleReturn = {
@@ -61,6 +69,7 @@ type SaleReturn = {
   notes: string | null
   created_at: string
   dokkan_sale_return_items: ReturnItem[]
+  original_sale?: Sale | null
 }
 
 type Props = {
@@ -99,6 +108,19 @@ const paymentLabel = (method?: string | null) => {
   if (method === 'transfer') return 'تحويل بنكي'
   return 'غير محدد'
 }
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? '').replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+
+    return entities[character]
+  })
 
 export default function ReturnsManagementPage({
   sales,
@@ -220,8 +242,304 @@ export default function ReturnsManagementPage({
     (item) => Number(quantities[item.variantId] || 0) > 0
   )
 
+  function printReturn(record: SaleReturn) {
+    const originalSale = record.original_sale
+
+    if (!originalSale) {
+      setMessage(
+        'تعذر طباعة الإيصال: بيانات الفاتورة الأصلية غير متاحة لهذا المرتجع.'
+      )
+      return
+    }
+
+    const popup = window.open(
+      '',
+      '_blank',
+      'width=900,height=750'
+    )
+
+    if (!popup) {
+      setMessage('اسمح بفتح النوافذ المنبثقة حتى تتمكن من طباعة الإيصال.')
+      return
+    }
+
+    const returnItems = record.dokkan_sale_return_items || []
+
+    const rows = returnItems.map((item, index) => {
+      const variant = item.dokkan_product_variants
+      const product = variant?.dokkan_products
+      const details = [
+        variant?.sku ? `الكود: ${variant.sku}` : '',
+        variant?.size ? `المقاس: ${variant.size}` : '',
+        variant?.color ? `اللون: ${variant.color}` : '',
+      ].filter(Boolean).join(' - ')
+
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>
+            <strong>${escapeHtml(product?.name || 'منتج')}</strong>
+            <div class="muted">${escapeHtml(details)}</div>
+          </td>
+          <td>${escapeHtml(Number(item.quantity || 0))}</td>
+          <td>${escapeHtml(money(Number(item.amount || 0)))}</td>
+        </tr>
+      `
+    }).join('')
+
+    const returnValue =
+      Number(record.refund_amount || 0) +
+      Number(record.applied_to_balance || 0)
+
+    const customerName =
+      originalSale.dokkan_customers?.name || 'عميل نقدي'
+
+    const customerPhone =
+      originalSale.dokkan_customers?.phone || '—'
+
+    const branchName =
+      originalSale.dokkan_branches?.name || '—'
+
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>فاتورة مرتجع</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            font-family: Tahoma, Arial, sans-serif;
+            color: #111827;
+            margin: 0;
+            padding: 24px;
+            background: #fff;
+          }
+          .receipt {
+            max-width: 760px;
+            margin: auto;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #111827;
+            padding-bottom: 18px;
+            margin-bottom: 20px;
+          }
+          h1 {
+            font-size: 27px;
+            margin: 0 0 8px;
+          }
+          .subtitle {
+            color: #64748b;
+            font-size: 13px;
+          }
+          .notice {
+            border: 1px solid #dc2626;
+            color: #b91c1c;
+            background: #fef2f2;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            margin: 18px 0;
+            border-radius: 8px;
+          }
+          .info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .info div {
+            border: 1px solid #e5e7eb;
+            padding: 10px;
+            border-radius: 7px;
+            font-size: 13px;
+          }
+          .label {
+            color: #64748b;
+            display: block;
+            margin-bottom: 5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+          }
+          th, td {
+            border: 1px solid #d1d5db;
+            padding: 10px 8px;
+            text-align: right;
+            font-size: 13px;
+          }
+          th {
+            background: #f3f4f6;
+          }
+          .muted {
+            color: #64748b;
+            font-size: 11px;
+            margin-top: 4px;
+          }
+          .totals {
+            margin-top: 20px;
+            margin-right: auto;
+            width: min(100%, 360px);
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 9px 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+          }
+          .grand-total {
+            font-weight: bold;
+            font-size: 18px;
+            color: #b91c1c;
+          }
+          .notes {
+            margin-top: 20px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 7px;
+            font-size: 13px;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 35px;
+            color: #64748b;
+            font-size: 12px;
+          }
+          .actions {
+            text-align: center;
+            margin: 0 0 20px;
+          }
+          .actions button {
+            background: #1d4ed8;
+            color: white;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 15px;
+            cursor: pointer;
+          }
+          @media print {
+            body { padding: 0; }
+            .actions { display: none; }
+            .receipt { max-width: none; }
+          }
+          @media (max-width: 520px) {
+            body { padding: 12px; }
+            .info { grid-template-columns: 1fr; }
+            th, td { padding: 7px 5px; font-size: 11px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="actions">
+            <button onclick="window.print()">طباعة إيصال المرتجع</button>
+          </div>
+
+          <header class="header">
+            <h1>فاتورة مرتجع</h1>
+            <div class="subtitle">إيصال إرجاع أصناف من فاتورة بيع</div>
+          </header>
+
+          <div class="notice">إيصال مرتجع — ليس فاتورة بيع</div>
+
+          <section class="info">
+            <div>
+              <span class="label">رقم المرتجع</span>
+              <strong>${escapeHtml(record.id)}</strong>
+            </div>
+            <div>
+              <span class="label">تاريخ المرتجع</span>
+              <strong>${escapeHtml(date(record.created_at))}</strong>
+            </div>
+            <div>
+              <span class="label">رقم فاتورة البيع الأصلية</span>
+              <strong>${escapeHtml(originalSale.id)}</strong>
+            </div>
+            <div>
+              <span class="label">تاريخ فاتورة البيع الأصلية</span>
+              <strong>${escapeHtml(date(originalSale.created_at))}</strong>
+            </div>
+            <div>
+              <span class="label">اسم العميل</span>
+              <strong>${escapeHtml(customerName)}</strong>
+            </div>
+            <div>
+              <span class="label">هاتف العميل</span>
+              <strong>${escapeHtml(customerPhone)}</strong>
+            </div>
+            <div>
+              <span class="label">الفرع</span>
+              <strong>${escapeHtml(branchName)}</strong>
+            </div>
+            <div>
+              <span class="label">طريقة رد المبلغ</span>
+              <strong>${escapeHtml(paymentLabel(record.refund_method))}</strong>
+            </div>
+          </section>
+
+          <h3>الأصناف المرتجعة</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>م</th>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>القيمة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="4">لا توجد أصناف</td></tr>'}
+            </tbody>
+          </table>
+
+          <section class="totals">
+            <div class="total-row">
+              <span>قيمة المرتجع</span>
+              <strong>${escapeHtml(money(returnValue))}</strong>
+            </div>
+            <div class="total-row">
+              <span>المخصوم من رصيد العميل</span>
+              <strong>${escapeHtml(money(Number(record.applied_to_balance || 0)))}</strong>
+            </div>
+            <div class="total-row">
+              <span>المبلغ المردود</span>
+              <strong>${escapeHtml(money(Number(record.refund_amount || 0)))}</strong>
+            </div>
+            <div class="total-row grand-total">
+              <span>إجمالي قيمة المرتجع</span>
+              <strong>${escapeHtml(money(returnValue))}</strong>
+            </div>
+          </section>
+
+          ${
+            record.notes
+              ? `<div class="notes"><strong>ملاحظات:</strong> ${escapeHtml(record.notes)}</div>`
+              : ''
+          }
+
+          <footer class="footer">
+            تم إصدار هذا الإيصال لإثبات عملية مرتجع مرتبطة بفاتورة البيع الأصلية.
+          </footer>
+        </div>
+      </body>
+      </html>
+    `
+
+    popup.document.open()
+    popup.document.write(receiptHtml)
+    popup.document.close()
+    popup.focus()
+    setMessage('')
+  }
+
   function selectSale(saleId: string) {
-    // لا نسمح بتغيير الفاتورة أثناء وجود عملية غير مؤكدة.
     if (pendingAttempt || loading) return
 
     setSelectedSaleId(saleId)
@@ -248,7 +566,6 @@ export default function ReturnsManagementPage({
       return
     }
 
-    // عند إعادة المحاولة نستخدم نفس الطلب ونفس المفتاح.
     let attempt = pendingAttempt
 
     if (!attempt) {
@@ -327,8 +644,6 @@ export default function ReturnsManagementPage({
       setNotes('')
       router.refresh()
     } catch {
-      // قد تكون قاعدة البيانات حفظت العملية قبل انقطاع الاتصال.
-      // لذلك لا ننشئ مفتاحًا جديدًا عند إعادة المحاولة.
       setMessage(
         'تعذر تأكيد النتيجة بسبب الاتصال. اضغط إعادة المحاولة بنفس الطلب، ولا تنشئ مرتجعًا جديدًا.'
       )
@@ -442,9 +757,7 @@ export default function ReturnsManagementPage({
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">
-                  إجمالي الفاتورة
-                </p>
+                <p className="text-xs text-slate-500">إجمالي الفاتورة</p>
                 <p className="mt-2 font-extrabold">
                   {money(Number(selectedSale.total))}
                 </p>
@@ -458,9 +771,7 @@ export default function ReturnsManagementPage({
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">
-                  المتبقي على العميل
-                </p>
+                <p className="text-xs text-slate-500">المتبقي على العميل</p>
                 <p className="mt-2 font-extrabold text-orange-600">
                   {money(Number(selectedSale.remaining))}
                 </p>
@@ -538,10 +849,7 @@ export default function ReturnsManagementPage({
                         }
                         value={quantities[item.variantId] || ''}
                         onChange={(event) =>
-                          updateQuantity(
-                            item.variantId,
-                            event.target.value
-                          )
+                          updateQuantity(item.variantId, event.target.value)
                         }
                         placeholder="0"
                         className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-center outline-none focus:border-blue-500 disabled:bg-slate-100"
@@ -554,9 +862,7 @@ export default function ReturnsManagementPage({
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="mb-4 font-extrabold">
-              بيانات رد المبلغ
-            </h3>
+            <h3 className="mb-4 font-extrabold">بيانات رد المبلغ</h3>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-bold">
@@ -690,6 +996,17 @@ export default function ReturnsManagementPage({
                         ملاحظات: {record.notes}
                       </p>
                     )}
+
+                    <div className="mt-4 border-t border-slate-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => printReturn(record)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                      >
+                        <Printer size={16} />
+                        طباعة فاتورة المرتجع
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
