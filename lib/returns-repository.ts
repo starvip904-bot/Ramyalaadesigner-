@@ -1,3 +1,4 @@
+
 import 'server-only'
 
 import { requireRedaContext } from '@/lib/reda-scope'
@@ -13,6 +14,11 @@ export async function getReturnsPageData() {
         id,
         store_id,
         branch_id,
+        subtotal,
+        discount,
+        tax_enabled,
+        tax_rate,
+        tax_amount,
         total,
         amount_paid,
         remaining,
