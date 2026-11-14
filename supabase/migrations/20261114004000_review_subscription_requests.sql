@@ -1,7 +1,7 @@
 
--- Dokkan: secure platform-owner review and subscription activation.
--- Approval starts the new subscription immediately.
--- No existing subscription is changed before explicit approval.
+-- Dokkan: secure subscription request review.
+-- Only the platform owner can approve or reject.
+-- Approved subscriptions start immediately.
 
 BEGIN;
 
@@ -10,36 +10,33 @@ ALTER TABLE public.dokkan_subscription_requests
   ADD COLUMN IF NOT EXISTS approved_amount numeric(12,2),
   ADD COLUMN IF NOT EXISTS approved_currency text;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'dokkan_subscription_approved_values_check'
-      AND conrelid = 'public.dokkan_subscription_requests'::regclass
-  ) THEN
-    ALTER TABLE public.dokkan_subscription_requests
-      ADD CONSTRAINT dokkan_subscription_approved_values_check
-      CHECK (
-        (
-          status = 'approved'
-          AND approved_duration_months > 0
-          AND approved_amount >= 0
-          AND approved_currency ~ '^[A-Z]{3}$'
-        )
-        OR
-        (
-          status IN ('pending', 'rejected')
-          AND approved_duration_months IS NULL
-          AND approved_amount IS NULL
-          AND approved_currency IS NULL
-        )
-      );
-  END IF;
-END
-$$;
+-- Replace the previous check with strict NULL-safe validation.
+ALTER TABLE public.dokkan_subscription_requests
+  DROP CONSTRAINT IF EXISTS dokkan_subscription_approved_values_check;
 
-CREATE OR REPLACE FUNCTION public.dokkan_review_subscription_request(
+ALTER TABLE public.dokkan_subscription_requests
+  ADD CONSTRAINT dokkan_subscription_approved_values_check
+  CHECK (
+    (
+      status = 'approved'
+      AND approved_duration_months IS NOT NULL
+      AND approved_duration_months BETWEEN 1 AND 120
+      AND approved_amount IS NOT NULL
+      AND approved_amount >= 0
+      AND approved_currency IS NOT NULL
+      AND approved_currency ~ '^[A-Z]{3}$'
+    )
+    OR
+    (
+      status IN ('pending', 'rejected')
+      AND approved_duration_months IS NULL
+      AND approved_amount IS NULL
+      AND approved_currency IS NULL
+    )
+  );
+
+-- Private privileged implementation.
+CREATE OR REPLACE FUNCTION private.dokkan_review_subscription_request_internal(
   p_request_id uuid,
   p_action text,
   p_approved_duration_months integer DEFAULT NULL,
@@ -55,9 +52,9 @@ AS $function$
 DECLARE
   v_user_id uuid := auth.uid();
   v_request public.dokkan_subscription_requests%ROWTYPE;
-  v_store public.dokkan_stores%ROWTYPE;
   v_now timestamptz := clock_timestamp();
   v_currency text;
+  v_ends_at timestamptz;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'not authenticated'
@@ -69,7 +66,7 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  IF p_action NOT IN ('approve', 'reject') THEN
+  IF p_action IS NULL OR p_action NOT IN ('approve', 'reject') THEN
     RAISE EXCEPTION 'invalid review action';
   END IF;
 
@@ -92,9 +89,8 @@ BEGIN
     RAISE EXCEPTION 'subscription request already reviewed';
   END IF;
 
-  -- Serialize subscription changes for this store.
-  SELECT s.*
-    INTO v_store
+  -- Lock the store to serialize subscription activations.
+  PERFORM 1
     FROM public.dokkan_stores AS s
    WHERE s.id = v_request.store_id
    FOR UPDATE;
@@ -122,15 +118,14 @@ BEGIN
     );
   END IF;
 
-  -- Approval requires values explicitly supplied by the platform owner.
   IF p_approved_duration_months IS NULL
-     OR p_approved_duration_months <= 0
-     OR p_approved_duration_months > 120 THEN
+     OR p_approved_duration_months NOT BETWEEN 1 AND 120 THEN
     RAISE EXCEPTION 'invalid approved duration';
   END IF;
 
   IF p_approved_amount IS NULL
-     OR p_approved_amount < 0 THEN
+     OR p_approved_amount < 0
+     OR p_approved_amount > 9999999999.99 THEN
     RAISE EXCEPTION 'invalid approved amount';
   END IF;
 
@@ -140,14 +135,16 @@ BEGIN
     RAISE EXCEPTION 'invalid approved currency';
   END IF;
 
+  v_ends_at :=
+    v_now + make_interval(months => p_approved_duration_months);
+
   -- Activate the requested plan immediately.
-  -- The old subscription's remaining time is not carried forward.
+  -- The previous plan's remaining time is not carried forward.
   UPDATE public.dokkan_stores
      SET plan_code = v_request.plan_code,
          subscription_status = 'active',
          subscription_started_at = v_now,
-         subscription_ends_at =
-           v_now + make_interval(months => p_approved_duration_months)
+         subscription_ends_at = v_ends_at
    WHERE id = v_request.store_id;
 
   UPDATE public.dokkan_subscription_requests
@@ -168,13 +165,47 @@ BEGIN
     'store_id', v_request.store_id,
     'plan_code', v_request.plan_code,
     'started_at', v_now,
-    'ends_at',
-      v_now + make_interval(months => p_approved_duration_months),
+    'ends_at', v_ends_at,
     'approved_duration_months', p_approved_duration_months,
     'approved_amount', p_approved_amount,
     'approved_currency', v_currency
   );
 END;
+$function$;
+
+-- Only authenticated callers can reach the private implementation.
+REVOKE ALL ON FUNCTION private.dokkan_review_subscription_request_internal(
+  uuid, text, integer, numeric, text, text
+) FROM PUBLIC, anon, authenticated;
+
+GRANT USAGE ON SCHEMA private TO authenticated;
+
+GRANT EXECUTE ON FUNCTION private.dokkan_review_subscription_request_internal(
+  uuid, text, integer, numeric, text, text
+) TO authenticated;
+
+-- Public RPC wrapper runs as invoker, not definer.
+CREATE OR REPLACE FUNCTION public.dokkan_review_subscription_request(
+  p_request_id uuid,
+  p_action text,
+  p_approved_duration_months integer DEFAULT NULL,
+  p_approved_amount numeric DEFAULT NULL,
+  p_approved_currency text DEFAULT NULL,
+  p_review_note text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path TO ''
+AS $function$
+  SELECT private.dokkan_review_subscription_request_internal(
+    p_request_id,
+    p_action,
+    p_approved_duration_months,
+    p_approved_amount,
+    p_approved_currency,
+    p_review_note
+  );
 $function$;
 
 REVOKE ALL ON FUNCTION public.dokkan_review_subscription_request(
