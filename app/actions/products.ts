@@ -164,6 +164,67 @@ export async function createProductWithVariantsAction(input: {
   return data as string
 }
 
+// إضافة متغير جديد إلى منتج موجود
+export async function addProductVariantAction(input: {
+  storeId: string
+  productId: string
+  sku: string
+  barcode?: string
+  size?: string
+  color?: string
+  price: number
+  cost: number
+}) {
+  const context = await getAuthorizedStore(input.storeId)
+
+  if (!input.productId?.trim()) {
+    throw new Error('يجب تحديد المنتج.')
+  }
+
+  const price = Number(input.price)
+  const cost = Number(input.cost)
+
+  if (
+    !Number.isFinite(price) ||
+    !Number.isFinite(cost) ||
+    price < 0 ||
+    cost < 0
+  ) {
+    throw new Error('راجع سعر البيع والتكلفة.')
+  }
+
+  const sku = input.sku.trim() || generateVariantSku()
+  const barcode =
+    input.barcode?.trim() || generateVariantBarcode()
+
+  const { data, error } = await context.supabase.rpc(
+    'dokkan_add_product_variant',
+    {
+      target_store_id: context.storeId,
+      target_product_id: input.productId,
+      variant_sku: sku,
+      variant_barcode: barcode,
+      variant_size: input.size?.trim() || null,
+      variant_color: input.color?.trim() || null,
+      variant_price: price,
+      variant_cost: cost,
+    }
+  )
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('كود SKU أو الباركود مستخدم بالفعل.')
+    }
+
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/products')
+  revalidatePath('/inventory')
+
+  return data as string
+}
+
 export async function updateProductVariantAction(
   input: { id: string } & ProductVariantInput
 ) {
