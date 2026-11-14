@@ -275,7 +275,9 @@ export default function DokkanApp({
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const meta = pageMeta[type] || pageMeta.dashboard
-  const mobileNav = nav.slice(0, 4)
+
+  // شريط الموبايل: الرئيسية، المتاجر، المنتجات، ونقطة البيع
+  const mobileNav = [nav[0], nav[1], nav[3], nav[6]]
 
   return (
     <div className="flex min-h-screen bg-[#f7f8fa]">
