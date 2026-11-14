@@ -4,6 +4,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { Edit3, Package, Plus, Search, Trash2 } from 'lucide-react'
 import {
+  addProductVariantAction,
   createProductWithVariantsAction,
   recordInventoryMovementAction,
   updateProductAction,
@@ -465,21 +466,28 @@ export default function ProductInventoryPage({
           })
 
           for (const variant of variants) {
-            if (!variant.id) {
-              throw new Error(
-                'لا يمكن إضافة متغير جديد أثناء تعديل المنتج من هذه الشاشة'
-              )
+            if (variant.id) {
+              await updateProductVariantAction({
+                id: variant.id,
+                sku: variant.sku,
+                barcode: variant.barcode,
+                size: variant.size,
+                color: variant.color,
+                price: Number(variant.price),
+                cost: Number(variant.cost),
+              })
+            } else {
+              await addProductVariantAction({
+                storeId: editing.store_id,
+                productId: editing.id,
+                sku: variant.sku,
+                barcode: variant.barcode,
+                size: variant.size,
+                color: variant.color,
+                price: Number(variant.price),
+                cost: Number(variant.cost),
+              })
             }
-
-            await updateProductVariantAction({
-              id: variant.id,
-              sku: variant.sku,
-              barcode: variant.barcode,
-              size: variant.size,
-              color: variant.color,
-              price: Number(variant.price),
-              cost: Number(variant.cost),
-            })
           }
         } else {
           if (!form.storeId) {
@@ -598,6 +606,7 @@ export default function ProductInventoryPage({
       </div>
 
       {/* رسائل الحالة */}
+
       {error && (
         <p
           role="alert"
@@ -935,21 +944,19 @@ export default function ProductInventoryPage({
                   </p>
                 </div>
 
-                {!editing && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setVariants((items) => [
-                        ...items,
-                        emptyVariant(),
-                      ])
-                    }
-                    className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2.5 text-xs font-bold text-[#2563eb]"
-                  >
-                    <Plus size={15} />
-                    إضافة متغير
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVariants((items) => [
+                      ...items,
+                      emptyVariant(),
+                    ])
+                  }
+                  className="flex items-center gap-1 rounded-lg bg-[#eaf2ff] px-3 py-2.5 text-xs font-bold text-[#2563eb]"
+                >
+                  <Plus size={15} />
+                  إضافة متغير
+                </button>
               </div>
 
               {variants.map((variant, index) => (
@@ -1026,7 +1033,7 @@ export default function ProductInventoryPage({
                     }
                   />
 
-                  {!editing && variants.length > 1 && (
+                  {!variant.id && variants.length > 1 && (
                     <button
                       type="button"
                       onClick={() =>
@@ -1039,7 +1046,7 @@ export default function ProductInventoryPage({
                       className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold text-[#c43e3e] hover:bg-[#ffebeb] sm:col-span-2 md:col-span-3"
                     >
                       <Trash2 size={16} />
-                      حذف المتغير
+                      حذف المتغير الجديد
                     </button>
                   )}
                 </div>
