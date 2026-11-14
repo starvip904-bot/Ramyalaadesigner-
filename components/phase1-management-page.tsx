@@ -1051,48 +1051,411 @@ function SettingsPanel({
 }
 
 function AuditPanel({ rows }: { rows: Audit[] }) {
+  const [search, setSearch] = useState('')
+  const [actionFilter, setActionFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  function getActionLabel(action: string) {
+    const labels: Record<string, string> = {
+      create: 'إضافة',
+      created: 'إضافة',
+      insert: 'إضافة',
+      update: 'تعديل',
+      updated: 'تعديل',
+      edit: 'تعديل',
+      archive: 'أرشفة',
+      archived: 'أرشفة',
+      delete: 'حذف',
+      deleted: 'حذف',
+      login: 'تسجيل دخول',
+      logout: 'تسجيل خروج',
+      sale: 'عملية بيع',
+      purchase: 'عملية شراء',
+      payment: 'تسجيل دفعة',
+      receive: 'استلام',
+      transfer: 'تحويل',
+      refund: 'استرداد',
+    }
+
+    return labels[action.toLowerCase()] ?? action
+  }
+
+  function getEntityLabel(entity: string) {
+    const labels: Record<string, string> = {
+      customer: 'عميل',
+      customers: 'عميل',
+      supplier: 'مورد',
+      suppliers: 'مورد',
+      product: 'منتج',
+      products: 'منتج',
+      branch: 'فرع',
+      branches: 'فرع',
+      store: 'متجر',
+      stores: 'متجر',
+      sale: 'فاتورة بيع',
+      sales: 'فاتورة بيع',
+      purchase: 'فاتورة شراء',
+      purchases: 'فاتورة شراء',
+      expense: 'مصروف',
+      expenses: 'مصروف',
+      employee: 'موظف',
+      employees: 'موظف',
+      settings: 'إعدادات',
+    }
+
+    return labels[entity.toLowerCase()] ?? entity
+  }
+
+  function formatDate(value: string) {
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+      return 'تاريخ غير متاح'
+    }
+
+    return date.toLocaleString('ar-EG', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  }
+
+  function shortId(value: string | null) {
+    if (!value) return 'غير متاح'
+    if (value.length <= 12) return value
+    return `${value.slice(0, 6)}…${value.slice(-4)}`
+  }
+
+  const actionOptions = Array.from(
+    new Set(rows.map((row) => row.action).filter(Boolean))
+  ).sort()
+
+  const filteredRows = rows.filter((row) => {
+    const searchable = [
+      row.action,
+      getActionLabel(row.action),
+      row.entity_type,
+      getEntityLabel(row.entity_type),
+      row.entity_id,
+      row.actor_id ?? '',
+      row.branch_id ?? '',
+    ]
+      .join(' ')
+      .toLowerCase()
+
+    const matchesSearch = searchable.includes(search.trim().toLowerCase())
+    const matchesAction =
+      actionFilter === 'all' || row.action === actionFilter
+
+    const rowDate = row.created_at?.slice(0, 10) ?? ''
+    const matchesFrom = !dateFrom || rowDate >= dateFrom
+    const matchesTo = !dateTo || rowDate <= dateTo
+
+    return (
+      matchesSearch &&
+      matchesAction &&
+      matchesFrom &&
+      matchesTo
+    )
+  })
+
+  const hasFilters =
+    search !== '' ||
+    actionFilter !== 'all' ||
+    dateFrom !== '' ||
+    dateTo !== ''
+
+  function clearFilters() {
+    setSearch('')
+    setActionFilter('all')
+    setDateFrom('')
+    setDateTo('')
+  }
+
   return (
-    <section className="rounded-2xl border border-[#e2e8f0] bg-white p-5">
-      <h2 className="text-xl font-extrabold">سجل العمليات</h2>
-      <p className="mt-1 text-sm text-[#94a3b8]">
-        سجل للقراءة فقط للمستخدمين المصرح لهم
-      </p>
+    <section className="space-y-5 sm:space-y-6" dir="rtl">
+      <header className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-l from-blue-50 via-white to-white p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
+              سجل العمليات
+            </h2>
+            <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
+              متابعة العمليات المسجلة على المتجر ومراجعة تفاصيلها
+            </p>
+          </div>
 
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[700px] text-right text-sm">
-          <thead>
-            <tr className="border-b text-[#94a3b8]">
-              <th className="p-3">العملية</th>
-              <th>النوع</th>
-              <th>المعرف</th>
-              <th>التاريخ</th>
-              <th>الفرع</th>
-            </tr>
-          </thead>
+          <div className="rounded-xl border border-blue-100 bg-white px-4 py-3">
+            <p className="text-xs text-slate-500">إجمالي العمليات</p>
+            <p className="mt-1 text-2xl font-extrabold text-blue-700">
+              {rows.length}
+            </p>
+          </div>
+        </div>
 
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b">
-                <td className="p-3 font-bold">{row.action}</td>
-                <td>{row.entity_type}</td>
-                <td className="font-mono text-xs">
-                  {row.entity_id}
-                </td>
-                <td>
-                  {new Date(row.created_at).toLocaleString('ar-EG')}
-                </td>
-                <td>{row.branch_id || 'المتجر'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {!rows.length && (
-          <p className="py-10 text-center text-sm text-[#94a3b8]">
-            لا توجد عمليات مسجلة
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-white/80 p-3 text-xs leading-6 text-slate-600">
+          <span className="mt-0.5 shrink-0 font-bold text-blue-600">ⓘ</span>
+          <p>
+            هذا السجل للعرض والمراجعة فقط. لا يمكن تعديل العمليات أو حذفها من هذه الصفحة.
           </p>
-        )}
-      </div>
+        </div>
+      </header>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-extrabold text-slate-900">البحث والتصفية</h3>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs font-bold text-blue-600 hover:text-blue-800"
+            >
+              مسح الفلاتر
+            </button>
+          )}
+        </div>
+
+        <label className="mt-3 flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 transition focus-within:border-blue-400 focus-within:bg-white">
+          <Search size={19} className="shrink-0 text-slate-400" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ابحث بالعملية أو النوع أو المعرّف..."
+            aria-label="البحث في سجل العمليات"
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-slate-400"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="مسح البحث"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200"
+            >
+              <X size={17} />
+            </button>
+          )}
+        </label>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">
+              نوع العملية
+            </span>
+            <select
+              value={actionFilter}
+              onChange={(event) => setActionFilter(event.target.value)}
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
+            >
+              <option value="all">كل العمليات</option>
+              {actionOptions.map((action) => (
+                <option key={action} value={action}>
+                  {getActionLabel(action)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">
+              من تاريخ
+            </span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
+            />
+          </label>
+
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">
+              إلى تاريخ
+            </span>
+            <input
+              type="date"
+              min={dateFrom || undefined}
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
+            />
+          </label>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+          <span>
+            عرض {filteredRows.length} من {rows.length} عملية
+          </span>
+          {hasFilters && (
+            <span className="font-semibold text-blue-600">
+              الفلاتر مفعّلة
+            </span>
+          )}
+        </div>
+      </section>
+
+      {filteredRows.length > 0 ? (
+        <>
+          <div className="space-y-3 md:hidden">
+            {filteredRows.map((row) => (
+              <article
+                key={row.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words font-extrabold text-slate-900">
+                      {getActionLabel(row.action)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {getEntityLabel(row.entity_type)}
+                    </p>
+                  </div>
+
+                  <span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700">
+                    {row.action}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-400">معرّف السجل</p>
+                    <p
+                      className="mt-1 break-all font-mono text-xs text-slate-700"
+                      title={row.entity_id}
+                      dir="ltr"
+                    >
+                      {shortId(row.entity_id)}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-400">الفرع</p>
+                    <p
+                      className="mt-1 break-all text-xs text-slate-700"
+                      title={row.branch_id ?? 'المتجر'}
+                    >
+                      {row.branch_id ? shortId(row.branch_id) : 'المتجر'}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-400">المستخدم</p>
+                    <p
+                      className="mt-1 break-all font-mono text-xs text-slate-700"
+                      title={row.actor_id ?? 'غير متاح'}
+                      dir="ltr"
+                    >
+                      {shortId(row.actor_id)}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-400">التاريخ والوقت</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-700">
+                      {formatDate(row.created_at)}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-right text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-500">
+                  <tr>
+                    <th className="p-4 font-bold">العملية</th>
+                    <th className="p-4 font-bold">نوع السجل</th>
+                    <th className="p-4 font-bold">معرّف السجل</th>
+                    <th className="p-4 font-bold">المستخدم</th>
+                    <th className="p-4 font-bold">التاريخ والوقت</th>
+                    <th className="p-4 font-bold">الفرع</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-t border-slate-100 transition hover:bg-slate-50"
+                    >
+                      <td className="p-4">
+                        <div className="font-bold text-slate-800">
+                          {getActionLabel(row.action)}
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-400">
+                          {row.action}
+                        </div>
+                      </td>
+
+                      <td className="p-4 text-slate-600">
+                        {getEntityLabel(row.entity_type)}
+                      </td>
+
+                      <td
+                        className="p-4 font-mono text-xs text-slate-600"
+                        title={row.entity_id}
+                        dir="ltr"
+                      >
+                        {shortId(row.entity_id)}
+                      </td>
+
+                      <td
+                        className="p-4 font-mono text-xs text-slate-600"
+                        title={row.actor_id ?? 'غير متاح'}
+                        dir="ltr"
+                      >
+                        {shortId(row.actor_id)}
+                      </td>
+
+                      <td className="p-4 text-xs text-slate-600">
+                        {formatDate(row.created_at)}
+                      </td>
+
+                      <td
+                        className="p-4 font-mono text-xs text-slate-600"
+                        title={row.branch_id ?? 'المتجر'}
+                        dir="ltr"
+                      >
+                        {row.branch_id ? shortId(row.branch_id) : 'المتجر'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-12 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-400">
+            <Search size={25} />
+          </div>
+
+          <p className="mt-3 font-bold text-slate-800">
+            {rows.length === 0
+              ? 'لا توجد عمليات مسجلة حتى الآن'
+              : 'لا توجد نتائج مطابقة'}
+          </p>
+
+          <p className="mt-1 text-xs leading-6 text-slate-500">
+            {rows.length === 0
+              ? 'ستظهر العمليات هنا عند تسجيلها في المتجر'
+              : 'جرّب تغيير كلمات البحث أو الفلاتر المحددة'}
+          </p>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700"
+            >
+              مسح الفلاتر
+            </button>
+          )}
+        </div>
+      )}
     </section>
   )
 }
