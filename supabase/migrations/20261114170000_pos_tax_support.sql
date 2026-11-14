@@ -26,7 +26,10 @@ DECLARE
   v_subtotal numeric(14,2) := 0;
   v_discount numeric(14,2) := 0;
   v_taxable_amount numeric(14,2) := 0;
-  v_tax_rate numeric(7,4) := 0;
+
+  -- متغير غير مقيد حتى نتحقق من النسبة قبل تخزينها
+  v_tax_rate numeric := 0;
+
   v_tax_amount numeric(14,2) := 0;
   v_tax_enabled boolean := false;
   v_total numeric(14,2) := 0;
