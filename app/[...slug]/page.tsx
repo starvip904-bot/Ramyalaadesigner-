@@ -127,7 +127,7 @@ export default async function Page({
     )
   }
 
-  // Expenses - Real database records
+  // Expenses
   if (type === 'expenses') {
     const data = await getExpensesPageData()
 
@@ -145,7 +145,7 @@ export default async function Page({
     )
   }
 
-  // Reports - Real database records
+  // Reports
   if (type === 'reports') {
     const data = await getReportsPageData()
 
@@ -182,10 +182,14 @@ export default async function Page({
   if (type === 'pos') {
     const storeId = reda.storeId
 
-    const [data, customers] = await Promise.all([
+    const [data, customers, settings] = await Promise.all([
       listDokkanProductInventory(storeId),
       listDokkanCustomers(storeId),
+      getDokkanStoreSettings(storeId),
     ])
+
+    const taxEnabled = Boolean(settings?.tax_enabled)
+    const taxRate = Number(settings?.tax_rate ?? 0)
 
     return (
       <DokkanApp
@@ -197,6 +201,8 @@ export default async function Page({
               ...data,
               customers,
             }}
+            taxEnabled={taxEnabled}
+            taxRate={taxRate}
           />
         }
       />
