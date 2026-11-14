@@ -63,9 +63,15 @@ type PosCatalog = {
 
 type PosPageProps = {
   initialData: PosCatalog
+  taxEnabled: boolean
+  taxRate: number
 }
 
-export default function PosPage({ initialData }: PosPageProps) {
+export default function PosPage({
+  initialData,
+  taxEnabled,
+  taxRate,
+}: PosPageProps) {
   const router = useRouter()
   const requestKey = useRef<string | null>(null)
 
@@ -153,7 +159,12 @@ export default function PosPage({ initialData }: PosPageProps) {
     )
   }, [products, query])
 
-  const totals = calculateSaleTotals(cart, discount)
+  const totals = calculateSaleTotals(
+    cart,
+    discount,
+    taxEnabled,
+    taxRate
+  )
 
   const invalidateRequest = () => {
     requestKey.current = null
@@ -524,8 +535,31 @@ export default function PosPage({ initialData }: PosPageProps) {
               />
             </label>
 
+            <div className="mt-3 flex justify-between text-sm">
+              <span>قيمة الخصم</span>
+              <b>{totals.discountAmount.toFixed(2)} ج.م</b>
+            </div>
+
+            <div className="mt-3 flex justify-between text-sm">
+              <span>المبلغ بعد الخصم</span>
+              <b>{totals.taxableAmount.toFixed(2)} ج.م</b>
+            </div>
+
+            <div className="mt-3 flex justify-between text-sm">
+              <span>
+                {totals.taxEnabled
+                  ? `الضريبة (${totals.taxRate}%)`
+                  : 'الضريبة'}
+              </span>
+              <b>
+                {totals.taxEnabled
+                  ? `${totals.taxAmount.toFixed(2)} ج.م`
+                  : 'غير مفعلة'}
+              </b>
+            </div>
+
             <div className="mt-3 flex justify-between text-base font-extrabold">
-              <span>الإجمالي</span>
+              <span>الإجمالي النهائي</span>
               <b>{totals.total.toFixed(2)} ج.م</b>
             </div>
 
