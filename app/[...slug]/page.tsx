@@ -1,5 +1,6 @@
 
 import SalesPage from '@/components/sales-page'
+import ReturnsManagementPage from '@/components/returns-management-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
@@ -16,6 +17,7 @@ import { requireRedaContext } from '@/lib/reda-scope'
 import { getEmployeesPageData } from '@/lib/employees-repository'
 import { getExpensesPageData } from '@/lib/expenses-repository'
 import { getReportsPageData } from '@/lib/reports-repository'
+import { getReturnsPageData } from '@/lib/returns-repository'
 
 import {
   getDashboardData,
@@ -154,6 +156,24 @@ export default async function Page({
         type={type}
         user={user}
         content={<ReportsPage {...data} />}
+      />
+    )
+  }
+
+  // Returns
+  if (type === 'returns') {
+    const data = await getReturnsPageData()
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={
+          <ReturnsManagementPage
+            sales={data.sales}
+            returns={data.returns}
+          />
+        }
       />
     )
   }
