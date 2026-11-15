@@ -1,9 +1,24 @@
 
--- Dokkan Inventory Count: foundational tables
--- Creates inventory count sessions, items, events and adjustments.
--- Does not modify existing inventory movements or product data.
+-- Dokkan Inventory Count
+-- Foundation tables with tenant-safe relationships.
+-- No existing inventory movements or product records are modified.
+-- No approval RPCs or final access policies are created here.
 
 BEGIN;
+
+-- =========================================================
+-- 0. Unique indexes required for tenant-safe foreign keys
+-- =========================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+  dokkan_product_variants_id_store_count_uidx
+ON public.dokkan_product_variants (id, store_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+  dokkan_inventory_movements_count_reference_uidx
+ON public.dokkan_inventory_movements
+  (id, store_id, branch_id, product_variant_id);
+
 
 -- =========================================================
 -- 1. Inventory count sessions
@@ -35,14 +50,9 @@ CREATE TABLE IF NOT EXISTS public.dokkan_inventory_counts (
 
   notes text,
 
-  created_by uuid
-    REFERENCES auth.users(id) ON DELETE SET NULL,
-
-  started_by uuid
-    REFERENCES auth.users(id) ON DELETE SET NULL,
-
-  approved_by uuid
-    REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  started_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  approved_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
 
   original_count_id uuid,
 
@@ -73,10 +83,11 @@ CREATE TABLE IF NOT EXISTS public.dokkan_inventory_counts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_counts_branch
-  ON public.dokkan_inventory_counts(store_id, branch_id, created_at DESC);
+  ON public.dokkan_inventory_counts
+  (store_id, branch_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_counts_status
-  ON public.dokkan_inventory_counts(store_id, status);
+  ON public.dokkan_inventory_counts (store_id, status);
 
 
 -- =========================================================
@@ -86,13 +97,12 @@ CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_counts_status
 CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
-  count_id uuid NOT NULL
-    REFERENCES public.dokkan_inventory_counts(id) ON DELETE RESTRICT,
+  count_id uuid NOT NULL,
+  store_id uuid NOT NULL,
+  branch_id uuid NOT NULL,
+  variant_id uuid NOT NULL,
 
-  variant_id uuid NOT NULL
-    REFERENCES public.dokkan_product_variants(id) ON DELETE RESTRICT,
-
-  -- Product and variant information captured for historical display.
+  -- Historical product and variant information.
   product_name_snapshot text NOT NULL,
   category_snapshot text,
   brand_snapshot text,
@@ -101,40 +111,76 @@ CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_items (
   size_snapshot text,
   color_snapshot text,
 
-  -- Inventory balance when the count item was added.
-  system_quantity numeric(14,3) NOT NULL DEFAULT 0
-    CHECK (system_quantity >= 0),
+  -- Balance captured when the item entered the count.
+  system_quantity_at_start numeric(14,3) NOT NULL DEFAULT 0
+    CHECK (system_quantity_at_start >= 0),
 
-  -- NULL means the item has not been counted yet.
+  -- Balance captured at the exact time of physical counting.
+  system_quantity_at_count numeric(14,3)
+    CHECK (
+      system_quantity_at_count IS NULL
+      OR system_quantity_at_count >= 0
+    ),
+
   actual_quantity numeric(14,3)
-    CHECK (actual_quantity IS NULL OR actual_quantity >= 0),
+    CHECK (
+      actual_quantity IS NULL
+      OR actual_quantity >= 0
+    ),
 
   difference numeric(14,3),
 
-  counted_by uuid
-    REFERENCES auth.users(id) ON DELETE SET NULL,
-
+  counted_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   counted_at timestamptz,
 
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
 
+  CONSTRAINT dokkan_inventory_count_items_count_fk
+    FOREIGN KEY (count_id, store_id, branch_id)
+    REFERENCES public.dokkan_inventory_counts(id, store_id, branch_id)
+    ON DELETE RESTRICT,
+
+  CONSTRAINT dokkan_inventory_count_items_variant_fk
+    FOREIGN KEY (variant_id, store_id)
+    REFERENCES public.dokkan_product_variants(id, store_id)
+    ON DELETE RESTRICT,
+
   CONSTRAINT dokkan_inventory_count_items_unique_variant
     UNIQUE (count_id, variant_id),
 
+  CONSTRAINT dokkan_inventory_count_items_identity_key
+    UNIQUE (id, count_id, store_id, branch_id, variant_id),
+
+  CONSTRAINT dokkan_inventory_count_items_count_state_check
+    CHECK (
+      (
+        actual_quantity IS NULL
+        AND system_quantity_at_count IS NULL
+        AND difference IS NULL
+        AND counted_at IS NULL
+      )
+      OR
+      (
+        actual_quantity IS NOT NULL
+        AND system_quantity_at_count IS NOT NULL
+        AND difference IS NOT NULL
+        AND counted_at IS NOT NULL
+      )
+    ),
+
   CONSTRAINT dokkan_inventory_count_items_difference_check
     CHECK (
-      (actual_quantity IS NULL AND difference IS NULL)
-      OR
-      (actual_quantity IS NOT NULL AND difference IS NOT NULL)
+      actual_quantity IS NULL
+      OR difference = actual_quantity - system_quantity_at_count
     )
 );
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_items_count
-  ON public.dokkan_inventory_count_items(count_id);
+  ON public.dokkan_inventory_count_items (count_id);
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_items_variant
-  ON public.dokkan_inventory_count_items(variant_id);
+  ON public.dokkan_inventory_count_items (variant_id, store_id);
 
 
 -- =========================================================
@@ -144,11 +190,11 @@ CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_items_variant
 CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
-  count_id uuid NOT NULL
-    REFERENCES public.dokkan_inventory_counts(id) ON DELETE RESTRICT,
+  count_id uuid NOT NULL,
+  store_id uuid NOT NULL,
+  branch_id uuid NOT NULL,
 
-  actor_id uuid
-    REFERENCES auth.users(id) ON DELETE SET NULL,
+  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
 
   event_type text NOT NULL
     CHECK (
@@ -166,11 +212,17 @@ CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_events (
 
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
 
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT dokkan_inventory_count_events_count_fk
+    FOREIGN KEY (count_id, store_id, branch_id)
+    REFERENCES public.dokkan_inventory_counts(id, store_id, branch_id)
+    ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_events_count
-  ON public.dokkan_inventory_count_events(count_id, created_at);
+  ON public.dokkan_inventory_count_events
+  (count_id, created_at);
 
 
 -- =========================================================
@@ -180,36 +232,75 @@ CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_events_count
 CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_adjustments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 
-  count_id uuid NOT NULL
-    REFERENCES public.dokkan_inventory_counts(id) ON DELETE RESTRICT,
+  count_id uuid NOT NULL,
+  count_item_id uuid NOT NULL,
 
-  count_item_id uuid NOT NULL
-    REFERENCES public.dokkan_inventory_count_items(id) ON DELETE RESTRICT,
+  store_id uuid NOT NULL,
+  branch_id uuid NOT NULL,
+  variant_id uuid NOT NULL,
 
-  movement_id uuid NOT NULL
-    REFERENCES public.dokkan_inventory_movements(id) ON DELETE RESTRICT,
+  movement_id uuid NOT NULL,
 
   adjustment_quantity numeric(14,3) NOT NULL
-    CHECK (adjustment_quantity <> 0),
+    CHECK (
+      adjustment_quantity <> 0
+      AND adjustment_quantity NOT IN (
+        'NaN'::numeric,
+        'Infinity'::numeric,
+        '-Infinity'::numeric
+      )
+    ),
 
   created_at timestamptz NOT NULL DEFAULT now(),
 
-  -- One inventory movement cannot be linked twice.
+  CONSTRAINT dokkan_inventory_count_adjustments_item_fk
+    FOREIGN KEY (
+      count_item_id,
+      count_id,
+      store_id,
+      branch_id,
+      variant_id
+    )
+    REFERENCES public.dokkan_inventory_count_items (
+      id,
+      count_id,
+      store_id,
+      branch_id,
+      variant_id
+    )
+    ON DELETE RESTRICT,
+
+  CONSTRAINT dokkan_inventory_count_adjustments_movement_fk
+    FOREIGN KEY (
+      movement_id,
+      store_id,
+      branch_id,
+      variant_id
+    )
+    REFERENCES public.dokkan_inventory_movements (
+      id,
+      store_id,
+      branch_id,
+      product_variant_id
+    )
+    ON DELETE RESTRICT,
+
+  -- Prevent applying the same movement twice.
   CONSTRAINT dokkan_inventory_count_adjustments_movement_unique
     UNIQUE (movement_id),
 
-  -- One count item gets at most one approved adjustment.
+  -- One approved adjustment per count item.
   CONSTRAINT dokkan_inventory_count_adjustments_item_unique
     UNIQUE (count_item_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_dokkan_inventory_count_adjustments_count
-  ON public.dokkan_inventory_count_adjustments(count_id);
+  ON public.dokkan_inventory_count_adjustments (count_id);
 
 
 -- =========================================================
--- 5. Enable Row Level Security
--- Policies and grants will be added in the next migration.
+-- 5. Row Level Security
+-- Access policies and RPC permissions are added separately.
 -- =========================================================
 
 ALTER TABLE public.dokkan_inventory_counts
@@ -224,7 +315,6 @@ ALTER TABLE public.dokkan_inventory_count_events
 ALTER TABLE public.dokkan_inventory_count_adjustments
   ENABLE ROW LEVEL SECURITY;
 
--- No direct access until the dedicated policies are installed.
 REVOKE ALL ON TABLE
   public.dokkan_inventory_counts,
   public.dokkan_inventory_count_items,
