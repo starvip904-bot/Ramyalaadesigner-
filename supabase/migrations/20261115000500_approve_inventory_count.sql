@@ -1,8 +1,8 @@
 
 -- Dokkan Inventory Count Approval
--- Approval is restricted to store owner and manager.
--- Applies count differences to current stock balances.
--- Does not modify historical inventory movements or sales.
+-- Only owner and manager can approve.
+-- Applies differences to current stock balances.
+-- Historical sales and inventory movements remain unchanged.
 
 BEGIN;
 
@@ -25,12 +25,11 @@ DECLARE
   v_movement_id uuid;
 
   v_total_items integer := 0;
+  v_counted_items integer := 0;
   v_adjusted_items integer := 0;
   v_total_adjustment numeric := 0;
 BEGIN
-  -- =======================================================
   -- 1. Authentication
-  -- =======================================================
 
   v_user_id := auth.uid();
 
@@ -42,9 +41,7 @@ BEGIN
     RAISE EXCEPTION 'inventory count id is required';
   END IF;
 
-  -- =======================================================
-  -- 2. Lock and validate the count session
-  -- =======================================================
+  -- 2. Lock count session
 
   SELECT *
   INTO v_count
@@ -60,8 +57,8 @@ BEGIN
     RAISE EXCEPTION 'only counts awaiting review can be approved';
   END IF;
 
-  -- Only owner and manager may approve.
-  -- Admin and stock_manager are deliberately excluded.
+  -- Only owner and manager can approve.
+
   IF NOT private.dokkan_has_role(
     v_count.store_id,
     ARRAY['owner', 'manager']
@@ -83,9 +80,7 @@ BEGIN
     RAISE EXCEPTION 'inventory branch is not active';
   END IF;
 
-  -- =======================================================
-  -- 3. Validate all counted items
-  -- =======================================================
+  -- 3. Validate counted items
 
   SELECT
     COUNT(*),
@@ -96,21 +91,15 @@ BEGIN
         AND counted_by IS NOT NULL
         AND count_at IS NOT NULL
     )
-  INTO v_total_items, v_adjusted_items
+  INTO v_total_items, v_counted_items
   FROM public.dokkan_inventory_count_items
   WHERE count_id = v_count.id;
 
-  IF v_total_items = 0 OR v_total_items <> v_adjusted_items THEN
+  IF v_total_items = 0 OR v_total_items <> v_counted_items THEN
     RAISE EXCEPTION 'all inventory count items must be counted';
   END IF;
 
-  -- =======================================================
-  -- 4. Lock all product variants in deterministic order
-  -- =======================================================
-
-  -- This uses the same variant row lock protocol as the
-  -- inventory movement and sales return operations.
-  -- All variants are locked before applying any adjustment.
+  -- 4. Lock all variants in deterministic order.
 
   FOR v_variant IN
     SELECT v.id
@@ -125,9 +114,7 @@ BEGIN
     NULL;
   END LOOP;
 
-  -- =======================================================
-  -- 5. Apply differences to current balances
-  -- =======================================================
+  -- 5. Apply differences to current balances.
 
   FOR v_item IN
     SELECT
@@ -140,7 +127,6 @@ BEGIN
     FOR UPDATE
   LOOP
 
-    -- Recalculate current balance after obtaining variant locks.
     SELECT COALESCE(SUM(
       CASE movement_type
         WHEN 'opening' THEN quantity
@@ -160,8 +146,6 @@ BEGIN
       AND branch_id = v_count.branch_id
       AND product_variant_id = v_item.product_variant_id;
 
-    -- Apply the difference to the current balance,
-    -- not to the balance that existed when counting started.
     v_new_qty := v_current_qty + v_item.difference;
 
     IF v_new_qty < 0 THEN
@@ -170,7 +154,6 @@ BEGIN
         v_item.product_variant_id;
     END IF;
 
-    -- No movement is needed when the difference is zero.
     IF v_item.difference <> 0 THEN
 
       INSERT INTO public.dokkan_inventory_movements (
@@ -195,7 +178,6 @@ BEGIN
       )
       RETURNING id INTO v_movement_id;
 
-      -- Link the generated movement to its exact count item.
       INSERT INTO public.dokkan_inventory_count_adjustments (
         count_id,
         count_item_id,
@@ -221,9 +203,7 @@ BEGIN
 
   END LOOP;
 
-  -- =======================================================
-  -- 6. Mark count as approved
-  -- =======================================================
+  -- 6. Mark count as approved.
 
   UPDATE public.dokkan_inventory_counts
   SET
@@ -238,9 +218,7 @@ BEGIN
     RAISE EXCEPTION 'inventory count approval failed';
   END IF;
 
-  -- =======================================================
-  -- 7. Append immutable count event
-  -- =======================================================
+  -- 7. Count event history.
 
   INSERT INTO public.dokkan_inventory_count_events (
     count_id,
@@ -259,14 +237,13 @@ BEGIN
     jsonb_build_object(
       'count_number', v_count.count_number,
       'total_items', v_total_items,
+      'counted_items', v_counted_items,
       'adjusted_items', v_adjusted_items,
       'total_adjustment', v_total_adjustment
     )
   );
 
-  -- =======================================================
-  -- 8. Audit trail
-  -- =======================================================
+  -- 8. Audit trail.
 
   INSERT INTO public.dokkan_audit_events (
     store_id,
@@ -287,6 +264,7 @@ BEGIN
     jsonb_build_object(
       'count_number', v_count.count_number,
       'total_items', v_total_items,
+      'counted_items', v_counted_items,
       'adjusted_items', v_adjusted_items,
       'total_adjustment', v_total_adjustment
     )
@@ -295,10 +273,7 @@ BEGIN
 END;
 $function$;
 
-
--- =========================================================
--- 9. Restrict execution permissions
--- =========================================================
+-- 9. Execution permissions.
 
 REVOKE ALL ON FUNCTION public.dokkan_approve_inventory_count(
   uuid
