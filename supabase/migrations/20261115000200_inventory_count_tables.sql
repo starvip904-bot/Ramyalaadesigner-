@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS public.dokkan_inventory_count_items (
       )
     ),
 
-  CONSTRAINT dokkan_inventory_count_items_difference_check
+  CONSTRAINT dokkan_inventory_count_items_difference_formula_check
     CHECK (
       difference IS NULL
       OR difference = actual_quantity - system_quantity_at_count
