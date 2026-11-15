@@ -29,8 +29,6 @@ DECLARE
   v_adjusted_items integer := 0;
   v_total_adjustment numeric := 0;
 BEGIN
-  -- 1. Authentication
-
   v_user_id := auth.uid();
 
   IF v_user_id IS NULL THEN
@@ -40,8 +38,6 @@ BEGIN
   IF p_count_id IS NULL THEN
     RAISE EXCEPTION 'inventory count id is required';
   END IF;
-
-  -- 2. Lock count session
 
   SELECT *
   INTO v_count
@@ -57,8 +53,6 @@ BEGIN
     RAISE EXCEPTION 'only counts awaiting review can be approved';
   END IF;
 
-  -- Only owner and manager can approve.
-
   IF NOT private.dokkan_has_role(
     v_count.store_id,
     ARRAY['owner', 'manager']
@@ -70,17 +64,8 @@ BEGIN
     RAISE EXCEPTION 'not authorized for this branch';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.dokkan_branches b
-    WHERE b.id = v_count.branch_id
-      AND b.store_id = v_count.store_id
-      AND b.status = 'active'
-  ) THEN
-    RAISE EXCEPTION 'inventory branch is not active';
-  END IF;
-
-  -- 3. Validate counted items
+  -- Existing counts may be completed after the branch is deactivated.
+  -- New counts are still restricted to active branches.
 
   SELECT
     COUNT(*),
@@ -99,8 +84,7 @@ BEGIN
     RAISE EXCEPTION 'all inventory count items must be counted';
   END IF;
 
-  -- 4. Lock all variants in deterministic order.
-
+  -- Lock all variants in deterministic order.
   FOR v_variant IN
     SELECT v.id
     FROM public.dokkan_inventory_count_items i
@@ -114,8 +98,7 @@ BEGIN
     NULL;
   END LOOP;
 
-  -- 5. Apply differences to current balances.
-
+  -- Apply differences to current balances.
   FOR v_item IN
     SELECT
       i.id,
@@ -203,8 +186,6 @@ BEGIN
 
   END LOOP;
 
-  -- 6. Mark count as approved.
-
   UPDATE public.dokkan_inventory_counts
   SET
     status = 'approved',
@@ -217,8 +198,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'inventory count approval failed';
   END IF;
-
-  -- 7. Count event history.
 
   INSERT INTO public.dokkan_inventory_count_events (
     count_id,
@@ -242,8 +221,6 @@ BEGIN
       'total_adjustment', v_total_adjustment
     )
   );
-
-  -- 8. Audit trail.
 
   INSERT INTO public.dokkan_audit_events (
     store_id,
@@ -272,8 +249,6 @@ BEGIN
 
 END;
 $function$;
-
--- 9. Execution permissions.
 
 REVOKE ALL ON FUNCTION public.dokkan_approve_inventory_count(
   uuid
