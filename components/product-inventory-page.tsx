@@ -6,6 +6,7 @@ import { Edit3, Package, Plus, Search, Trash2 } from 'lucide-react'
 import {
   addProductVariantAction,
   createProductWithVariantsAction,
+  createProductWithInitialStockAction,
   recordInventoryMovementAction,
   updateProductAction,
   updateProductVariantAction,
