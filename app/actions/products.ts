@@ -22,7 +22,6 @@ function generateVariantSku() {
   return `SKU-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
 }
 
-// إنشاء باركود EAN-13 للاستخدام الداخلي
 function generateVariantBarcode() {
   const body = `20${randomInt(0, 10_000_000_000)
     .toString()
@@ -53,10 +52,6 @@ export async function createProductAction(input: {
 }) {
   const context = await getAuthorizedStore(input.storeId)
 
-  const sku = input.sku.trim() || generateVariantSku()
-  const barcode =
-    input.barcode?.trim() || generateVariantBarcode()
-
   const { data, error } = await context.supabase.rpc(
     'dokkan_create_product',
     {
@@ -64,8 +59,8 @@ export async function createProductAction(input: {
       product_name: input.name.trim(),
       product_category: input.category.trim(),
       product_brand: input.brand?.trim() || null,
-      variant_sku: sku,
-      variant_barcode: barcode,
+      variant_sku: input.sku.trim() || generateVariantSku(),
+      variant_barcode: input.barcode?.trim() || generateVariantBarcode(),
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
       variant_price: input.price,
@@ -77,7 +72,6 @@ export async function createProductAction(input: {
     if (error.code === '23505') {
       throw new Error('كود SKU أو الباركود مستخدم بالفعل. حاول مرة أخرى.')
     }
-
     throw new Error(error.message)
   }
 
@@ -94,6 +88,10 @@ export type ProductVariantInput = {
   color?: string
   price: number
   cost: number
+}
+
+export type ProductVariantWithStockInput = ProductVariantInput & {
+  initialQuantity: number
 }
 
 export async function createProductWithVariantsAction(input: {
@@ -130,8 +128,7 @@ export async function createProductWithVariantsAction(input: {
 
     return {
       sku: variant.sku.trim() || generateVariantSku(),
-      barcode:
-        variant.barcode?.trim() || generateVariantBarcode(),
+      barcode: variant.barcode?.trim() || generateVariantBarcode(),
       size: variant.size?.trim() || null,
       color: variant.color?.trim() || null,
       price,
@@ -154,7 +151,6 @@ export async function createProductWithVariantsAction(input: {
     if (error.code === '23505') {
       throw new Error('يوجد SKU أو باركود مكرر. حاول الحفظ مرة أخرى.')
     }
-
     throw new Error(error.message)
   }
 
@@ -164,7 +160,81 @@ export async function createProductWithVariantsAction(input: {
   return data as string
 }
 
-// إضافة متغير جديد إلى منتج موجود
+// إنشاء منتج ومتغيراته وتسجيل كميات البداية في عملية واحدة.
+export async function createProductWithInitialStockAction(input: {
+  storeId: string
+  branchId: string
+  name: string
+  category: string
+  brand?: string
+  variants: ProductVariantWithStockInput[]
+}) {
+  const context = await getAuthorizedStore(input.storeId)
+
+  await requireRedaBranch(input.branchId)
+
+  if (
+    !input.name.trim() ||
+    !input.category.trim() ||
+    !Array.isArray(input.variants) ||
+    input.variants.length === 0 ||
+    input.variants.length > 200
+  ) {
+    throw new Error('بيانات المنتج أو المتغيرات غير مكتملة.')
+  }
+
+  const variants = input.variants.map((variant) => {
+    const price = Number(variant.price)
+    const cost = Number(variant.cost)
+    const initialQuantity = Number(variant.initialQuantity)
+
+    if (
+      !Number.isFinite(price) ||
+      !Number.isFinite(cost) ||
+      !Number.isFinite(initialQuantity) ||
+      price < 0 ||
+      cost < 0 ||
+      initialQuantity < 0
+    ) {
+      throw new Error('راجع السعر والتكلفة والكمية لكل متغير.')
+    }
+
+    return {
+      sku: variant.sku.trim() || generateVariantSku(),
+      barcode: variant.barcode?.trim() || generateVariantBarcode(),
+      size: variant.size?.trim() || null,
+      color: variant.color?.trim() || null,
+      price,
+      cost,
+      initial_quantity: initialQuantity,
+    }
+  })
+
+  const { data, error } = await context.supabase.rpc(
+    'dokkan_create_product_with_initial_stock',
+    {
+      target_store_id: context.storeId,
+      target_branch_id: input.branchId,
+      product_name: input.name.trim(),
+      product_category: input.category.trim(),
+      product_brand: input.brand?.trim() || null,
+      variants,
+    }
+  )
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('يوجد SKU أو باركود مكرر. راجع بيانات المتغيرات.')
+    }
+    throw new Error(error.message)
+  }
+
+  revalidatePath('/products')
+  revalidatePath('/inventory')
+
+  return data as string
+}
+
 export async function addProductVariantAction(input: {
   storeId: string
   productId: string
@@ -193,17 +263,13 @@ export async function addProductVariantAction(input: {
     throw new Error('راجع سعر البيع والتكلفة.')
   }
 
-  const sku = input.sku.trim() || generateVariantSku()
-  const barcode =
-    input.barcode?.trim() || generateVariantBarcode()
-
   const { data, error } = await context.supabase.rpc(
     'dokkan_add_product_variant',
     {
       target_store_id: context.storeId,
       target_product_id: input.productId,
-      variant_sku: sku,
-      variant_barcode: barcode,
+      variant_sku: input.sku.trim() || generateVariantSku(),
+      variant_barcode: input.barcode?.trim() || generateVariantBarcode(),
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
       variant_price: price,
@@ -215,7 +281,6 @@ export async function addProductVariantAction(input: {
     if (error.code === '23505') {
       throw new Error('كود SKU أو الباركود مستخدم بالفعل.')
     }
-
     throw new Error(error.message)
   }
 
@@ -235,8 +300,7 @@ export async function updateProductVariantAction(
     {
       target_variant_id: input.id,
       variant_sku: input.sku.trim() || generateVariantSku(),
-      variant_barcode:
-        input.barcode?.trim() || generateVariantBarcode(),
+      variant_barcode: input.barcode?.trim() || generateVariantBarcode(),
       variant_size: input.size?.trim() || null,
       variant_color: input.color?.trim() || null,
       variant_price: input.price,
@@ -248,7 +312,6 @@ export async function updateProductVariantAction(
     if (error.code === '23505') {
       throw new Error('كود SKU أو الباركود مستخدم بالفعل.')
     }
-
     throw new Error(error.message)
   }
 
