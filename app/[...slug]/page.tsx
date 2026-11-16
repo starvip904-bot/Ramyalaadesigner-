@@ -1,6 +1,7 @@
 
 import SalesPage from '@/components/sales-page'
 import ReturnsManagementPage from '@/components/returns-management-page'
+import InventoryCountsPage from '@/components/inventory-counts-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
@@ -18,6 +19,7 @@ import { getEmployeesPageData } from '@/lib/employees-repository'
 import { getExpensesPageData } from '@/lib/expenses-repository'
 import { getReportsPageData } from '@/lib/reports-repository'
 import { getReturnsPageData } from '@/lib/returns-repository'
+import { getInventoryCountsPageData } from '@/lib/inventory-counts-repository'
 
 import {
   getDashboardData,
@@ -36,6 +38,7 @@ const valid = [
   'stores',
   'products',
   'inventory',
+  'inventory-counts',
   'pos',
   'sales',
   'purchases',
@@ -191,6 +194,27 @@ export default async function Page({
             mode={type}
             initialData={data}
             storeIds={[storeId]}
+          />
+        }
+      />
+    )
+  }
+
+  // Inventory Counts
+  if (type === 'inventory-counts') {
+    const data = await getInventoryCountsPageData()
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={
+          <InventoryCountsPage
+            storeId={data.storeId}
+            counts={data.counts}
+            branches={data.branches}
+            products={data.products}
+            canApprove={data.canApprove}
           />
         }
       />
