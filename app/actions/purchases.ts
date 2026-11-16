@@ -65,7 +65,6 @@ export async function createPurchase(
   }
 
   revalidatePath('/purchases')
-
   return data as string
 }
 
@@ -108,17 +107,19 @@ export async function recordSupplierPayment(
   notes: string,
   idempotencyKey: string
 ): Promise<PaymentResult> {
-  const diagnosticId = `pay-${crypto.randomUUID().slice(0, 12)}`
+  const diagnosticId =
+    `pay-${crypto.randomUUID().slice(0, 12)}`
 
   try {
     if (
       !Number.isFinite(amount) ||
       amount <= 0 ||
-      !idempotencyKey.trim()
+      !idempotencyKey.trim() ||
+      !['cash', 'card', 'transfer'].includes(paymentMethod)
     ) {
       return {
         ok: false,
-        message: 'تحقق من مبلغ الدفعة وحاول مرة أخرى.',
+        message: 'تحقق من مبلغ الدفعة وطريقة الدفع.',
         diagnosticId,
       }
     }
@@ -145,11 +146,12 @@ export async function recordSupplierPayment(
         code: error.code,
       })
 
-      const message = error.message.includes('invalid payment')
-        ? 'قيمة الدفعة تتجاوز المتبقي أو غير صحيحة.'
-        : error.message.includes('not authorized')
-          ? 'لا تملك صلاحية تسجيل دفعة لهذا المتجر.'
-          : 'تعذر تسجيل الدفعة. حاول مرة أخرى.'
+      const message =
+        error.message.includes('invalid payment')
+          ? 'قيمة الدفعة تتجاوز المتبقي أو غير صحيحة.'
+          : error.message.includes('not authorized')
+            ? 'لا تملك صلاحية تسجيل دفعة لهذا المتجر.'
+            : 'تعذر تسجيل الدفعة. حاول مرة أخرى.'
 
       return {
         ok: false,
@@ -160,6 +162,7 @@ export async function recordSupplierPayment(
 
     try {
       revalidatePath('/purchases')
+      revalidatePath('/suppliers')
     } catch (error) {
       console.error('[phase1-payment]', {
         diagnosticId,
@@ -172,7 +175,8 @@ export async function recordSupplierPayment(
 
       return {
         ok: true,
-        message: 'تم تسجيل الدفعة، لكن تعذر تحديث القائمة تلقائيًا.',
+        message:
+          'تم تسجيل الدفعة، لكن تعذر تحديث القائمة تلقائيًا.',
         diagnosticId,
         paymentId: data as string,
       }
@@ -196,8 +200,71 @@ export async function recordSupplierPayment(
 
     return {
       ok: false,
-      message: 'تعذر التحقق من الجلسة أو المتجر الحالي.',
+      message:
+        'تعذر التحقق من الجلسة أو المتجر الحالي.',
       diagnosticId,
     }
   }
+}
+
+export async function getPurchaseDetailsAction(
+  purchaseId: string
+) {
+  if (!purchaseId) {
+    throw new Error('رقم فاتورة الشراء غير صحيح.')
+  }
+
+  await requireRedaPurchase(purchaseId)
+
+  const { supabase } = await requireRedaContext()
+
+  const { data, error } = await supabase.rpc(
+    'dokkan_get_purchase',
+    {
+      p_purchase_id: purchaseId,
+    }
+  )
+
+  if (error) {
+    console.error('[purchase-details]', {
+      code: error.code,
+    })
+    throw new Error('تعذر تحميل تفاصيل فاتورة الشراء.')
+  }
+
+  if (!data) {
+    throw new Error('فاتورة الشراء غير موجودة.')
+  }
+
+  return data
+}
+
+export async function getSupplierStatementAction(
+  supplierId: string
+) {
+  if (!supplierId) {
+    throw new Error('المورد غير محدد.')
+  }
+
+  const { supabase } = await requireRedaContext()
+
+  const { data, error } = await supabase.rpc(
+    'dokkan_get_supplier_statement',
+    {
+      p_supplier_id: supplierId,
+    }
+  )
+
+  if (error) {
+    console.error('[supplier-statement]', {
+      code: error.code,
+    })
+    throw new Error('تعذر تحميل كشف حساب المورد.')
+  }
+
+  if (!data) {
+    throw new Error('بيانات المورد غير موجودة.')
+  }
+
+  return data
 }
