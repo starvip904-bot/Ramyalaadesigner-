@@ -46,8 +46,9 @@ const nav = navGroups.flatMap((group) => group.items)
 const pageMeta: Record<string,{title:string; desc:string}> = {
   dashboard:{title:'نظرة عامة',desc:'تابع أداء متجرك اليوم'},
   stores:{title:'المتاجر والفروع',desc:'إدارة متاجرك وفروعك من مكان واحد'},
-  products:{title:'المنتجات',desc:'إدارة المنتجات والأصناف والمتغيرات'},
-  inventory:{title:'المخزون',desc:'راقب مستويات المخزون وحركات الأصناف'},
+    products:{title:'المنتجات والمخزون',desc:'إدارة المنتجات والمتغيرات والأرصدة وحركات المخزون'},
+  inventory:{title:'المنتجات والمخزون',desc:'إدارة المنتجات والمتغيرات والأرصدة وحركات المخزون'},
+  'inventory-counts':{title:'الجرد',desc:'إنشاء الجرد ومراجعة الفروق واعتماد التسويات'},
   pos:{title:'نقطة البيع',desc:'أنشئ فاتورة جديدة بسهولة وسرعة'},
   sales:{title:'سجل المبيعات',desc:'راجع جميع عمليات البيع والفواتير'},
   purchases:{title:'المشتريات والموردين',desc:'إدارة التوريد والفواتير والموردين'},
