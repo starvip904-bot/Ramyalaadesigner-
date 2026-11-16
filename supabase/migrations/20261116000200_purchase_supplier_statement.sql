@@ -1,14 +1,11 @@
 
 -- Dokkan Purchase Details and Supplier Statement
--- Adds secure read RPCs and enforces invoice-linked supplier payments.
--- Does not modify existing payment amounts or supplier balances.
+-- Secure invoice-linked supplier payments and supplier statement.
+-- No existing payment amounts or supplier balances are modified.
 
 BEGIN;
 
--- =========================================================
--- 1. Require every supplier payment to belong to a purchase
--- =========================================================
-
+-- 1. Prevent unallocated supplier payments.
 DO $$
 BEGIN
   IF EXISTS (
@@ -17,7 +14,7 @@ BEGIN
     WHERE purchase_id IS NULL
   ) THEN
     RAISE EXCEPTION
-      'Cannot enforce invoice-linked payments: unallocated supplier payments exist';
+      'Unallocated supplier payments exist; migration stopped';
   END IF;
 END;
 $$;
@@ -26,10 +23,7 @@ ALTER TABLE public.dokkan_supplier_payments
   ALTER COLUMN purchase_id SET NOT NULL;
 
 
--- =========================================================
--- 2. Purchase details with items and payment history
--- =========================================================
-
+-- 2. Secure purchase details RPC.
 CREATE OR REPLACE FUNCTION public.dokkan_get_purchase(
   p_purchase_id uuid
 )
@@ -64,7 +58,6 @@ BEGIN
         'id', b.id,
         'name', b.name
       ),
-
       'supplier',
       CASE
         WHEN s.id IS NULL THEN NULL
@@ -74,7 +67,6 @@ BEGIN
           'phone', s.phone
         )
       END,
-
       'items',
       COALESCE(
         (
@@ -94,15 +86,14 @@ BEGIN
             ORDER BY pi.id
           )
           FROM public.dokkan_purchase_items pi
-          JOIN public.dokkan_product_variants v
+          LEFT JOIN public.dokkan_product_variants v
             ON v.id = pi.product_variant_id
-          JOIN public.dokkan_products pr
+          LEFT JOIN public.dokkan_products pr
             ON pr.id = v.product_id
           WHERE pi.purchase_id = p.id
         ),
         '[]'::jsonb
       ),
-
       'payments',
       COALESCE(
         (
@@ -139,10 +130,7 @@ END;
 $function$;
 
 
--- =========================================================
--- 3. Supplier statement
--- =========================================================
-
+-- 3. Supplier statement RPC.
 CREATE OR REPLACE FUNCTION public.dokkan_get_supplier_statement(
   p_supplier_id uuid
 )
@@ -156,7 +144,6 @@ DECLARE
   sid uuid;
   supplier_json jsonb;
   invoices_json jsonb;
-
   received_total numeric := 0;
   paid_total numeric := 0;
   advance_paid numeric := 0;
@@ -188,38 +175,23 @@ BEGIN
   WHERE s.id = p_supplier_id
     AND s.store_id = sid;
 
-  -- Only received invoices increase the payable balance.
-  -- Payments made before receiving remain supplier advances.
-
   SELECT
-    COALESCE(
-      SUM(
-        CASE
-          WHEN p.status = 'received' THEN p.total
-          ELSE 0
-        END
-      ),
-      0
-    ),
+    COALESCE(SUM(
+      CASE WHEN p.status = 'received'
+        THEN p.total ELSE 0 END
+    ), 0),
     COALESCE(SUM(p.amount_paid), 0),
-    COALESCE(
-      SUM(
-        CASE
-          WHEN p.status <> 'received' THEN p.amount_paid
-          ELSE 0
-        END
-      ),
-      0
-    ),
-    COALESCE(
-      SUM(
-        CASE
-          WHEN p.status <> 'received' THEN p.total
-          ELSE 0
-        END
-      ),
-      0
-    )
+    COALESCE(SUM(
+      CASE WHEN p.status <> 'received'
+        THEN p.amount_paid ELSE 0 END
+    ), 0),
+    COALESCE(SUM(
+      CASE
+        WHEN p.status IN ('pending', 'paid', 'partially_received')
+          THEN p.total
+        ELSE 0
+      END
+    ), 0)
   INTO
     received_total,
     paid_total,
@@ -294,10 +266,148 @@ END;
 $function$;
 
 
--- =========================================================
--- 4. Function permissions
--- =========================================================
+-- 4. Harden supplier payment RPC.
+-- Payments remain linked to one purchase invoice.
+-- Pre-receipt payments are allowed.
+-- Cancelled invoices cannot receive new payments.
 
+CREATE OR REPLACE FUNCTION public.dokkan_record_supplier_payment(
+  p_purchase_id uuid,
+  p_amount numeric,
+  payment_method text,
+  p_notes text,
+  p_idempotency_key text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  purchase_row public.dokkan_purchases%ROWTYPE;
+  existing_id uuid;
+  existing_purchase_id uuid;
+  new_id uuid;
+BEGIN
+  IF auth.uid() IS NULL
+     OR p_purchase_id IS NULL
+     OR p_amount IS NULL
+     OR p_amount::text IN ('NaN', 'Infinity', '-Infinity')
+     OR p_amount <= 0
+     OR nullif(trim(p_idempotency_key), '') IS NULL
+     OR payment_method IS NULL
+     OR payment_method NOT IN ('cash', 'card', 'transfer') THEN
+    RAISE EXCEPTION 'invalid payment';
+  END IF;
+
+  SELECT *
+  INTO purchase_row
+  FROM public.dokkan_purchases
+  WHERE id = p_purchase_id
+  FOR UPDATE;
+
+  IF NOT FOUND
+     OR NOT private.dokkan_has_role(
+       purchase_row.store_id,
+       ARRAY['owner', 'admin', 'manager']
+     )
+     OR NOT private.dokkan_can_branch(purchase_row.branch_id)
+     OR purchase_row.supplier_id IS NULL THEN
+    RAISE EXCEPTION 'not authorized';
+  END IF;
+
+  SELECT id, purchase_id
+  INTO existing_id, existing_purchase_id
+  FROM public.dokkan_supplier_payments
+  WHERE store_id = purchase_row.store_id
+    AND idempotency_key = trim(p_idempotency_key);
+
+  IF existing_id IS NOT NULL THEN
+    IF existing_purchase_id IS DISTINCT FROM p_purchase_id THEN
+      RAISE EXCEPTION 'idempotency key already used for another purchase';
+    END IF;
+
+    RETURN existing_id;
+  END IF;
+
+  IF purchase_row.status = 'cancelled' THEN
+    RAISE EXCEPTION 'cannot pay a cancelled purchase';
+  END IF;
+
+  IF p_amount > purchase_row.total - purchase_row.amount_paid THEN
+    RAISE EXCEPTION 'payment exceeds purchase remaining amount';
+  END IF;
+
+  INSERT INTO public.dokkan_supplier_payments (
+    store_id,
+    supplier_id,
+    purchase_id,
+    amount,
+    payment_method,
+    notes,
+    idempotency_key,
+    created_by
+  )
+  VALUES (
+    purchase_row.store_id,
+    purchase_row.supplier_id,
+    p_purchase_id,
+    p_amount,
+    payment_method,
+    nullif(trim(p_notes), ''),
+    trim(p_idempotency_key),
+    auth.uid()
+  )
+  RETURNING id INTO new_id;
+
+  UPDATE public.dokkan_purchases
+  SET
+    amount_paid = amount_paid + p_amount,
+    status = CASE
+      WHEN purchase_row.status IN ('received', 'partially_received')
+        THEN purchase_row.status
+      WHEN amount_paid + p_amount >= total
+        THEN 'paid'
+      ELSE purchase_row.status
+    END
+  WHERE id = p_purchase_id;
+
+  UPDATE public.dokkan_suppliers
+  SET
+    balance = balance - p_amount,
+    updated_at = now()
+  WHERE id = purchase_row.supplier_id
+    AND store_id = purchase_row.store_id;
+
+  INSERT INTO public.dokkan_audit_events (
+    store_id,
+    branch_id,
+    action,
+    entity_type,
+    entity_id,
+    actor_id,
+    metadata
+  )
+  VALUES (
+    purchase_row.store_id,
+    purchase_row.branch_id,
+    'supplier_payment',
+    'supplier_payment',
+    new_id,
+    auth.uid(),
+    jsonb_build_object(
+      'amount', p_amount,
+      'purchase_id', p_purchase_id,
+      'payment_method', payment_method
+    )
+  );
+
+  RETURN new_id;
+END;
+$function$;
+
+
+-- 5. Restrict function execution.
 REVOKE ALL ON FUNCTION public.dokkan_get_purchase(uuid)
   FROM PUBLIC, anon;
 
@@ -309,5 +419,13 @@ REVOKE ALL ON FUNCTION public.dokkan_get_supplier_statement(uuid)
 
 GRANT EXECUTE ON FUNCTION public.dokkan_get_supplier_statement(uuid)
   TO authenticated;
+
+REVOKE ALL ON FUNCTION public.dokkan_record_supplier_payment(
+  uuid, numeric, text, text, text
+) FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.dokkan_record_supplier_payment(
+  uuid, numeric, text, text, text
+) TO authenticated;
 
 COMMIT;
