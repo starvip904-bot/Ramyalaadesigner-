@@ -33,6 +33,7 @@ import {
   Image as ImageIcon,
   Save,
   Settings2,
+  FileText,
 } from 'lucide-react'
 
 type Party = {
@@ -451,7 +452,22 @@ function PartyPanel({
                 </div>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+              <div
+                className={`mt-3 grid ${
+                  isCustomer ? 'grid-cols-2' : 'grid-cols-3'
+                } gap-2 border-t border-slate-100 pt-3`}
+              >
+                {!isCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/suppliers/${row.id}`)}
+                    className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-blue-100 px-2 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50 sm:text-sm"
+                  >
+                    <FileText size={15} />
+                    كشف الحساب
+                  </button>
+                )}
+
                 <button
                   type="button"
                   disabled={busy}
