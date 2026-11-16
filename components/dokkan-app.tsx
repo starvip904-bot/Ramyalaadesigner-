@@ -16,9 +16,9 @@ const navGroups = [
     { label: 'المتاجر والفروع', href: '/stores', icon: Store, status: 'connected' },
     { label: 'الموظفون والصلاحيات', href: '/employees', icon: UserCog, status: 'development' },
   ]},
-  { title: 'المنتجات والمخزون', items: [
-    { label: 'المنتجات والتصنيفات', href: '/products', icon: Package, status: 'connected' },
-    { label: 'المخزون والجرد', href: '/inventory', icon: Boxes, status: 'connected' },
+    { title: 'المنتجات والمخزون', items: [
+    { label: 'المنتجات والمخزون', href: '/products', icon: Package, status: 'connected' },
+    { label: 'الجرد', href: '/inventory-counts', icon: ClipboardList, status: 'connected' },
     { label: 'التحويلات بين الفروع', href: '/transfers', icon: ArrowLeftRight, status: 'development' },
   ]},
   { title: 'المبيعات والعملاء', items: [
