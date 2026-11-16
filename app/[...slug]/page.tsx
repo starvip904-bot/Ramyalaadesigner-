@@ -2,6 +2,7 @@
 import SalesPage from '@/components/sales-page'
 import ReturnsManagementPage from '@/components/returns-management-page'
 import InventoryCountsPage from '@/components/inventory-counts-page'
+import SupplierStatementPage from '@/components/supplier-statement-page'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
@@ -75,6 +76,19 @@ export default async function Page({
       'مستخدم',
     role: reda.membership.role || null,
     storeName: reda.storeName,
+  }
+
+  // Supplier statement
+  if (type === 'suppliers' && slug[1]) {
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={
+          <SupplierStatementPage supplierId={slug[1]} />
+        }
+      />
+    )
   }
 
   // Dashboard
