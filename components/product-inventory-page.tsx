@@ -5,7 +5,6 @@ import { useMemo, useState, useTransition } from 'react'
 import { Edit3, Package, Plus, Search, Trash2 } from 'lucide-react'
 import {
   addProductVariantAction,
-  createProductWithVariantsAction,
   createProductWithInitialStockAction,
   recordInventoryMovementAction,
   updateProductAction,
@@ -58,7 +57,10 @@ type Props = {
   storeIds: string[]
 }
 
-type VariantDraft = ProductVariantInput & { id?: string }
+type VariantDraft = ProductVariantInput & {
+  id?: string
+  initialQuantity: number
+}
 
 const categories = [
   'أحذية حريمي',
@@ -106,6 +108,7 @@ const emptyVariant = (): VariantDraft => ({
   color: '',
   price: 0,
   cost: 0,
+  initialQuantity: 0,
 })
 
 const EAN_L = [
@@ -366,6 +369,9 @@ export default function ProductInventoryPage({
     brand: '',
   })
 
+  const [initialStockBranchId, setInitialStockBranchId] =
+    useState('')
+
   const [variants, setVariants] = useState<VariantDraft[]>([
     emptyVariant(),
   ])
@@ -376,6 +382,16 @@ export default function ProductInventoryPage({
     type: 'opening' | 'adjustment'
     quantity: string
   } | null>(null)
+
+  const availableBranches = useMemo(
+    () =>
+      data.branches.filter(
+        (branch) =>
+          branch.store_id === form.storeId &&
+          branch.status === 'active'
+      ),
+    [data.branches, form.storeId]
+  )
 
   const products = useMemo(
     () =>
@@ -399,15 +415,28 @@ export default function ProductInventoryPage({
   const reload = () => window.location.reload()
 
   const openCreate = () => {
+    const storeId =
+      storeIds[0] ||
+      initialData.products[0]?.store_id ||
+      initialData.branches[0]?.store_id ||
+      ''
+
+    const firstBranch = initialData.branches.find(
+      (branch) =>
+        branch.store_id === storeId &&
+        branch.status === 'active'
+    )
+
     setEditing(null)
 
     setForm({
-      storeId: storeIds[0] || '',
+      storeId,
       name: '',
       category: categories[0],
       brand: '',
     })
 
+    setInitialStockBranchId(firstBranch?.id || '')
     setVariants([emptyVariant()])
     setError('')
     setNotice('')
@@ -424,12 +453,15 @@ export default function ProductInventoryPage({
       brand: product.brand || '',
     })
 
+    setInitialStockBranchId('')
+
     setVariants(
       product.dokkan_product_variants.map((variant) => ({
         ...variant,
         barcode: variant.barcode || '',
         size: variant.size || '',
         color: variant.color || '',
+        initialQuantity: 0,
       }))
     )
 
@@ -492,19 +524,53 @@ export default function ProductInventoryPage({
           }
         } else {
           if (!form.storeId) {
-            throw new Error('لا يوجد متجر متاح')
+            throw new Error('لا يوجد متجر متاح.')
           }
 
-          await createProductWithVariantsAction({
-            ...form,
-            variants: variants.map((variant) => ({
+          if (!initialStockBranchId) {
+            throw new Error('اختر الفرع الذي ستُسجل فيه الكميات.')
+          }
+
+          const selectedBranch = availableBranches.find(
+            (branch) => branch.id === initialStockBranchId
+          )
+
+          if (!selectedBranch) {
+            throw new Error('الفرع المختار غير متاح أو غير نشط.')
+          }
+
+          const preparedVariants = variants.map((variant) => {
+            const initialQuantity = Number(
+              variant.initialQuantity
+            )
+
+            if (
+              !Number.isFinite(initialQuantity) ||
+              initialQuantity < 0
+            ) {
+              throw new Error(
+                'تأكد من إدخال كمية صحيحة وغير سالبة لكل متغير.'
+              )
+            }
+
+            return {
               sku: variant.sku,
               barcode: variant.barcode,
               size: variant.size,
               color: variant.color,
               price: Number(variant.price),
               cost: Number(variant.cost),
-            })),
+              initialQuantity,
+            }
+          })
+
+          await createProductWithInitialStockAction({
+            storeId: form.storeId,
+            branchId: initialStockBranchId,
+            name: form.name,
+            category: form.category,
+            brand: form.brand,
+            variants: preparedVariants,
           })
         }
 
@@ -607,7 +673,6 @@ export default function ProductInventoryPage({
       </div>
 
       {/* رسائل الحالة */}
-
       {error && (
         <p
           role="alert"
@@ -933,6 +998,46 @@ export default function ProductInventoryPage({
               />
             </div>
 
+            {!editing && (
+              <div className="space-y-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+                <h4 className="font-extrabold text-[#1e40af]">
+                  الفرع والرصيد الافتتاحي
+                </h4>
+
+                <p className="text-xs leading-6 text-[#475569]">
+                  اختر الفرع الذي ستُضاف إليه كميات المنتج عند إنشائه.
+                  الكمية مستقلة لكل مقاس أو لون.
+                </p>
+
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-[#465260]">
+                  <span>فرع تسجيل الكميات</span>
+
+                  <select
+                    required
+                    value={initialStockBranchId}
+                    onChange={(event) =>
+                      setInitialStockBranchId(event.target.value)
+                    }
+                    className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
+                  >
+                    <option value="">اختر الفرع</option>
+
+                    {availableBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {availableBranches.length === 0 && (
+                  <p className="text-xs font-bold text-[#b45309]">
+                    لا يوجد فرع نشط متاح لهذا المتجر.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -1034,6 +1139,24 @@ export default function ProductInventoryPage({
                     }
                   />
 
+                  {!editing && (
+                    <Field
+                      label="الكمية الافتتاحية في الفرع"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={variant.initialQuantity}
+                      onChange={(event) =>
+                        updateVariant(index, {
+                          initialQuantity:
+                            event.target.value === ''
+                              ? 0
+                              : Number(event.target.value),
+                        })
+                      }
+                    />
+                  )}
+
                   {!variant.id && variants.length > 1 && (
                     <button
                       type="button"
@@ -1065,7 +1188,7 @@ export default function ProductInventoryPage({
 
               <button
                 type="submit"
-                disabled={busy}
+                disabled={busy || (!editing && availableBranches.length === 0)}
                 className="rounded-xl bg-[#2563eb] px-6 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
                 {busy ? 'جارٍ الحفظ...' : 'حفظ المنتج'}
