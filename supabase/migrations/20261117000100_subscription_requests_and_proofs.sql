@@ -760,6 +760,7 @@ USING (
 
 -- =========================================================
 -- 13. Allow deletion only after a draft was cancelled
+-- The creator must still have an active permitted store role.
 -- Never allow deletion or replacement after submission.
 -- =========================================================
 
@@ -779,6 +780,10 @@ USING (
     WHERE r.proof_path = name
       AND r.status = 'cancelled'
       AND r.created_by = (SELECT auth.uid())
+      AND private.dokkan_has_role(
+        r.store_id,
+        ARRAY['owner', 'admin', 'manager']::text[]
+      )
   )
 );
 
