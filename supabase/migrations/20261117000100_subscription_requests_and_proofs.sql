@@ -2,7 +2,7 @@
 BEGIN;
 
 -- =========================================================
--- 1. Keep legacy plan codes and allow current Dokkan plans
+-- 1. Preserve legacy plan codes and allow current plan codes
 -- =========================================================
 
 ALTER TABLE public.dokkan_stores
@@ -24,7 +24,7 @@ ALTER TABLE public.dokkan_stores
   );
 
 -- =========================================================
--- 2. Private storage bucket for subscription proofs
+-- 2. Private bucket for subscription proofs
 -- =========================================================
 
 INSERT INTO storage.buckets (
@@ -53,7 +53,7 @@ SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- =========================================================
--- 3. Subscription requests
+-- 3. Subscription requests table
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS public.dokkan_subscription_requests (
@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS public.dokkan_subscription_requests (
     ),
 
   proof_path text NOT NULL UNIQUE,
+
   proof_mime_type text NOT NULL
     CHECK (
       proof_mime_type IN (
@@ -141,8 +142,7 @@ CREATE TABLE IF NOT EXISTS public.dokkan_subscription_requests (
       AND subscription_started_at IS NOT NULL
       AND subscription_ends_at IS NOT NULL
     )
-    OR
-    status <> 'approved'
+    OR status <> 'approved'
   )
 );
 
@@ -166,7 +166,7 @@ ON public.dokkan_subscription_requests (store_id)
 WHERE status IN ('draft', 'pending');
 
 -- =========================================================
--- 4. Row Level Security
+-- 4. Table permissions and RLS
 -- =========================================================
 
 ALTER TABLE public.dokkan_subscription_requests
@@ -195,10 +195,10 @@ USING (
 );
 
 -- No direct INSERT, UPDATE or DELETE permissions.
--- All changes happen through validated RPC functions.
+-- Changes are made through validated RPC functions.
 
 -- =========================================================
--- 5. Create a draft request and reserve its exact file path
+-- 5. Create a draft and reserve its exact proof path
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION public.dokkan_create_subscription_request(
@@ -257,7 +257,7 @@ BEGIN
     AND s.status = 'active'
     AND m.role IN ('owner', 'admin', 'manager')
   ORDER BY m.created_at
-  LIMIT 2;
+  LIMIT 1;
 
   IF v_store_id IS NULL THEN
     RAISE EXCEPTION 'active store membership required';
@@ -329,7 +329,69 @@ END;
 $function$;
 
 -- =========================================================
--- 6. Submit only after the exact proof file was uploaded
+-- 6. Cancel an unfinished draft
+-- =========================================================
+
+CREATE OR REPLACE FUNCTION public.dokkan_cancel_subscription_request(
+  p_request_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_request public.dokkan_subscription_requests%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+
+  SELECT *
+  INTO v_request
+  FROM public.dokkan_subscription_requests
+  WHERE id = p_request_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'subscription request not found';
+  END IF;
+
+  IF v_request.created_by IS DISTINCT FROM v_user_id
+     OR v_request.status <> 'draft'
+     OR NOT private.dokkan_has_role(
+       v_request.store_id,
+       ARRAY['owner', 'admin', 'manager']::text[]
+     ) THEN
+    RAISE EXCEPTION 'draft cannot be cancelled';
+  END IF;
+
+  UPDATE public.dokkan_subscription_requests
+  SET status = 'cancelled'
+  WHERE id = p_request_id;
+
+  INSERT INTO public.dokkan_audit_events (
+    store_id,
+    action,
+    entity_type,
+    entity_id,
+    actor_id,
+    metadata
+  )
+  VALUES (
+    v_request.store_id,
+    'cancel',
+    'subscription_request',
+    p_request_id,
+    v_user_id,
+    jsonb_build_object('status', 'cancelled')
+  );
+END;
+$function$;
+
+-- =========================================================
+-- 7. Submit only after exact proof file was uploaded
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION public.dokkan_submit_subscription_request(
@@ -360,6 +422,11 @@ BEGIN
     RAISE EXCEPTION 'subscription request not found';
   END IF;
 
+  IF v_request.created_by IS DISTINCT FROM v_user_id
+     OR v_request.status <> 'draft' THEN
+    RAISE EXCEPTION 'request cannot be submitted';
+  END IF;
+
   IF NOT private.dokkan_has_role(
     v_request.store_id,
     ARRAY['owner', 'admin', 'manager']::text[]
@@ -367,20 +434,18 @@ BEGIN
     RAISE EXCEPTION 'not authorized';
   END IF;
 
-  IF v_request.created_by IS DISTINCT FROM v_user_id
-     OR v_request.status <> 'draft' THEN
-    RAISE EXCEPTION 'request cannot be submitted';
+  -- Lock the store and verify that it is still active.
+  PERFORM 1
+  FROM public.dokkan_stores
+  WHERE id = v_request.store_id
+    AND status = 'active'
+  FOR SHARE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'store is not active';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM storage.objects AS o
-    WHERE o.bucket_id = 'dokkan-subscription-proofs'
-      AND o.name = v_request.proof_path
-  ) THEN
-    RAISE EXCEPTION 'proof file not found';
-  END IF;
-
+  -- Verify the exact uploaded object.
   SELECT
     NULLIF(o.metadata ->> 'size', '')::bigint,
     o.metadata ->> 'mimetype'
@@ -389,14 +454,17 @@ BEGIN
   WHERE o.bucket_id = 'dokkan-subscription-proofs'
     AND o.name = v_request.proof_path;
 
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'proof file not found';
+  END IF;
+
   IF v_file_size IS NULL
      OR v_file_size < 1
      OR v_file_size > 5242880 THEN
     RAISE EXCEPTION 'invalid proof file size';
   END IF;
 
-  IF v_file_mime IS NOT NULL
-     AND v_file_mime <> v_request.proof_mime_type THEN
+  IF v_file_mime IS DISTINCT FROM v_request.proof_mime_type THEN
     RAISE EXCEPTION 'proof file type mismatch';
   END IF;
 
@@ -427,7 +495,7 @@ END;
 $function$;
 
 -- =========================================================
--- 7. Approve request and activate subscription atomically
+-- 8. Approve request and activate subscription atomically
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION public.dokkan_approve_subscription_request(
@@ -524,7 +592,7 @@ END;
 $function$;
 
 -- =========================================================
--- 8. Reject request without changing the current subscription
+-- 9. Reject request without changing current subscription
 -- =========================================================
 
 CREATE OR REPLACE FUNCTION public.dokkan_reject_subscription_request(
@@ -589,11 +657,15 @@ END;
 $function$;
 
 -- =========================================================
--- 9. Secure RPC permissions
+-- 10. Secure RPC permissions
 -- =========================================================
 
 REVOKE ALL ON FUNCTION
   public.dokkan_create_subscription_request(text, text, numeric)
+FROM PUBLIC, anon;
+
+REVOKE ALL ON FUNCTION
+  public.dokkan_cancel_subscription_request(uuid)
 FROM PUBLIC, anon;
 
 REVOKE ALL ON FUNCTION
@@ -613,6 +685,10 @@ GRANT EXECUTE ON FUNCTION
 TO authenticated;
 
 GRANT EXECUTE ON FUNCTION
+  public.dokkan_cancel_subscription_request(uuid)
+TO authenticated;
+
+GRANT EXECUTE ON FUNCTION
   public.dokkan_submit_subscription_request(uuid)
 TO authenticated;
 
@@ -625,7 +701,7 @@ GRANT EXECUTE ON FUNCTION
 TO authenticated;
 
 -- =========================================================
--- 10. Storage access policies
+-- 11. Storage upload policy
 -- =========================================================
 
 DROP POLICY IF EXISTS
@@ -653,6 +729,11 @@ WITH CHECK (
   )
 );
 
+-- =========================================================
+-- 12. Storage read policy
+-- Works for pending, approved and rejected requests.
+-- =========================================================
+
 DROP POLICY IF EXISTS
   dokkan_subscription_proofs_read
 ON storage.objects;
@@ -677,7 +758,31 @@ USING (
   )
 );
 
--- Intentionally no UPDATE or DELETE policies.
--- Proof files cannot be replaced or deleted through client access.
+-- =========================================================
+-- 13. Allow deletion only after a draft was cancelled
+-- Never allow deletion or replacement after submission.
+-- =========================================================
+
+DROP POLICY IF EXISTS
+  dokkan_subscription_proofs_cancelled_draft_delete
+ON storage.objects;
+
+CREATE POLICY dokkan_subscription_proofs_cancelled_draft_delete
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'dokkan-subscription-proofs'
+  AND EXISTS (
+    SELECT 1
+    FROM public.dokkan_subscription_requests AS r
+    WHERE r.proof_path = name
+      AND r.status = 'cancelled'
+      AND r.created_by = (SELECT auth.uid())
+  )
+);
+
+-- Intentionally no UPDATE policy.
+-- Submitted proofs cannot be replaced or deleted by store users.
 
 COMMIT;
