@@ -1,9 +1,5 @@
-
 import { redirect } from 'next/navigation'
-import {
-  PlanGrid,
-  SubscriptionHero,
-} from '@/components/subscription-plans'
+import SubscriptionRequestManager from '@/app/subscription/subscription-request-manager'
 import { requireRedaContext } from '@/lib/reda-scope'
 import {
   getPlanDefinition,
@@ -12,7 +8,7 @@ import {
 
 export const metadata = {
   title: 'اشتراكي | DOKKAN',
-  description: 'إدارة خطة اشتراك متجرك.',
+  description: 'إدارة خطة اشتراك متجرك وطلبات الترقية.',
 }
 
 function formatDate(value: string | null) {
@@ -34,6 +30,7 @@ export default async function SubscriptionPage() {
   const { data: store, error } = await context.supabase
     .from('dokkan_stores')
     .select(`
+      name,
       plan_code,
       subscription_status,
       subscription_started_at,
@@ -59,6 +56,7 @@ export default async function SubscriptionPage() {
     cancelled: 'ملغاة',
     expired: 'منتهية',
     pending: 'قيد الانتظار',
+    paused: 'متوقفة مؤقتًا',
   }
 
   const status =
@@ -87,23 +85,32 @@ export default async function SubscriptionPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
-            بيانات الاشتراك الفعلية المسجلة لمتجرك.
+            تابع اشتراك متجرك وقدم طلب الترقية من مكان واحد.
           </p>
         </header>
 
-        <SubscriptionHero
-          eyebrow="اشتراك متجرك"
-          title={
-            isPermanentFree
-              ? 'أنت على الخطة المجانية الدائمة'
-              : `خطتك الحالية: ${planName}`
-          }
-          description={
-            isPermanentFree
-              ? 'تستفيد من خطة Dokkan Free دون رسوم اشتراك ودون تاريخ انتهاء. لن يتم تفعيل أي خطة مدفوعة تلقائيًا.'
-              : 'تعرض هذه الصفحة حالة الخطة المسجلة حاليًا في قاعدة البيانات.'
-          }
-        />
+        <section className="relative overflow-hidden rounded-[1.75rem] bg-slate-950 px-6 py-8 text-white shadow-xl md:px-10 md:py-11">
+          <div className="absolute -left-16 -top-20 size-64 rounded-full bg-blue-600/25 blur-3xl" />
+          <div className="absolute -bottom-28 right-10 size-72 rounded-full bg-violet-600/20 blur-3xl" />
+
+          <div className="relative max-w-3xl">
+            <p className="text-sm font-bold text-blue-200">
+              اشتراك متجرك
+            </p>
+
+            <h2 className="mt-4 text-3xl font-extrabold md:text-4xl">
+              {isPermanentFree
+                ? 'أنت على الخطة المجانية الدائمة'
+                : `خطتك الحالية: ${planName}`}
+            </h2>
+
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              {isPermanentFree
+                ? 'تستفيد من خطة Dokkan Free دون رسوم اشتراك ودون تاريخ انتهاء. يمكنك تقديم طلب للترقية إلى إحدى الخطط المدفوعة.'
+                : 'يمكنك متابعة حالة اشتراكك وتقديم طلب ترقية يخضع لمراجعة الإدارة.'}
+            </p>
+          </div>
+        </section>
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -149,30 +156,14 @@ export default async function SubscriptionPage() {
           {isPermanentFree && (
             <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-semibold leading-7 text-emerald-800">
               خطتك المجانية دائمة. لا يوجد تجديد شهري أو سنوي،
-              ولا يتم تحصيل أي مبالغ منك.
+              ولا يتم تحصيل أي مبالغ منك مقابلها.
             </p>
           )}
-
-          <p className="mt-5 text-sm text-slate-500">
-            الدفع الإلكتروني وتغيير الخطط المدفوعة غير مفعّلين
-            حاليًا.
-          </p>
         </section>
 
-        <section>
-          <div className="mb-4">
-            <h2 className="text-xl font-extrabold">
-              الخطط المتاحة
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              يمكنك الاطلاع على الخطط. اختيار خطة مدفوعة لا
-              يغيّر اشتراكك حاليًا.
-            </p>
-          </div>
-
-          <PlanGrid currentPlan={planCode} />
-        </section>
+        <SubscriptionRequestManager
+          storeName={store.name}
+        />
       </div>
     </main>
   )
