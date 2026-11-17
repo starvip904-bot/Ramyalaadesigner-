@@ -424,58 +424,85 @@ export default async function PlatformPage() {
               أدوات إدارة المنصة
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              أقسام سنستكمل وظائفها في المراحل القادمة.
+              أقسام إدارة المنصة.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                title: 'إدارة المتاجر',
-                description: 'عرض تفاصيل كل متجر ومتابعة حالته.',
-                icon: Store,
-              },
-              {
-                title: 'إدارة المشتركين',
-                description: 'متابعة حسابات وعضويات المستخدمين.',
-                icon: Users,
-              },
-              {
-                title: 'طلبات الترقية',
-                description: 'مراجعة طلبات الانتقال إلى الخطط المدفوعة.',
-                icon: CreditCard,
-              },
-              {
-                title: 'التقارير المالية',
-                description: 'متابعة المدفوعات والإيرادات بعد تفعيلها.',
-                icon: Wallet,
-              },
-            ].map((item) => {
-              const Icon = item.icon
+            <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                <Store size={20} />
+              </span>
 
-              return (
-                <article
-                  key={item.title}
-                  className="rounded-2xl border border-dashed border-slate-300 bg-white p-5"
-                >
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                    <Icon size={20} />
-                  </span>
+              <h3 className="mt-4 font-extrabold">
+                إدارة المتاجر
+              </h3>
 
-                  <h3 className="mt-4 font-extrabold">
-                    {item.title}
-                  </h3>
+              <p className="mt-2 text-xs leading-6 text-slate-500">
+                عرض تفاصيل كل متجر ومتابعة حالته.
+              </p>
 
-                  <p className="mt-2 text-xs leading-6 text-slate-500">
-                    {item.description}
-                  </p>
+              <span className="mt-4 inline-block rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">
+                قيد التطوير
+              </span>
+            </article>
 
-                  <span className="mt-4 inline-block rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">
-                    قيد التطوير
-                  </span>
-                </article>
-              )
-            })}
+            <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                <Users size={20} />
+              </span>
+
+              <h3 className="mt-4 font-extrabold">
+                إدارة المشتركين
+              </h3>
+
+              <p className="mt-2 text-xs leading-6 text-slate-500">
+                متابعة حسابات وعضويات المستخدمين.
+              </p>
+
+              <span className="mt-4 inline-block rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">
+                قيد التطوير
+              </span>
+            </article>
+
+            <Link
+              href="/platform/subscription-requests"
+              className="rounded-2xl border border-blue-200 bg-white p-5 transition hover:border-blue-400 hover:bg-blue-50"
+            >
+              <span className="flex size-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <CreditCard size={20} />
+              </span>
+
+              <h3 className="mt-4 font-extrabold">
+                طلبات الاشتراك وإثباتات الدفع
+              </h3>
+
+              <p className="mt-2 text-xs leading-6 text-slate-500">
+                مراجعة صور التحويلات واعتماد الاشتراكات أو رفضها.
+              </p>
+
+              <span className="mt-4 inline-block rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-bold text-blue-700">
+                فتح إدارة الطلبات
+              </span>
+            </Link>
+
+            <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                <Wallet size={20} />
+              </span>
+
+              <h3 className="mt-4 font-extrabold">
+                التقارير المالية
+              </h3>
+
+              <p className="mt-2 text-xs leading-6 text-slate-500">
+                متابعة المدفوعات والإيرادات بعد تفعيلها.
+              </p>
+
+              <span className="mt-4 inline-block rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-700">
+                قيد التطوير
+              </span>
+            </article>
           </div>
         </section>
 
