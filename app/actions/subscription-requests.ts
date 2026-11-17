@@ -1,4 +1,3 @@
-
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -15,32 +14,41 @@ const ALLOWED_MIME_TYPES = [
   'application/pdf',
 ] as const
 
+type ProofMimeType = (typeof ALLOWED_MIME_TYPES)[number]
 type PaidPlanCode = 'basic' | 'professional' | 'enterprise'
 
 function isPaidPlanCode(value: string): value is PaidPlanCode {
-  return [
-    'basic',
-    'professional',
-    'enterprise',
-  ].includes(value)
+  return ['basic', 'professional', 'enterprise'].includes(value)
+}
+
+function isProofMimeType(value: string): value is ProofMimeType {
+  return ALLOWED_MIME_TYPES.includes(value as ProofMimeType)
 }
 
 function getSafeError(error: unknown, fallback: string) {
-  if (!(error instanceof Error)) return fallback
+  const message =
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
+      ? error.message
+      : error instanceof Error
+        ? error.message
+        : ''
 
-  if (error.message.includes('not authorized')) {
+  if (message.includes('not authorized')) {
     return 'ليس لديك صلاحية تنفيذ هذه العملية.'
   }
 
-  if (error.message.includes('not pending')) {
+  if (message.includes('not pending')) {
     return 'هذا الطلب تمت مراجعته بالفعل.'
   }
 
-  if (error.message.includes('proof file')) {
+  if (message.includes('proof file')) {
     return 'تعذر التحقق من ملف إثبات الدفع.'
   }
 
-  if (error.message.includes('already exists')) {
+  if (message.includes('already exists')) {
     return 'يوجد طلب اشتراك مفتوح بالفعل لهذا المتجر.'
   }
 
@@ -49,10 +57,11 @@ function getSafeError(error: unknown, fallback: string) {
 
 /**
  * إنشاء طلب اشتراك مبدئي.
- * لا يتم تغيير اشتراك المتجر عند هذه الخطوة.
+ * يجب إرسال نوع الملف الحقيقي حتى يتطابق مع الإثبات المرفوع.
  */
 export async function createSubscriptionRequestDraftAction(input: {
   planCode: string
+  proofMimeType: string
   claimedAmountEgp?: number | null
 }) {
   const context = await requireRedaContext([
@@ -65,6 +74,10 @@ export async function createSubscriptionRequestDraftAction(input: {
     throw new Error('الخطة المطلوبة غير صحيحة.')
   }
 
+  if (!isProofMimeType(input.proofMimeType)) {
+    throw new Error('نوع ملف إثبات الدفع غير مدعوم.')
+  }
+
   const claimedAmount =
     input.claimedAmountEgp == null
       ? null
@@ -72,10 +85,7 @@ export async function createSubscriptionRequestDraftAction(input: {
 
   if (
     claimedAmount !== null &&
-    (
-      !Number.isFinite(claimedAmount) ||
-      claimedAmount < 0
-    )
+    (!Number.isFinite(claimedAmount) || claimedAmount < 0)
   ) {
     throw new Error('راجع المبلغ الذي أدخلته.')
   }
@@ -84,7 +94,7 @@ export async function createSubscriptionRequestDraftAction(input: {
     'dokkan_create_subscription_request',
     {
       p_plan_code: input.planCode,
-      p_proof_mime_type: 'image/jpeg',
+      p_proof_mime_type: input.proofMimeType,
       p_claimed_amount_egp: claimedAmount,
     }
   )
@@ -95,10 +105,7 @@ export async function createSubscriptionRequestDraftAction(input: {
     })
 
     throw new Error(
-      getSafeError(
-        error,
-        'تعذر إنشاء طلب الاشتراك.'
-      )
+      getSafeError(error, 'تعذر إنشاء طلب الاشتراك.')
     )
   }
 
@@ -114,14 +121,14 @@ export async function createSubscriptionRequestDraftAction(input: {
 
   return {
     ok: true as const,
-    requestId: result.request_id as string,
-    proofPath: result.proof_path as string,
+    requestId: result.request_id,
+    proofPath: result.proof_path,
   }
 }
 
 /**
  * رفع الإثبات وإرسال الطلب للمراجعة.
- * يمكن إعادة المحاولة بنفس requestId إذا تعطل الرفع.
+ * يمكن إعادة المحاولة بنفس رقم الطلب إذا تعطل الإرسال.
  */
 export async function uploadSubscriptionProofAndSubmitAction(
   requestId: string,
@@ -143,14 +150,10 @@ export async function uploadSubscriptionProofAndSubmitAction(
     file.size < 1 ||
     file.size > MAX_PROOF_SIZE
   ) {
-    throw new Error('حجم الملف يجب ألا يتجاوز 5 ميجابايت.')
+    throw new Error('حجم الملف يجب أن يكون أكبر من صفر وألا يتجاوز 5 ميجابايت.')
   }
 
-  if (
-    !ALLOWED_MIME_TYPES.includes(
-      file.type as (typeof ALLOWED_MIME_TYPES)[number]
-    )
-  ) {
+  if (!isProofMimeType(file.type)) {
     throw new Error('نوع الملف غير مدعوم.')
   }
 
@@ -169,7 +172,9 @@ export async function uploadSubscriptionProofAndSubmitAction(
       .single()
 
   if (requestError || !request) {
-    throw new Error('طلب الاشتراك غير موجود أو لا تملك صلاحية الوصول إليه.')
+    throw new Error(
+      'طلب الاشتراك غير موجود أو لا تملك صلاحية الوصول إليه.'
+    )
   }
 
   if (request.status !== 'draft') {
@@ -187,8 +192,7 @@ export async function uploadSubscriptionProofAndSubmitAction(
     throw new Error('مسار ملف الإثبات غير صحيح.')
   }
 
-  // إذا كان الملف قد رُفع في محاولة سابقة،
-  // لا نحاول استبداله أو رفع نسخة أخرى.
+  // نتحقق أولًا هل الملف رُفع في محاولة سابقة.
   const { data: existingFiles, error: listError } =
     await context.supabase.storage
       .from(PROOF_BUCKET)
@@ -205,6 +209,7 @@ export async function uploadSubscriptionProofAndSubmitAction(
     (item) => item.name === fileName
   )
 
+  // لا نستبدل الملف إذا كان قد رُفع بالفعل.
   if (!alreadyUploaded) {
     const { error: uploadError } =
       await context.supabase.storage
@@ -293,7 +298,7 @@ export async function getMySubscriptionRequestsAction() {
 
 /**
  * عرض طلبات الاشتراك لمدير المنصة.
- * روابط الإثبات مؤقتة ولا يتم إنشاء روابط عامة.
+ * روابط الإثبات مؤقتة وليست روابط عامة.
  */
 export async function getPlatformSubscriptionRequestsAction(
   status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending'
@@ -351,10 +356,7 @@ export async function getPlatformSubscriptionRequestsAction(
         const { data: signed, error: signedError } =
           await supabase.storage
             .from(PROOF_BUCKET)
-            .createSignedUrl(
-              request.proof_path,
-              5 * 60
-            )
+            .createSignedUrl(request.proof_path, 5 * 60)
 
         if (!signedError) {
           proofSignedUrl = signed?.signedUrl ?? null
@@ -371,7 +373,7 @@ export async function getPlatformSubscriptionRequestsAction(
 
 /**
  * موافقة مدير المنصة على الطلب.
- * المبلغ وتاريخ الانتهاء يحددهما المدير.
+ * المدير يحدد المبلغ المستلم وتاريخ انتهاء الاشتراك.
  */
 export async function approveSubscriptionRequestAction(input: {
   requestId: string
@@ -410,10 +412,7 @@ export async function approveSubscriptionRequestAction(input: {
     })
 
     throw new Error(
-      getSafeError(
-        error,
-        'تعذر اعتماد طلب الاشتراك.'
-      )
+      getSafeError(error, 'تعذر اعتماد طلب الاشتراك.')
     )
   }
 
@@ -460,10 +459,7 @@ export async function rejectSubscriptionRequestAction(input: {
     })
 
     throw new Error(
-      getSafeError(
-        error,
-        'تعذر رفض طلب الاشتراك.'
-      )
+      getSafeError(error, 'تعذر رفض طلب الاشتراك.')
     )
   }
 
