@@ -1,6 +1,7 @@
+
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   approveSubscriptionRequestAction,
   getPlatformSubscriptionRequestsAction,
@@ -31,12 +32,22 @@ type RequestRow = {
     | null
 }
 
-type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all'
+type FilterStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'draft'
+  | 'cancelled'
+  | 'all'
 
 const planNames: Record<string, string> = {
+  free: 'Free',
   basic: 'Basic',
   professional: 'Professional',
   enterprise: 'Enterprise',
+  starter: 'Starter',
+  pro: 'Pro',
+  business: 'Business',
 }
 
 const statusNames: Record<string, string> = {
@@ -45,6 +56,14 @@ const statusNames: Record<string, string> = {
   rejected: 'مرفوض',
   draft: 'مسودة',
   cancelled: 'ملغي',
+}
+
+const statusStyles: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  approved: 'bg-emerald-100 text-emerald-800',
+  rejected: 'bg-rose-100 text-rose-800',
+  draft: 'bg-slate-100 text-slate-700',
+  cancelled: 'bg-gray-200 text-gray-700',
 }
 
 function formatDate(value: string | null) {
@@ -61,7 +80,9 @@ function formatDate(value: string | null) {
 }
 
 function formatMoney(value: number | null) {
-  if (value === null || value === undefined) return 'غير محدد'
+  if (value === null || value === undefined) {
+    return 'غير محدد'
+  }
 
   return `${Number(value).toLocaleString('ar-EG')} جنيه`
 }
@@ -70,12 +91,18 @@ function getStore(store: RequestRow['dokkan_stores']) {
   return Array.isArray(store) ? store[0] ?? null : store
 }
 
+function getStatusStyle(status: string) {
+  return statusStyles[status] || 'bg-slate-100 text-slate-700'
+}
+
 export default function PlatformSubscriptionRequestsPage() {
   const [requests, setRequests] = useState<RequestRow[]>([])
   const [status, setStatus] = useState<FilterStatus>('pending')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  const actionLock = useRef(false)
 
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [endDates, setEndDates] = useState<Record<string, string>>({})
@@ -104,10 +131,18 @@ export default function PlatformSubscriptionRequestsPage() {
   }, [loadRequests])
 
   async function handleApprove(request: RequestRow) {
-    const amount = Number(amounts[request.id])
+    if (actionLock.current) return
+    if (request.status !== 'pending') return
+
+    const rawAmount = amounts[request.id]?.trim()
+    const amount = Number(rawAmount)
     const endDate = endDates[request.id]
 
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (
+      !rawAmount ||
+      !Number.isFinite(amount) ||
+      amount < 0
+    ) {
       window.alert('أدخل المبلغ الذي تم استلامه بشكل صحيح.')
       return
     }
@@ -133,14 +168,16 @@ export default function PlatformSubscriptionRequestsPage() {
 
     if (!confirmed) return
 
+    actionLock.current = true
     setBusyId(request.id)
+    setError('')
 
     try {
       await approveSubscriptionRequestAction({
         requestId: request.id,
         verifiedAmountEgp: amount,
         subscriptionEndsAt: endDateObject.toISOString(),
-        adminNotes: notes[request.id] || '',
+        adminNotes: notes[request.id]?.trim() || '',
       })
 
       window.alert('تم اعتماد الاشتراك بنجاح.')
@@ -152,11 +189,15 @@ export default function PlatformSubscriptionRequestsPage() {
           : 'تعذر اعتماد الطلب.'
       )
     } finally {
+      actionLock.current = false
       setBusyId(null)
     }
   }
 
   async function handleReject(request: RequestRow) {
+    if (actionLock.current) return
+    if (request.status !== 'pending') return
+
     const reason = window.prompt(
       'اكتب سبب رفض طلب الاشتراك:'
     )
@@ -174,7 +215,9 @@ export default function PlatformSubscriptionRequestsPage() {
 
     if (!confirmed) return
 
+    actionLock.current = true
     setBusyId(request.id)
+    setError('')
 
     try {
       await rejectSubscriptionRequestAction({
@@ -191,9 +234,19 @@ export default function PlatformSubscriptionRequestsPage() {
           : 'تعذر رفض الطلب.'
       )
     } finally {
+      actionLock.current = false
       setBusyId(null)
     }
   }
+
+  const filters: [FilterStatus, string][] = [
+    ['pending', 'طلبات قيد المراجعة'],
+    ['approved', 'الموافق عليها'],
+    ['rejected', 'المرفوضة'],
+    ['draft', 'المسودات'],
+    ['cancelled', 'الملغاة'],
+    ['all', 'كل الطلبات'],
+  ]
 
   return (
     <main
@@ -218,19 +271,13 @@ export default function PlatformSubscriptionRequestsPage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
           <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ['pending', 'طلبات قيد المراجعة'],
-                ['approved', 'الموافق عليها'],
-                ['rejected', 'المرفوضة'],
-                ['all', 'كل الطلبات'],
-              ] as [FilterStatus, string][]
-            ).map(([value, label]) => (
+            {filters.map(([value, label]) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setStatus(value)}
-                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${
+                disabled={loading || busyId !== null}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   status === value
                     ? 'bg-blue-700 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -243,16 +290,19 @@ export default function PlatformSubscriptionRequestsPage() {
             <button
               type="button"
               onClick={() => void loadRequests()}
-              disabled={loading}
+              disabled={loading || busyId !== null}
               className="mr-auto rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50"
             >
-              تحديث
+              {loading ? 'جارٍ التحديث...' : 'تحديث'}
             </button>
           </div>
         </section>
 
         {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
+          <div
+            role="alert"
+            className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700"
+          >
             {error}
           </div>
         )}
@@ -266,6 +316,7 @@ export default function PlatformSubscriptionRequestsPage() {
             <p className="text-lg font-extrabold text-slate-700">
               لا توجد طلبات للعرض
             </p>
+
             <p className="mt-2 text-sm text-slate-500">
               ستظهر الطلبات هنا بمجرد إرسالها من المتاجر.
             </p>
@@ -276,6 +327,7 @@ export default function PlatformSubscriptionRequestsPage() {
               const store = getStore(request.dokkan_stores)
               const isPending = request.status === 'pending'
               const isBusy = busyId === request.id
+              const canReview = isPending
 
               return (
                 <article
@@ -294,13 +346,7 @@ export default function PlatformSubscriptionRequestsPage() {
                     </div>
 
                     <span
-                      className={`rounded-full px-3 py-2 text-xs font-extrabold ${
-                        request.status === 'pending'
-                          ? 'bg-amber-100 text-amber-800'
-                          : request.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                      }`}
+                      className={`rounded-full px-3 py-2 text-xs font-extrabold ${getStatusStyle(request.status)}`}
                     >
                       {statusNames[request.status] || request.status}
                     </span>
@@ -313,6 +359,7 @@ export default function PlatformSubscriptionRequestsPage() {
                           <p className="text-xs text-slate-500">
                             الخطة المطلوبة
                           </p>
+
                           <p className="mt-2 font-extrabold text-blue-700">
                             {planNames[request.requested_plan_code] ||
                               request.requested_plan_code}
@@ -323,6 +370,7 @@ export default function PlatformSubscriptionRequestsPage() {
                           <p className="text-xs text-slate-500">
                             المبلغ المعلن
                           </p>
+
                           <p className="mt-2 font-extrabold">
                             {formatMoney(request.claimed_amount_egp)}
                           </p>
@@ -332,6 +380,7 @@ export default function PlatformSubscriptionRequestsPage() {
                           <p className="text-xs text-slate-500">
                             هاتف المتجر
                           </p>
+
                           <p className="mt-2 font-bold" dir="ltr">
                             {store?.phone || 'غير مسجل'}
                           </p>
@@ -341,6 +390,7 @@ export default function PlatformSubscriptionRequestsPage() {
                           <p className="text-xs text-slate-500">
                             تاريخ الإرسال
                           </p>
+
                           <p className="mt-2 text-sm font-bold">
                             {formatDate(request.submitted_at)}
                           </p>
@@ -353,7 +403,8 @@ export default function PlatformSubscriptionRequestsPage() {
                         </p>
 
                         <p className="mt-1 text-xs text-slate-500">
-                          {request.proof_mime_type} —{' '}
+                          {request.proof_mime_type || 'نوع الملف غير معروف'}
+                          {' — '}
                           {request.proof_size
                             ? `${(
                                 request.proof_size /
@@ -373,21 +424,46 @@ export default function PlatformSubscriptionRequestsPage() {
                           </a>
                         ) : (
                           <p className="mt-3 text-sm text-amber-700">
-                            رابط الإثبات غير متاح حاليًا.
+                            رابط الإثبات غير متاح حاليًا. حدّث الصفحة
+                            وحاول مرة أخرى.
                           </p>
                         )}
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm font-extrabold">
+                          تواريخ الطلب
+                        </p>
+
+                        <p className="mt-2 text-sm text-slate-600">
+                          تاريخ إنشاء الطلب:{' '}
+                          <strong>
+                            {formatDate(request.created_at)}
+                          </strong>
+                        </p>
+
+                        <p className="mt-2 text-sm text-slate-600">
+                          تاريخ الإرسال للمراجعة:{' '}
+                          <strong>
+                            {formatDate(request.submitted_at)}
+                          </strong>
+                        </p>
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-4">
-                      {isPending ? (
+                      {canReview ? (
                         <>
                           <div>
-                            <label className="mb-2 block text-sm font-bold">
+                            <label
+                              htmlFor={`amount-${request.id}`}
+                              className="mb-2 block text-sm font-bold"
+                            >
                               المبلغ المستلم فعليًا بالجنيه
                             </label>
 
                             <input
+                              id={`amount-${request.id}`}
                               type="number"
                               min="0"
                               step="0.01"
@@ -399,16 +475,21 @@ export default function PlatformSubscriptionRequestsPage() {
                                 }))
                               }
                               placeholder="أدخل المبلغ المستلم"
-                              className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600"
+                              disabled={busyId !== null}
+                              className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600 disabled:bg-slate-100"
                             />
                           </div>
 
                           <div>
-                            <label className="mb-2 block text-sm font-bold">
+                            <label
+                              htmlFor={`end-date-${request.id}`}
+                              className="mb-2 block text-sm font-bold"
+                            >
                               تاريخ انتهاء الاشتراك
                             </label>
 
                             <input
+                              id={`end-date-${request.id}`}
                               type="datetime-local"
                               value={endDates[request.id] ?? ''}
                               onChange={(event) =>
@@ -417,16 +498,21 @@ export default function PlatformSubscriptionRequestsPage() {
                                   [request.id]: event.target.value,
                                 }))
                               }
-                              className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600"
+                              disabled={busyId !== null}
+                              className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600 disabled:bg-slate-100"
                             />
                           </div>
 
                           <div>
-                            <label className="mb-2 block text-sm font-bold">
+                            <label
+                              htmlFor={`notes-${request.id}`}
+                              className="mb-2 block text-sm font-bold"
+                            >
                               ملاحظات الإدارة (اختياري)
                             </label>
 
                             <textarea
+                              id={`notes-${request.id}`}
                               rows={3}
                               value={notes[request.id] ?? ''}
                               onChange={(event) =>
@@ -436,16 +522,17 @@ export default function PlatformSubscriptionRequestsPage() {
                                 }))
                               }
                               placeholder="ملاحظات داخلية..."
-                              className="w-full resize-y rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600"
+                              disabled={busyId !== null}
+                              className="w-full resize-y rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-600 disabled:bg-slate-100"
                             />
                           </div>
 
                           <div className="flex flex-wrap gap-3">
                             <button
                               type="button"
-                              disabled={isBusy}
+                              disabled={busyId !== null}
                               onClick={() => void handleApprove(request)}
-                              className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                              className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isBusy
                                 ? 'جارٍ التنفيذ...'
@@ -454,11 +541,13 @@ export default function PlatformSubscriptionRequestsPage() {
 
                             <button
                               type="button"
-                              disabled={isBusy}
+                              disabled={busyId !== null}
                               onClick={() => void handleReject(request)}
-                              className="flex-1 rounded-xl bg-rose-600 px-4 py-3 font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                              className="flex-1 rounded-xl bg-rose-600 px-4 py-3 font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              رفض الطلب
+                              {isBusy
+                                ? 'جارٍ التنفيذ...'
+                                : 'رفض الطلب'}
                             </button>
                           </div>
                         </>
@@ -482,6 +571,15 @@ export default function PlatformSubscriptionRequestsPage() {
                             </strong>
                           </p>
 
+                          {request.subscription_started_at && (
+                            <p className="mt-2 text-sm text-slate-600">
+                              بداية الاشتراك:{' '}
+                              <strong>
+                                {formatDate(request.subscription_started_at)}
+                              </strong>
+                            </p>
+                          )}
+
                           {request.subscription_ends_at && (
                             <p className="mt-2 text-sm text-slate-600">
                               انتهاء الاشتراك:{' '}
@@ -492,8 +590,31 @@ export default function PlatformSubscriptionRequestsPage() {
                           )}
 
                           {request.rejection_reason && (
-                            <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
-                              سبب الرفض: {request.rejection_reason}
+                            <div className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+                              <p className="font-extrabold">
+                                سبب الرفض
+                              </p>
+                              <p className="mt-1">
+                                {request.rejection_reason}
+                              </p>
+                            </div>
+                          )}
+
+                          {request.admin_notes && (
+                            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+                              <p className="font-extrabold">
+                                ملاحظات الإدارة
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap">
+                                {request.admin_notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {(request.status === 'draft' ||
+                            request.status === 'cancelled') && (
+                            <p className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                              هذا الطلب غير متاح للمراجعة أو التفعيل.
                             </p>
                           )}
                         </div>
