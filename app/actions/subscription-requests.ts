@@ -1,3 +1,4 @@
+
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -52,12 +53,29 @@ function getSafeError(error: unknown, fallback: string) {
     return 'يوجد طلب اشتراك مفتوح بالفعل لهذا المتجر.'
   }
 
+  if (message.includes('active store')) {
+    return 'يجب أن يكون المتجر نشطًا حتى تتمكن من تقديم طلب اشتراك.'
+  }
+
+  if (message.includes('cannot be submitted')) {
+    return 'هذا الطلب لم يعد قابلًا للإرسال.'
+  }
+
+  if (message.includes('cannot be cancelled')) {
+    return 'لا يمكن إلغاء هذا الطلب.'
+  }
+
   return fallback
+}
+
+function revalidateSubscriptionPages() {
+  revalidatePath('/subscription')
+  revalidatePath('/platform')
+  revalidatePath('/platform/subscription-requests')
 }
 
 /**
  * إنشاء طلب اشتراك مبدئي.
- * يجب إرسال نوع الملف الحقيقي حتى يتطابق مع الإثبات المرفوع.
  */
 export async function createSubscriptionRequestDraftAction(input: {
   planCode: string
@@ -119,6 +137,8 @@ export async function createSubscriptionRequestDraftAction(input: {
     throw new Error('لم يتم استلام بيانات طلب الاشتراك.')
   }
 
+  revalidatePath('/subscription')
+
   return {
     ok: true as const,
     requestId: result.request_id,
@@ -127,7 +147,7 @@ export async function createSubscriptionRequestDraftAction(input: {
 }
 
 /**
- * رفع الإثبات وإرسال الطلب للمراجعة.
+ * رفع إثبات الدفع وإرسال الطلب للمراجعة.
  * يمكن إعادة المحاولة بنفس رقم الطلب إذا تعطل الإرسال.
  */
 export async function uploadSubscriptionProofAndSubmitAction(
@@ -150,7 +170,9 @@ export async function uploadSubscriptionProofAndSubmitAction(
     file.size < 1 ||
     file.size > MAX_PROOF_SIZE
   ) {
-    throw new Error('حجم الملف يجب أن يكون أكبر من صفر وألا يتجاوز 5 ميجابايت.')
+    throw new Error(
+      'حجم الملف يجب أن يكون أكبر من صفر وألا يتجاوز 5 ميجابايت.'
+    )
   }
 
   if (!isProofMimeType(file.type)) {
@@ -178,11 +200,15 @@ export async function uploadSubscriptionProofAndSubmitAction(
   }
 
   if (request.status !== 'draft') {
-    throw new Error('هذا الطلب لم يعد قابلًا للتعديل أو الإرسال.')
+    throw new Error(
+      'هذا الطلب لم يعد قابلًا للتعديل أو الإرسال.'
+    )
   }
 
   if (request.proof_mime_type !== file.type) {
-    throw new Error('نوع الملف لا يطابق نوع الإثبات المحدد للطلب.')
+    throw new Error(
+      'نوع الملف لا يطابق نوع الإثبات المحدد للطلب.'
+    )
   }
 
   const folder = `${context.storeId}/${requestId}`
@@ -192,7 +218,7 @@ export async function uploadSubscriptionProofAndSubmitAction(
     throw new Error('مسار ملف الإثبات غير صحيح.')
   }
 
-  // نتحقق أولًا هل الملف رُفع في محاولة سابقة.
+  // التحقق مما إذا كان الملف قد رُفع في محاولة سابقة.
   const { data: existingFiles, error: listError } =
     await context.supabase.storage
       .from(PROOF_BUCKET)
@@ -202,7 +228,9 @@ export async function uploadSubscriptionProofAndSubmitAction(
       })
 
   if (listError) {
-    throw new Error('تعذر التحقق من ملف الإثبات الحالي.')
+    throw new Error(
+      'تعذر التحقق من ملف الإثبات الحالي.'
+    )
   }
 
   const alreadyUploaded = (existingFiles ?? []).some(
@@ -251,8 +279,7 @@ export async function uploadSubscriptionProofAndSubmitAction(
     )
   }
 
-  revalidatePath('/subscription')
-  revalidatePath('/platform/subscription-requests')
+  revalidateSubscriptionPages()
 
   return {
     ok: true as const,
@@ -261,7 +288,115 @@ export async function uploadSubscriptionProofAndSubmitAction(
 }
 
 /**
+ * إلغاء مسودة غير مرسلة وحذف ملف إثباتها.
+ *
+ * يسمح بإعادة محاولة الحذف إذا أُلغيت المسودة
+ * سابقًا وفشل حذف الملف من Storage.
+ */
+export async function cancelSubscriptionRequestDraftAction(
+  requestId: string
+) {
+  const context = await requireRedaContext([
+    'owner',
+    'admin',
+    'manager',
+  ])
+
+  if (!requestId?.trim()) {
+    throw new Error('رقم طلب الاشتراك غير صحيح.')
+  }
+
+  const { data: userData, error: userError } =
+    await context.supabase.auth.getUser()
+
+  if (userError || !userData.user) {
+    throw new Error('تعذر التحقق من حساب المستخدم.')
+  }
+
+  const { data: request, error: requestError } =
+    await context.supabase
+      .from('dokkan_subscription_requests')
+      .select(`
+        id,
+        store_id,
+        status,
+        proof_path,
+        created_by
+      `)
+      .eq('id', requestId)
+      .eq('store_id', context.storeId)
+      .single()
+
+  if (requestError || !request) {
+    throw new Error('طلب الاشتراك غير موجود.')
+  }
+
+  if (request.created_by !== userData.user.id) {
+    throw new Error(
+      'فقط المستخدم الذي أنشأ المسودة يمكنه إلغاؤها.'
+    )
+  }
+
+  if (
+    request.status !== 'draft' &&
+    request.status !== 'cancelled'
+  ) {
+    throw new Error(
+      'لا يمكن إلغاء طلب تم إرساله للمراجعة.'
+    )
+  }
+
+  // تغيير الحالة أولًا حتى تسمح سياسة Storage بالحذف.
+  if (request.status === 'draft') {
+    const { error: cancelError } =
+      await context.supabase.rpc(
+        'dokkan_cancel_subscription_request',
+        {
+          p_request_id: requestId,
+        }
+      )
+
+    if (cancelError) {
+      console.error('[subscription-cancel]', {
+        code: cancelError.code,
+      })
+
+      throw new Error(
+        getSafeError(
+          cancelError,
+          'تعذر إلغاء مسودة الاشتراك.'
+        )
+      )
+    }
+  }
+
+  // حذف ملف المسودة الملغاة فقط.
+  const { error: removeError } =
+    await context.supabase.storage
+      .from(PROOF_BUCKET)
+      .remove([request.proof_path])
+
+  if (removeError) {
+    console.error('[subscription-proof-delete]', {
+      name: removeError.name,
+    })
+
+    throw new Error(
+      'تم إلغاء المسودة، لكن تعذر حذف ملف الإثبات. يمكنك إعادة المحاولة.'
+    )
+  }
+
+  revalidateSubscriptionPages()
+
+  return {
+    ok: true as const,
+    message: 'تم إلغاء المسودة وحذف ملف الإثبات.',
+  }
+}
+
+/**
  * عرض طلبات اشتراك المتجر الحالي.
+ * تتضمن المسودات حتى يمكن استكمالها بعد إعادة فتح الصفحة.
  */
 export async function getMySubscriptionRequestsAction() {
   const context = await requireRedaContext([
@@ -276,6 +411,7 @@ export async function getMySubscriptionRequestsAction() {
       id,
       requested_plan_code,
       status,
+      proof_mime_type,
       claimed_amount_egp,
       created_at,
       submitted_at,
@@ -298,7 +434,7 @@ export async function getMySubscriptionRequestsAction() {
 
 /**
  * عرض طلبات الاشتراك لمدير المنصة.
- * روابط الإثبات مؤقتة وليست روابط عامة.
+ * روابط الإثبات مؤقتة لجميع الحالات المعروضة.
  */
 export async function getPlatformSubscriptionRequestsAction(
   status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending'
@@ -352,14 +488,22 @@ export async function getPlatformSubscriptionRequestsAction(
     requests.map(async (request) => {
       let proofSignedUrl: string | null = null
 
-      if (request.proof_path && request.status === 'pending') {
+      if (request.proof_path) {
         const { data: signed, error: signedError } =
           await supabase.storage
             .from(PROOF_BUCKET)
-            .createSignedUrl(request.proof_path, 5 * 60)
+            .createSignedUrl(
+              request.proof_path,
+              5 * 60
+            )
 
         if (!signedError) {
           proofSignedUrl = signed?.signedUrl ?? null
+        } else {
+          console.error('[subscription-proof-signed-url]', {
+            code: signedError.name,
+            requestId: request.id,
+          })
         }
       }
 
@@ -373,7 +517,6 @@ export async function getPlatformSubscriptionRequestsAction(
 
 /**
  * موافقة مدير المنصة على الطلب.
- * المدير يحدد المبلغ المستلم وتاريخ انتهاء الاشتراك.
  */
 export async function approveSubscriptionRequestAction(input: {
   requestId: string
@@ -393,7 +536,9 @@ export async function approveSubscriptionRequestAction(input: {
     Number.isNaN(endDate.getTime()) ||
     endDate.getTime() <= Date.now()
   ) {
-    throw new Error('راجع المبلغ وتاريخ انتهاء الاشتراك.')
+    throw new Error(
+      'راجع المبلغ وتاريخ انتهاء الاشتراك.'
+    )
   }
 
   const { error } = await supabase.rpc(
@@ -412,13 +557,14 @@ export async function approveSubscriptionRequestAction(input: {
     })
 
     throw new Error(
-      getSafeError(error, 'تعذر اعتماد طلب الاشتراك.')
+      getSafeError(
+        error,
+        'تعذر اعتماد طلب الاشتراك.'
+      )
     )
   }
 
-  revalidatePath('/platform')
-  revalidatePath('/platform/subscription-requests')
-  revalidatePath('/subscription')
+  revalidateSubscriptionPages()
 
   return {
     ok: true as const,
@@ -442,7 +588,9 @@ export async function rejectSubscriptionRequestAction(input: {
     !reason ||
     reason.length > 1000
   ) {
-    throw new Error('اكتب سببًا واضحًا لرفض الطلب.')
+    throw new Error(
+      'اكتب سببًا واضحًا لرفض الطلب.'
+    )
   }
 
   const { error } = await supabase.rpc(
@@ -459,13 +607,14 @@ export async function rejectSubscriptionRequestAction(input: {
     })
 
     throw new Error(
-      getSafeError(error, 'تعذر رفض طلب الاشتراك.')
+      getSafeError(
+        error,
+        'تعذر رفض طلب الاشتراك.'
+      )
     )
   }
 
-  revalidatePath('/platform')
-  revalidatePath('/platform/subscription-requests')
-  revalidatePath('/subscription')
+  revalidateSubscriptionPages()
 
   return {
     ok: true as const,
