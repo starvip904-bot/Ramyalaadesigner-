@@ -437,7 +437,13 @@ export async function getMySubscriptionRequestsAction() {
  * روابط الإثبات مؤقتة لجميع الحالات المعروضة.
  */
 export async function getPlatformSubscriptionRequestsAction(
-  status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending'
+  status:
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'draft'
+    | 'cancelled'
+    | 'all' = 'pending'
 ) {
   const { supabase } = await requirePlatformOwner()
 
