@@ -68,7 +68,7 @@ create index if not exists
 on public.dokkan_platform_audit_events (entity_type, entity_id);
 
 comment on table public.dokkan_platform_audit_events is
-  'Immutable platform-level administrative audit history.';
+  'Platform-level administrative audit history.';
 
 -- ------------------------------------------------------------
 -- 3. Enable RLS
@@ -335,7 +335,12 @@ declare
   v_actor_id uuid;
   v_version bigint;
   v_reason text;
+
+  -- Separate variables prevent the outer plan code
+  -- from being overwritten while validating plan limits.
   v_plan_code text;
+  v_limit_code text;
+
   v_plan jsonb;
   v_addon_code text;
   v_addon jsonb;
@@ -388,6 +393,14 @@ begin
       raise exception 'invalid plan code: %', v_plan_code;
     end if;
 
+    if nullif(btrim(v_plan ->> 'name'), '') is null then
+      raise exception 'plan name is required: %', v_plan_code;
+    end if;
+
+    if nullif(btrim(v_plan ->> 'billing'), '') is null then
+      raise exception 'plan billing is required: %', v_plan_code;
+    end if;
+
     if jsonb_typeof(v_plan -> 'limits') <> 'object' then
       raise exception 'limits object is required for plan: %', v_plan_code;
     end if;
@@ -397,7 +410,7 @@ begin
     end if;
 
     -- Validate all plan limits.
-    foreach v_plan_code in array array[
+    foreach v_limit_code in array array[
       'stores',
       'branches',
       'users',
@@ -405,10 +418,13 @@ begin
       'storageGb'
     ]
     loop
-      v_limit := v_plan -> 'limits' -> v_plan_code;
+      v_limit := v_plan -> 'limits' -> v_limit_code;
 
       if v_limit is null then
-        raise exception 'missing plan limit';
+        raise exception
+          'missing limit % for plan %',
+          v_limit_code,
+          v_plan_code;
       end if;
 
       if jsonb_typeof(v_limit) = 'number' then
@@ -416,7 +432,11 @@ begin
           raise exception 'plan limits cannot be negative';
         end if;
       elsif jsonb_typeof(v_limit) = 'string' then
-        if v_limit #>> '{}' not in ('unlimited', 'custom', 'pending') then
+        if v_limit #>> '{}' not in (
+          'unlimited',
+          'custom',
+          'pending'
+        ) then
           raise exception 'invalid text plan limit';
         end if;
       else
@@ -424,7 +444,7 @@ begin
       end if;
     end loop;
 
-    -- Validate monthly and annual prices.
+    -- Validate monthly and annual price fields.
     foreach v_price in array array[
       v_plan -> 'monthlyPriceEgp',
       v_plan -> 'annualPriceEgp'
@@ -443,19 +463,31 @@ begin
       end if;
     end loop;
 
-    -- Free remains permanently free.
+    -- Free must remain permanently free.
     if v_plan_code = 'free' then
-      if (v_plan ->> 'monthlyPriceEgp')::numeric <> 0
+      if jsonb_typeof(v_plan -> 'monthlyPriceEgp') <> 'number'
+         or jsonb_typeof(v_plan -> 'annualPriceEgp') <> 'number'
+         or (v_plan ->> 'monthlyPriceEgp')::numeric <> 0
          or (v_plan ->> 'annualPriceEgp')::numeric <> 0
-         or v_plan ->> 'billing' <> 'lifetime' then
+         or v_plan ->> 'billing' is distinct from 'lifetime' then
         raise exception 'Free plan must remain lifetime and free';
       end if;
     end if;
 
-    -- Enterprise is custom-priced.
+    -- Enterprise must remain custom-priced.
     if v_plan_code = 'enterprise' then
-      if v_plan ->> 'billing' <> 'custom' then
-        raise exception 'Enterprise billing must remain custom';
+      if v_plan ->> 'billing' is distinct from 'custom'
+         or jsonb_typeof(v_plan -> 'monthlyPriceEgp') <> 'null'
+         or jsonb_typeof(v_plan -> 'annualPriceEgp') <> 'null' then
+        raise exception 'Enterprise must remain custom-priced';
+      end if;
+    end if;
+
+    -- Paid plans must have numeric monthly and annual prices.
+    if v_plan_code in ('basic', 'professional') then
+      if jsonb_typeof(v_plan -> 'monthlyPriceEgp') <> 'number'
+         or jsonb_typeof(v_plan -> 'annualPriceEgp') <> 'number' then
+        raise exception 'paid plans require numeric monthly and annual prices';
       end if;
     end if;
   end loop;
@@ -483,7 +515,7 @@ begin
     end if;
   end loop;
 
-  -- Read current settings.
+  -- Read current settings and lock the singleton row.
   select settings
   into v_old_settings
   from public.dokkan_platform_plan_settings
