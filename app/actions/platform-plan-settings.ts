@@ -109,10 +109,7 @@ function validateSettings(settings: unknown): string | null {
       const limit = plan.limits[limitCode]
 
       if (typeof limit === 'number') {
-        if (
-          !Number.isFinite(limit) ||
-          limit < 0
-        ) {
+        if (!Number.isFinite(limit) || limit < 0) {
           return `قيمة الحد ${limitCode} في خطة ${code} غير صحيحة.`
         }
       } else if (
@@ -195,6 +192,52 @@ function validateSettings(settings: unknown): string | null {
   }
 
   return null
+}
+
+/**
+ * قراءة إعدادات الخطط الحالية.
+ * لا تسمح القراءة إلا لمالك المنصة.
+ */
+export async function getPlatformPlanSettingsAction() {
+  const { supabase } = await requirePlatformOwner()
+
+  const { data, error } = await supabase.rpc(
+    'dokkan_get_platform_plan_settings'
+  )
+
+  if (error) {
+    console.error('[platform-plan-settings-read]', {
+      code: error.code,
+    })
+
+    throw new Error(
+      'تعذر تحميل إعدادات الخطط من قاعدة البيانات.'
+    )
+  }
+
+  if (!isObject(data) || !isObject(data.settings)) {
+    throw new Error(
+      'بيانات إعدادات الخطط غير موجودة أو غير مكتملة.'
+    )
+  }
+
+  const validationError = validateSettings(data.settings)
+
+  if (validationError) {
+    throw new Error(validationError)
+  }
+
+  return {
+    settings: data.settings,
+    version:
+      typeof data.version === 'number'
+        ? data.version
+        : null,
+    updatedAt:
+      typeof data.updatedAt === 'string'
+        ? data.updatedAt
+        : null,
+  }
 }
 
 /**
