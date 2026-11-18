@@ -9,15 +9,13 @@ import {
   Store,
   Users,
   Wallet,
-  Check,
 } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import PlatformPlanSettingsEditor from '@/components/platform-plan-settings-editor'
 import {
   PLAN_DEFINITIONS,
   PLAN_CODES,
-  SUBSCRIPTION_ADDONS,
-  SUBSCRIPTION_BILLING,
   type PlanCode,
 } from '@/lib/subscription-plans'
 import { requirePlatformOwner } from '@/lib/tenant-context'
@@ -53,39 +51,12 @@ function formatDate(value: string | null | undefined) {
   })
 }
 
-function formatPrice(value: number | null) {
-  if (value === null) return 'حسب الاتفاق'
-
-  if (value === 0) return 'مجاني'
-
-  return `${value.toLocaleString('ar-EG')} جنيه`
-}
-
-function getAnnualSaving(code: PlanCode) {
-  const definition = PLAN_DEFINITIONS[code]
-
-  if (
-    definition.monthlyPriceEgp === null ||
-    definition.annualPriceEgp === null ||
-    definition.monthlyPriceEgp <= 0
-  ) {
-    return 0
-  }
-
-  return (
-    definition.monthlyPriceEgp * 12 -
-    definition.annualPriceEgp
-  )
-}
-
 function getPlanName(code: string | null) {
   if (!code) return 'غير محددة'
 
   const normalizedCode = code.toLowerCase()
 
-  if (
-    PLAN_CODES.includes(normalizedCode as PlanCode)
-  ) {
+  if (PLAN_CODES.includes(normalizedCode as PlanCode)) {
     return PLAN_DEFINITIONS[normalizedCode as PlanCode].name
   }
 
@@ -205,8 +176,8 @@ export default async function PlatformPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                متابعة المتاجر والمستخدمين والاشتراكات من مكان واحد.
-                هذه اللوحة مخصصة لإدارة ومراقبة منصة دكان.
+                متابعة المتاجر والمستخدمين والاشتراكات وإعدادات الخطط
+                من مكان واحد. هذه اللوحة مخصصة لمالك منصة دكان.
               </p>
             </div>
 
@@ -217,6 +188,7 @@ export default async function PlatformPage() {
           </div>
         </header>
 
+        {/* ملخص المنصة */}
         <section>
           <div className="mb-4">
             <h2 className="text-lg font-extrabold">
@@ -269,252 +241,8 @@ export default async function PlatformPage() {
           </div>
         </section>
 
-        {/* الخطط والأسعار المعتمدة */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-xl font-extrabold">
-                الخطط والأسعار
-              </h2>
-
-              <p className="mt-2 text-sm leading-7 text-slate-500">
-                مرجع عرض الأسعار والحدود والمميزات المعتمدة حاليًا
-                في نظام Dokkan.
-              </p>
-            </div>
-
-            <span className="w-fit rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
-              عرض فقط - المصدر الموحد
-            </span>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            {PLAN_CODES.map((code) => {
-              const plan = PLAN_DEFINITIONS[code]
-              const saving = getAnnualSaving(code)
-              const isFree = code === 'free'
-              const isEnterprise = code === 'enterprise'
-
-              return (
-                <article
-                  key={code}
-                  className={`flex flex-col rounded-2xl border p-5 ${
-                    code === 'professional'
-                      ? 'border-violet-300 bg-violet-50/40 ring-1 ring-violet-100'
-                      : 'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-lg font-extrabold">
-                      {plan.name}
-                    </h3>
-
-                    {isFree ? (
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-                        مجانية دائمة
-                      </span>
-                    ) : isEnterprise ? (
-                      <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-bold text-violet-700">
-                        مخصصة
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700">
-                        معتمدة
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-4 text-sm leading-6 text-slate-500">
-                    {isFree
-                      ? 'خطة أساسية مجانية دون رسوم أو تجديد.'
-                      : isEnterprise
-                        ? 'تسعير وحدود حسب احتياجات النشاط والاتفاق.'
-                        : 'اشتراك مدفوع مع اختيار دورة شهرية أو سنوية.'}
-                  </p>
-
-                  <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-bold text-slate-500">
-                      السعر الشهري
-                    </p>
-
-                    <p className="mt-2 text-xl font-extrabold text-blue-700">
-                      {formatPrice(plan.monthlyPriceEgp)}
-                    </p>
-
-                    {!isFree && !isEnterprise && (
-                      <>
-                        <div className="my-3 border-t border-slate-100" />
-
-                        <p className="text-xs font-bold text-slate-500">
-                          السعر السنوي
-                        </p>
-
-                        <p className="mt-2 text-xl font-extrabold text-slate-900">
-                          {formatPrice(plan.annualPriceEgp)}
-                        </p>
-
-                        {saving > 0 && (
-                          <p className="mt-2 text-xs font-extrabold text-emerald-700">
-                            التوفير السنوي:{' '}
-                            {saving.toLocaleString('ar-EG')} جنيه
-                          </p>
-                        )}
-                      </>
-                    )}
-
-                    {isFree && (
-                      <p className="mt-2 text-xs font-semibold text-emerald-700">
-                        مدى الحياة - لا يوجد تجديد
-                      </p>
-                    )}
-
-                    {isEnterprise && (
-                      <p className="mt-2 text-xs font-semibold text-violet-700">
-                        يتم تحديد السعر حسب الاتفاق
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-5">
-                    <p className="mb-3 text-sm font-extrabold text-slate-900">
-                      حدود الخطة
-                    </p>
-
-                    <ul className="flex flex-col gap-2.5">
-                      <li className="flex items-start gap-2 text-xs leading-6 text-slate-700">
-                        <Check size={15} className="mt-1 shrink-0 text-emerald-600" />
-                        المتاجر:{' '}
-                        {typeof plan.limits.stores === 'number'
-                          ? plan.limits.stores.toLocaleString('ar-EG')
-                          : plan.limits.stores === 'custom'
-                            ? 'حسب الاتفاق'
-                            : 'غير محدود'}
-                      </li>
-
-                      <li className="flex items-start gap-2 text-xs leading-6 text-slate-700">
-                        <Check size={15} className="mt-1 shrink-0 text-emerald-600" />
-                        الفروع النشطة:{' '}
-                        {typeof plan.limits.branches === 'number'
-                          ? plan.limits.branches.toLocaleString('ar-EG')
-                          : plan.limits.branches === 'custom'
-                            ? 'حسب الاتفاق'
-                            : 'غير محدود'}
-                      </li>
-
-                      <li className="flex items-start gap-2 text-xs leading-6 text-slate-700">
-                        <Check size={15} className="mt-1 shrink-0 text-emerald-600" />
-                        مستخدمو الدخول:{' '}
-                        {typeof plan.limits.users === 'number'
-                          ? plan.limits.users.toLocaleString('ar-EG')
-                          : plan.limits.users === 'custom'
-                            ? 'حسب الاتفاق'
-                            : 'غير محدود'}
-                      </li>
-
-                      <li className="flex items-start gap-2 text-xs leading-6 text-slate-700">
-                        <Check size={15} className="mt-1 shrink-0 text-emerald-600" />
-                        المنتجات النشطة:{' '}
-                        {typeof plan.limits.products === 'number'
-                          ? plan.limits.products.toLocaleString('ar-EG')
-                          : plan.limits.products === 'custom'
-                            ? 'حسب الاتفاق'
-                            : 'غير محدود'}
-                      </li>
-
-                      <li className="flex items-start gap-2 text-xs leading-6 text-slate-700">
-                        <Check size={15} className="mt-1 shrink-0 text-emerald-600" />
-                        مساحة التخزين:{' '}
-                        {typeof plan.limits.storageGb === 'number'
-                          ? `${plan.limits.storageGb.toLocaleString('ar-EG')}GB`
-                          : plan.limits.storageGb === 'custom'
-                            ? 'حسب الاتفاق'
-                            : 'غير محدود'}
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="mt-5 flex-1 border-t border-slate-200 pt-4">
-                    <p className="mb-3 text-sm font-extrabold text-slate-900">
-                      المميزات
-                    </p>
-
-                    <ul className="flex flex-col gap-2.5">
-                      {plan.features.map((feature) => (
-                        <li
-                          key={feature}
-                          className="flex items-start gap-2 text-xs leading-6 text-slate-600"
-                        >
-                          <Check
-                            size={15}
-                            className="mt-1 shrink-0 text-blue-600"
-                          />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-extrabold text-slate-800">
-              دورة الفوترة
-            </p>
-
-            <p className="mt-2 text-xs leading-6 text-slate-600">
-              العملة: {SUBSCRIPTION_BILLING.currencyLabel} (
-              {SUBSCRIPTION_BILLING.currency}).
-              الاشتراك السنوي يوفر تقريبًا{' '}
-              {SUBSCRIPTION_BILLING.annualDiscountPercent.toLocaleString('ar-EG')}
-              % مقارنة بالدفع الشهري لمدة 12 شهرًا.
-              الخطة المجانية مدى الحياة، وEnterprise حسب الاتفاق.
-            </p>
-          </div>
-        </section>
-
-        {/* الإضافات الاختيارية */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-5">
-            <h2 className="text-xl font-extrabold">
-              الإضافات الاختيارية
-            </h2>
-
-            <p className="mt-2 text-sm leading-7 text-slate-500">
-              أسعار الإضافات الشهرية المعتمدة، ويمكن طلب أكثر من وحدة
-              وفق احتياج المتجر.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            {Object.values(SUBSCRIPTION_ADDONS).map((addon) => (
-              <article
-                key={addon.code}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-5"
-              >
-                <p className="text-sm font-extrabold text-slate-800">
-                  {addon.name}
-                </p>
-
-                <p className="mt-3 text-2xl font-extrabold text-blue-700">
-                  {addon.priceEgp.toLocaleString('ar-EG')} جنيه
-                </p>
-
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  شهريًا لكل وحدة
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
-          هذه الصفحة تعرض الأسعار والحدود من مصدر الخطط الموحد فقط.
-          تعديل الأسعار والحدود من لوحة Super Admin غير متاح في هذه المرحلة.
-          لا يؤدي تغيير هذا العرض إلى تعديل اشتراكات المتاجر الحالية
-          أو تفعيل أي اشتراك مدفوع.
-        </div>
+        {/* إعدادات الخطط والأسعار */}
+        <PlatformPlanSettingsEditor />
 
         {/* المتاجر والاشتراكات */}
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -726,8 +454,9 @@ export default async function PlatformPage() {
         </section>
 
         <footer className="rounded-xl border border-slate-200 bg-white p-4 text-center text-xs leading-6 text-slate-500">
-          لوحة مدير منصة DOKKAN — بعض وظائف الإدارة والتصدير
-          والتقارير المالية لم يتم تفعيلها بعد.
+          لوحة مدير منصة DOKKAN — تعديل الخطط والأسعار متاح من إعدادات
+          الخطط، بينما بعض وظائف إدارة المتاجر والتقارير المالية
+          ما زالت قيد التطوير.
         </footer>
 
       </div>
