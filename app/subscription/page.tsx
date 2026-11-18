@@ -1,5 +1,10 @@
+
 import { redirect } from 'next/navigation'
 import SubscriptionRequestManager from '@/app/subscription/subscription-request-manager'
+import {
+  PlanGrid,
+  SubscriptionHero,
+} from '@/components/subscription-plans'
 import { requireRedaContext } from '@/lib/reda-scope'
 import {
   getPlanDefinition,
@@ -8,7 +13,7 @@ import {
 
 export const metadata = {
   title: 'اشتراكي | DOKKAN',
-  description: 'إدارة خطة اشتراك متجرك وطلبات الترقية.',
+  description: 'إدارة خطة اشتراك متجرك وأسعار الخطط وطلبات الترقية.',
 }
 
 function formatDate(value: string | null) {
@@ -75,6 +80,7 @@ export default async function SubscriptionPage() {
       dir="rtl"
     >
       <div className="mx-auto flex max-w-[1500px] flex-col gap-8">
+
         <header>
           <p className="text-sm font-extrabold tracking-wide text-blue-700">
             الاشتراك والفوترة
@@ -85,32 +91,15 @@ export default async function SubscriptionPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
-            تابع اشتراك متجرك وقدم طلب الترقية من مكان واحد.
+            تابع اشتراك متجرك، وقارن الخطط والأسعار، وقدم طلب الترقية من مكان واحد.
           </p>
         </header>
 
-        <section className="relative overflow-hidden rounded-[1.75rem] bg-slate-950 px-6 py-8 text-white shadow-xl md:px-10 md:py-11">
-          <div className="absolute -left-16 -top-20 size-64 rounded-full bg-blue-600/25 blur-3xl" />
-          <div className="absolute -bottom-28 right-10 size-72 rounded-full bg-violet-600/20 blur-3xl" />
-
-          <div className="relative max-w-3xl">
-            <p className="text-sm font-bold text-blue-200">
-              اشتراك متجرك
-            </p>
-
-            <h2 className="mt-4 text-3xl font-extrabold md:text-4xl">
-              {isPermanentFree
-                ? 'أنت على الخطة المجانية الدائمة'
-                : `خطتك الحالية: ${planName}`}
-            </h2>
-
-            <p className="mt-4 text-sm leading-7 text-slate-300">
-              {isPermanentFree
-                ? 'تستفيد من خطة Dokkan Free دون رسوم اشتراك ودون تاريخ انتهاء. يمكنك تقديم طلب للترقية إلى إحدى الخطط المدفوعة.'
-                : 'يمكنك متابعة حالة اشتراكك وتقديم طلب ترقية يخضع لمراجعة الإدارة.'}
-            </p>
-          </div>
-        </section>
+        <SubscriptionHero
+          eyebrow="DOKKAN SUBSCRIPTIONS"
+          title="اختر الخطة المناسبة لنمو متجرك"
+          description="ابدأ مجانًا مدى الحياة، أو اختر إحدى الخطط المدفوعة للحصول على إمكانيات وحدود أكبر. جميع طلبات الاشتراك تخضع لمراجعة الإدارة قبل التفعيل."
+        />
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -161,9 +150,56 @@ export default async function SubscriptionPage() {
           )}
         </section>
 
-        <SubscriptionRequestManager
-          storeName={store.name}
-        />
+        <section id="available-plans" className="flex flex-col gap-5">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-950">
+              الخطط والأسعار
+            </h2>
+
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              قارن بين الخطط واختر الاشتراك الشهري أو السنوي،
+              وشاهد الحدود والمميزات والإضافات المتاحة.
+            </p>
+          </div>
+
+          <PlanGrid currentPlan={planCode} />
+        </section>
+
+        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+          <h2 className="font-extrabold text-blue-950">
+            كيف يتم تفعيل الاشتراك؟
+          </h2>
+
+          <ol className="mt-3 flex flex-col gap-2 text-sm leading-7 text-blue-900">
+            <li>1. اختر الخطة ودورة الاشتراك المناسبة.</li>
+            <li>2. قدم طلب الاشتراك وأرفق إثبات الدفع.</li>
+            <li>3. تراجع إدارة Dokkan الطلب وإثبات الدفع.</li>
+            <li>4. بعد الموافقة يتم تفعيل الاشتراك وتسجيل العملية.</li>
+          </ol>
+
+          <p className="mt-3 text-xs leading-6 text-blue-800">
+            إرسال الطلب لا يعني تفعيل الاشتراك تلقائيًا.
+            يظل اشتراكك الحالي كما هو حتى اعتماد الطلب من الإدارة.
+          </p>
+        </section>
+
+        <section>
+          <div className="mb-5">
+            <h2 className="text-2xl font-extrabold">
+              طلبات الاشتراك
+            </h2>
+
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              قدم طلب اشتراك جديد، وارفع إثبات الدفع،
+              وتابع حالة الطلبات السابقة.
+            </p>
+          </div>
+
+          <SubscriptionRequestManager
+            storeName={store.name}
+          />
+        </section>
+
       </div>
     </main>
   )
