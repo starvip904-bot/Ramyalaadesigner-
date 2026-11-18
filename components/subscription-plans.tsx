@@ -1,8 +1,15 @@
 
 'use client'
 
-import { Check, ChevronLeft, Crown } from 'lucide-react'
+import { useState } from 'react'
+import { Check, ChevronLeft, Crown, Sparkles } from 'lucide-react'
 import Link from 'next/link'
+import {
+  PLAN_DEFINITIONS,
+  SUBSCRIPTION_ADDONS,
+  SUBSCRIPTION_BILLING,
+  type PlanCode,
+} from '@/lib/subscription-plans'
 
 export type Plan = {
   code: string
@@ -16,67 +23,101 @@ export type Plan = {
   available: boolean
 }
 
-export const plans: Plan[] = [
-  {
-    code: 'free',
-    name: 'Free',
-    price: 'مجاني',
-    cadence: 'مدى الحياة',
-    description: 'ابدأ بإدارة متجرك مجانًا دون رسوم اشتراك.',
-    accent: 'slate',
-    limits: [
-      'متجر واحد',
-      'فرع نشط واحد',
-      'حسابا دخول كحد أقصى',
-    ],
-    features: [],
+const descriptions: Record<PlanCode, string> = {
+  free: 'ابدأ بإدارة متجرك واختبر أساسيات Dokkan دون أي رسوم اشتراك.',
+  basic: 'للمتاجر النامية التي تحتاج إلى إدارة أكثر احترافية للمبيعات والمخزون.',
+  professional: 'للمتاجر المتوسعة التي تحتاج إلى تحكم مالي وإداري متقدم.',
+  enterprise: 'حلول مرنة ومخصصة للأنشطة الكبيرة والمتاجر متعددة الفروع.',
+}
+
+const accents: Record<PlanCode, Plan['accent']> = {
+  free: 'slate',
+  basic: 'blue',
+  professional: 'purple',
+  enterprise: 'violet',
+}
+
+function formatLimit(value: number | string, label: string) {
+  if (value === 'custom') return `${label}: حسب الاتفاق`
+  if (value === 'unlimited') return `${label}: غير محدود`
+  if (value === 'pending') return `${label}: قيد التحديد`
+
+  return `${label}: ${Number(value).toLocaleString('ar-EG')}`
+}
+
+function getLimits(code: PlanCode) {
+  const limits = PLAN_DEFINITIONS[code].limits
+
+  return [
+    formatLimit(limits.stores, 'المتاجر'),
+    formatLimit(limits.branches, 'الفروع النشطة'),
+    formatLimit(limits.users, 'مستخدمو الدخول'),
+    formatLimit(limits.products, 'المنتجات النشطة'),
+    formatLimit(limits.storageGb, 'مساحة التخزين') +
+      (typeof limits.storageGb === 'number' ? 'GB' : ''),
+  ]
+}
+
+export const plans: Plan[] = (
+  Object.keys(PLAN_DEFINITIONS) as PlanCode[]
+).map((code) => {
+  const definition = PLAN_DEFINITIONS[code]
+
+  return {
+    code,
+    name: definition.name,
+    price:
+      definition.priceEgp === null
+        ? 'حسب الاتفاق'
+        : definition.priceEgp === 0
+          ? 'مجاني'
+          : `${definition.priceEgp.toLocaleString('ar-EG')} جنيه`,
+    cadence:
+      definition.billing === 'lifetime'
+        ? 'مدى الحياة'
+        : definition.billing === 'custom'
+          ? 'تسعير مخصص'
+          : 'شهريًا',
+    description: descriptions[code],
+    accent: accents[code],
+    limits: getLimits(code),
+    features: [...definition.features],
     available: true,
-  },
-  {
-    code: 'basic',
-    name: 'Basic',
-    price: 'قريبًا',
-    cadence: '',
-    description:
-      'خطة مدفوعة قيد التجهيز، وسيتم الإعلان عن تفاصيلها بعد اعتمادها.',
-    accent: 'blue',
-    limits: ['تفاصيل الحدود قيد التجهيز'],
-    features: [],
-    available: false,
-  },
-  {
-    code: 'professional',
-    name: 'Professional',
-    price: 'قريبًا',
-    cadence: '',
-    description:
-      'خطة مدفوعة قيد التجهيز للمتاجر التي تحتاج إمكانيات أوسع.',
-    accent: 'purple',
-    limits: ['تفاصيل الحدود قيد التجهيز'],
-    features: [],
-    available: false,
-  },
-  {
-    code: 'enterprise',
-    name: 'Enterprise',
-    price: 'قريبًا',
-    cadence: '',
-    description:
-      'خطة مخصصة قيد التجهيز للأنشطة والاحتياجات الكبيرة.',
-    accent: 'violet',
-    limits: ['الحدود والمميزات قيد التحديد'],
-    features: [],
-    available: false,
-  },
-]
+  }
+})
 
 function accentClasses(accent: Plan['accent']) {
   return {
     slate: 'border-slate-200',
-    blue: 'border-blue-200',
-    purple: 'border-violet-200',
-    violet: 'border-purple-200',
+    blue: 'border-blue-300',
+    purple: 'border-violet-300',
+    violet: 'border-purple-300',
   }[accent]
+}
+
+function formatPrice(value: number | null) {
+  if (value === null) return 'حسب الاتفاق'
+
+  if (value === 0) return 'مجانًا'
+
+  return value.toLocaleString('ar-EG')
+}
+
+function getAnnualSaving(code: PlanCode) {
+  const definition = PLAN_DEFINITIONS[code]
+
+  if (
+    definition.monthlyPriceEgp === null ||
+    definition.annualPriceEgp === null ||
+    definition.monthlyPriceEgp <= 0
+  ) {
+    return 0
+  }
+
+  return (
+    definition.monthlyPriceEgp * 12 -
+    definition.annualPriceEgp
+  )
 }
 
 export function PlanGrid({
@@ -84,84 +125,245 @@ export function PlanGrid({
 }: {
   currentPlan?: string
 }) {
+  const [billing, setBilling] = useState<'monthly' | 'annual'>(
+    'monthly'
+  )
+
   return (
-    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-      {plans.map((plan) => (
-        <article
-          key={plan.code}
-          className={`relative flex flex-col rounded-[1.5rem] border bg-white p-6 shadow-[0_12px_40px_rgba(46,80,120,.06)] ${accentClasses(plan.accent)}`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-bold text-slate-500">
-                خطة {plan.name}
-              </p>
-
-              <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
-                {plan.price}
-              </h3>
-
-              {plan.cadence && (
-                <p className="mt-1 text-sm font-bold text-slate-500">
-                  {plan.cadence}
-                </p>
-              )}
-            </div>
-
-            {plan.code === currentPlan && (
-              <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                خطتك الحالية
-              </span>
-            )}
-          </div>
-
-          <p className="mt-4 min-h-12 text-sm leading-6 text-slate-500">
-            {plan.description}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row">
+        <div className="text-center sm:text-right">
+          <p className="font-extrabold text-slate-900">
+            اختر دورة الاشتراك
           </p>
+          <p className="mt-1 text-xs text-slate-500">
+            وفر عند اختيار الاشتراك السنوي
+          </p>
+        </div>
 
-          <div className="mt-5 flex flex-col gap-3 border-y border-slate-100 py-4">
-            {plan.limits.map((limit) => (
-              <p
-                key={limit}
-                className="text-sm font-bold text-slate-800"
-              >
-                {limit}
-              </p>
-            ))}
-          </div>
+        <div className="flex rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setBilling('monthly')}
+            aria-pressed={billing === 'monthly'}
+            className={`rounded-lg px-5 py-2.5 text-sm font-bold transition ${
+              billing === 'monthly'
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            شهري
+          </button>
 
-          {plan.features.length > 0 && (
-            <ul className="mt-5 flex flex-1 flex-col gap-3">
-              {plan.features.map((feature) => (
-                <li
-                  key={feature}
-                  className="flex items-start gap-2 text-sm text-slate-600"
-                >
-                  <Check
-                    className="mt-0.5 text-blue-600"
-                    data-icon="inline-start"
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          )}
+          <button
+            type="button"
+            onClick={() => setBilling('annual')}
+            aria-pressed={billing === 'annual'}
+            className={`rounded-lg px-5 py-2.5 text-sm font-bold transition ${
+              billing === 'annual'
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            سنوي
+          </button>
+        </div>
+      </div>
 
-          {plan.code === 'free' ? (
-            <Link
-              href="/subscription"
-              className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {plans.map((plan) => {
+          const code = plan.code as PlanCode
+          const definition = PLAN_DEFINITIONS[code]
+          const isCurrent = plan.code === currentPlan
+          const isFree = code === 'free'
+          const isEnterprise = code === 'enterprise'
+
+          const price =
+            billing === 'annual'
+              ? definition.annualPriceEgp
+              : definition.monthlyPriceEgp
+
+          const saving = getAnnualSaving(code)
+
+          return (
+            <article
+              key={plan.code}
+              className={`relative flex flex-col rounded-[1.5rem] border bg-white p-5 shadow-[0_12px_40px_rgba(46,80,120,.06)] sm:p-6 ${accentClasses(plan.accent)} ${
+                code === 'professional'
+                  ? 'ring-2 ring-violet-100'
+                  : ''
+              }`}
             >
-              إدارة الخطة المجانية
-              <ChevronLeft data-icon="inline-end" />
-            </Link>
-          ) : (
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-bold text-slate-500">
-              الترقية ستكون متاحة قريبًا
+              {code === 'professional' && (
+                <div className="mb-4 flex items-center gap-2 self-start rounded-full bg-violet-50 px-3 py-1.5 text-xs font-extrabold text-violet-700">
+                  <Sparkles size={14} />
+                  الأنسب للمتاجر المتوسعة
+                </div>
+              )}
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-500">
+                    خطة {plan.name}
+                  </p>
+
+                  <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
+                    {plan.name}
+                  </h3>
+                </div>
+
+                {isCurrent && (
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                    خطتك الحالية
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-5 min-h-[100px]">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-3xl font-extrabold tracking-tight text-slate-950">
+                    {isEnterprise
+                      ? 'حسب الاتفاق'
+                      : formatPrice(price)}
+                  </span>
+
+                  {!isFree && !isEnterprise && (
+                    <span className="text-sm font-semibold text-slate-500">
+                      جنيه
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-2 text-xs font-bold text-slate-500">
+                  {isFree
+                    ? 'مدى الحياة - بدون تجديد'
+                    : isEnterprise
+                      ? 'تسعير يناسب احتياجات نشاطك'
+                      : billing === 'annual'
+                        ? 'للسنة كاملة'
+                        : 'لكل شهر'}
+                </p>
+
+                {billing === 'annual' && saving > 0 && (
+                  <p className="mt-2 text-xs font-extrabold text-emerald-700">
+                    وفر {saving.toLocaleString('ar-EG')} جنيه سنويًا
+                  </p>
+                )}
+              </div>
+
+              <p className="min-h-[72px] text-sm leading-7 text-slate-500">
+                {plan.description}
+              </p>
+
+              <div className="mt-5 border-y border-slate-100 py-4">
+                <p className="mb-3 text-sm font-extrabold text-slate-900">
+                  حدود الخطة
+                </p>
+
+                <ul className="flex flex-col gap-3">
+                  {plan.limits.map((limit) => (
+                    <li
+                      key={limit}
+                      className="flex items-start gap-2 text-xs font-semibold leading-6 text-slate-700"
+                    >
+                      <Check
+                        size={16}
+                        className="mt-1 shrink-0 text-emerald-600"
+                      />
+                      {limit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="mt-5 flex-1">
+                <p className="mb-3 text-sm font-extrabold text-slate-900">
+                  المميزات
+                </p>
+
+                <ul className="flex flex-col gap-3">
+                  {plan.features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2 text-xs leading-6 text-slate-600"
+                    >
+                      <Check
+                        size={16}
+                        className="mt-1 shrink-0 text-blue-600"
+                      />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {isFree ? (
+                <Link
+                  href="/subscription"
+                  className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
+                >
+                  إدارة الخطة المجانية
+                  <ChevronLeft size={17} />
+                </Link>
+              ) : (
+                <Link
+                  href="/subscription"
+                  className={`mt-6 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white transition ${
+                    code === 'professional'
+                      ? 'bg-violet-600 hover:bg-violet-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isEnterprise
+                    ? 'تواصل لطلب خطة مخصصة'
+                    : 'طلب الاشتراك'}
+                  <ChevronLeft size={17} />
+                </Link>
+              )}
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center gap-2">
+          <Crown size={19} className="text-blue-600" />
+          <h3 className="font-extrabold text-slate-900">
+            الإضافات الاختيارية
+          </h3>
+        </div>
+
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          يمكنك طلب إضافات لزيادة إمكانيات متجرك حسب احتياجك.
+          تُحسب الإضافات شهريًا وتُراجع ضمن طلب الاشتراك.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {Object.values(SUBSCRIPTION_ADDONS).map((addon) => (
+            <div
+              key={addon.code}
+              className="rounded-xl bg-slate-50 p-4"
+            >
+              <p className="text-sm font-bold text-slate-800">
+                {addon.name}
+              </p>
+
+              <p className="mt-2 text-lg font-extrabold text-blue-700">
+                {addon.priceEgp.toLocaleString('ar-EG')} جنيه
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                شهريًا
+              </p>
             </div>
-          )}
-        </article>
-      ))}
+          ))}
+        </div>
+      </div>
+
+      <p className="text-center text-xs leading-6 text-slate-400">
+        جميع الأسعار بالجنيه المصري. تقديم طلب الاشتراك لا يعني
+        التفعيل الفوري؛ تتم مراجعة الطلب وإثبات الدفع بواسطة إدارة Dokkan.
+      </p>
     </div>
   )
 }
@@ -249,7 +451,7 @@ export function SubscriptionHero({
 
       <div className="relative max-w-3xl">
         <div className="flex items-center gap-2 text-sm font-bold text-blue-200">
-          <Crown data-icon="inline-start" />
+          <Crown size={18} />
           {eyebrow}
         </div>
 
