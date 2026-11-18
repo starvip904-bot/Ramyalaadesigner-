@@ -1,6 +1,14 @@
+
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
+
 import {
   cancelSubscriptionRequestDraftAction,
   createSubscriptionRequestDraftAction,
@@ -35,6 +43,13 @@ type RequestRow = Awaited<
   ReturnType<typeof getMySubscriptionRequestsAction>
 >[number]
 
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+]
+
 const statusLabels: Record<string, string> = {
   draft: 'مسودة غير مكتملة',
   pending: 'قيد مراجعة الإدارة',
@@ -55,6 +70,10 @@ function formatDate(value: string | null) {
 
 function getPlanName(code: string) {
   return plans.find((plan) => plan.code === code)?.name ?? code
+}
+
+function isPlanCode(value: string): value is PlanCode {
+  return plans.some((plan) => plan.code === value)
 }
 
 function getWhatsAppUrl(
@@ -92,12 +111,7 @@ export default function SubscriptionRequestManager({
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  const selectedPlanName = useMemo(
-    () => plans.find((plan) => plan.code === selectedPlan)?.name ?? '',
-    [selectedPlan]
-  )
-
-  async function loadRequests() {
+  const loadRequests = useCallback(async () => {
     try {
       const result = await getMySubscriptionRequestsAction()
       setRequests(result)
@@ -106,15 +120,20 @@ export default function SubscriptionRequestManager({
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadRequests()
-  }, [])
+  }, [loadRequests])
 
-  function handleFileChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  function resetForm() {
+    setSelectedPlan('')
+    setAmount('')
+    setFile(null)
+    setDraftRequestId(null)
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setErrorMessage('')
     setSuccessMessage('')
 
@@ -125,14 +144,7 @@ export default function SubscriptionRequestManager({
       return
     }
 
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'application/pdf',
-    ]
-
-    if (!allowedTypes.includes(selectedFile.type)) {
+    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type)) {
       setFile(null)
       event.target.value = ''
       setErrorMessage('اختر صورة JPG أو PNG أو WEBP أو ملف PDF.')
@@ -152,9 +164,45 @@ export default function SubscriptionRequestManager({
     setFile(selectedFile)
   }
 
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  function handleResumeDraft(request: RequestRow) {
+    if (busy) return
+
+    if (request.status !== 'draft') {
+      setErrorMessage('هذه المسودة لم تعد متاحة للاستكمال.')
+      return
+    }
+
+    if (!isPlanCode(request.requested_plan_code)) {
+      setErrorMessage('الخطة المسجلة في هذه المسودة غير معروفة.')
+      return
+    }
+
+    if (
+      !request.proof_mime_type ||
+      !ALLOWED_MIME_TYPES.includes(request.proof_mime_type)
+    ) {
+      setErrorMessage('نوع إثبات الدفع المسجل في المسودة غير صالح.')
+      return
+    }
+
+    setDraftRequestId(request.id)
+    setSelectedPlan(request.requested_plan_code)
+    setAmount(
+      request.claimed_amount_egp != null
+        ? String(request.claimed_amount_egp)
+        : ''
+    )
+    setFile(null)
+    setErrorMessage('')
+    setSuccessMessage('تم تحميل المسودة. اختر ملف الإثبات لإكمال الطلب.')
+
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    })
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage('')
     setSuccessMessage('')
@@ -175,7 +223,7 @@ export default function SubscriptionRequestManager({
       return
     }
 
-    if (!file && !draftRequestId) {
+    if (!file) {
       setErrorMessage('اختر صورة أو PDF لإثبات الدفع.')
       return
     }
@@ -183,23 +231,27 @@ export default function SubscriptionRequestManager({
     setBusy(true)
 
     try {
-      let requestId = draftRequestId
+      let requestId: string
 
-      if (!requestId) {
+      if (draftRequestId) {
+        requestId = draftRequestId
+      } else {
         const draft = await createSubscriptionRequestDraftAction({
           planCode: selectedPlan,
-          proofMimeType: file!.type,
+          proofMimeType: file.type,
           claimedAmountEgp: numericAmount,
         })
+
+        if (!draft.requestId) {
+          throw new Error('تعذر الحصول على رقم طلب الاشتراك.')
+        }
 
         requestId = draft.requestId
         setDraftRequestId(requestId)
       }
 
-      if (!file) {
-        throw new Error(
-          'المسودة موجودة. اختر ملف الإثبات لإكمال إرسال الطلب.'
-        )
+      if (!requestId) {
+        throw new Error('رقم طلب الاشتراك غير صحيح.')
       }
 
       await uploadSubscriptionProofAndSubmitAction(
@@ -208,10 +260,8 @@ export default function SubscriptionRequestManager({
       )
 
       setSuccessMessage('تم إرسال طلب الاشتراك للمراجعة بنجاح.')
-      setDraftRequestId(null)
-      setFile(null)
-      setAmount('')
-      setSelectedPlan('')
+
+      resetForm()
 
       await loadRequests()
     } catch (error) {
@@ -240,8 +290,7 @@ export default function SubscriptionRequestManager({
       await cancelSubscriptionRequestDraftAction(requestId)
 
       if (draftRequestId === requestId) {
-        setDraftRequestId(null)
-        setFile(null)
+        resetForm()
       }
 
       setSuccessMessage('تم إلغاء المسودة.')
@@ -356,7 +405,7 @@ export default function SubscriptionRequestManager({
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
-                required={!draftRequestId}
+                required
                 disabled={busy}
                 onChange={handleFileChange}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm file:ml-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-bold file:text-blue-700"
@@ -375,11 +424,19 @@ export default function SubscriptionRequestManager({
           )}
 
           {draftRequestId && (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-              لديك مسودة غير مكتملة برقم {draftRequestId}.
-              اختر ملف الإثبات لإعادة محاولة الإرسال. لا تنشئ طلبًا
-              جديدًا قبل إكمال هذه المسودة أو إلغائها.
-            </p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
+              <p>
+                أنت تستكمل مسودة طلب موجودة برقم:
+              </p>
+              <p className="mt-1 break-all font-bold">
+                {draftRequestId}
+              </p>
+              <p className="mt-2">
+                اختر ملف الإثبات لإكمال الإرسال. إذا كان الملف قد
+                رُفع في محاولة سابقة، فلن يتم استبداله؛ ستتم محاولة
+                إرسال الطلب بالملف الموجود.
+              </p>
+            </div>
           )}
 
           {errorMessage && (
@@ -493,14 +550,14 @@ export default function SubscriptionRequestManager({
 
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                     <p className="text-slate-600">
-                      المبلغ المعلن: {' '}
+                      المبلغ المعلن:{' '}
                       <strong className="text-slate-900">
                         {request.claimed_amount_egp ?? 'غير محدد'} جنيه
                       </strong>
                     </p>
 
                     <p className="text-slate-600">
-                      تاريخ الطلب: {' '}
+                      تاريخ الطلب:{' '}
                       <strong className="text-slate-900">
                         {formatDate(request.created_at)}
                       </strong>
@@ -508,7 +565,7 @@ export default function SubscriptionRequestManager({
 
                     {request.verified_amount_egp != null && (
                       <p className="text-slate-600">
-                        المبلغ المعتمد: {' '}
+                        المبلغ المعتمد:{' '}
                         <strong className="text-slate-900">
                           {request.verified_amount_egp} جنيه
                         </strong>
@@ -517,7 +574,7 @@ export default function SubscriptionRequestManager({
 
                     {request.subscription_ends_at && (
                       <p className="text-slate-600">
-                        انتهاء الاشتراك: {' '}
+                        انتهاء الاشتراك:{' '}
                         <strong className="text-slate-900">
                           {formatDate(request.subscription_ends_at)}
                         </strong>
@@ -544,14 +601,25 @@ export default function SubscriptionRequestManager({
                   )}
 
                   {request.status === 'draft' && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void handleCancelDraft(request.id)}
-                      className="mt-4 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      إلغاء المسودة
-                    </button>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleResumeDraft(request)}
+                        className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        استكمال هذه المسودة
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handleCancelDraft(request.id)}
+                        className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        إلغاء المسودة
+                      </button>
+                    </div>
                   )}
                 </article>
               )
