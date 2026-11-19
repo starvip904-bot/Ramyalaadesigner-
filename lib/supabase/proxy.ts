@@ -1,5 +1,6 @@
 
 import { createServerClient } from '@supabase/ssr'
+import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
@@ -15,23 +16,31 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(values) {
-          values.forEach(({ name, value }) =>
+          values.forEach(({ name, value }) => {
             request.cookies.set(name, value)
-          )
+          })
 
           response = NextResponse.next({ request })
 
-          values.forEach(({ name, value, options }) =>
+          values.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options)
-          )
+          })
         },
       },
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: User | null = null
+
+  try {
+    const { data, error } = await supabase.auth.getUser()
+
+    if (!error) {
+      user = data.user
+    }
+  } catch {
+    console.error('Supabase session check failed')
+  }
 
   const pathname = request.nextUrl.pathname
 
