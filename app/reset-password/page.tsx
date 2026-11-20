@@ -1,97 +1,51 @@
 
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { LockKeyhole } from 'lucide-react'
+import Link from 'next/link'
+import { type FormEvent, useState } from 'react'
+import { ArrowRight, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-export default function ResetPasswordPage() {
-  const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
-
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [checking, setChecking] = useState(true)
-  const [hasSession, setHasSession] = useState(false)
-
-  useEffect(() => {
-    let active = true
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return
-      setHasSession(Boolean(session))
-      setChecking(false)
-    })
-
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return
-
-      if (error) {
-        setError(error.message)
-      }
-
-      setHasSession(Boolean(data.session))
-      setChecking(false)
-    })
-
-    return () => {
-      active = false
-      subscription.unsubscribe()
-    }
-  }, [supabase])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setError('')
-
-    if (password.length < 6) {
-      setError('كلمة المرور يجب ألا تقل عن 6 أحرف.')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('كلمتا المرور غير متطابقتين.')
-      return
-    }
 
     setBusy(true)
+    setError('')
+    setMessage('')
 
     try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
+      const supabase = createClient()
 
-      if (sessionError) throw sessionError
+      // Use the current domain for both Preview and Production.
+      const redirectTo =
+        `${window.location.origin}/auth/callback?next=/reset-password`
 
-      if (!session) {
-        setHasSession(false)
-        throw new Error(
-          'جلسة الاستعادة غير موجودة أو انتهت صلاحيتها. اطلب رابط استعادة جديدًا.'
+      const { error: resetError } =
+        await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          { redirectTo }
         )
+
+      if (resetError) {
+        throw resetError
       }
 
-      const { error: updateError } =
-        await supabase.auth.updateUser({ password })
-
-      if (updateError) throw updateError
-
-      // إعادة التوجيه من خلال callback لتحديد
-      // صفحة مدير المنصة أو لوحة المتجر حسب صلاحية الحساب.
-      router.replace('/auth/callback')
-      router.refresh()
+      setMessage(
+        'إذا كان البريد مسجلًا، ستصلك رسالة لاستعادة كلمة المرور. راجع بريدك الإلكتروني.'
+      )
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'حدث خطأ غير معروف أثناء تحديث كلمة المرور.'
+      console.error('Password recovery request failed:', err)
 
-      setError(`تعذر تحديث كلمة المرور: ${message}`)
+      setError(
+        'تعذر إرسال رسالة الاستعادة. حاول مرة أخرى بعد قليل.'
+      )
+    } finally {
       setBusy(false)
     }
   }
@@ -102,93 +56,73 @@ export default function ResetPasswordPage() {
       className="flex min-h-screen items-center justify-center bg-[#f7f8fa] p-4"
     >
       <section className="w-full max-w-lg rounded-3xl border border-[#e2e8f0] bg-white p-7 shadow-xl shadow-[#2563eb]/5 sm:p-12">
-        <div className="flex size-11 items-center justify-center rounded-xl bg-[#2563eb] text-2xl font-extrabold text-white">
-          د
-        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2 text-sm font-bold text-[#2563eb]"
+        >
+          <ArrowRight size={17} />
+          العودة لتسجيل الدخول
+        </Link>
 
-        <h1 className="mt-8 text-2xl font-extrabold">
-          تعيين كلمة مرور جديدة
+        <h1 className="mt-10 text-2xl font-extrabold">
+          استعادة كلمة المرور
         </h1>
 
-        {checking ? (
-          <p className="mt-6 text-sm text-slate-600">
-            جارٍ التحقق من رابط الاستعادة...
-          </p>
-        ) : !hasSession ? (
-          <div className="mt-6 space-y-4">
+        <p className="mt-3 text-sm leading-6 text-[#64748b]">
+          أدخل بريدك الإلكتروني وسنرسل لك رابطًا آمنًا لاختيار كلمة مرور جديدة.
+        </p>
+
+        <form
+          onSubmit={submit}
+          className="mt-8 space-y-5"
+        >
+          <label className="flex flex-col gap-2 text-sm font-bold">
+            البريد الإلكتروني
+
+            <div className="flex items-center gap-3 rounded-xl border border-[#e1e5e8] px-4 py-3 text-[#94a3b8] focus-within:border-[#2563eb]">
+              <Mail size={18} />
+
+              <input
+                required
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                className="w-full outline-none"
+              />
+            </div>
+          </label>
+
+          {error && (
             <p
               role="alert"
               className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"
             >
-              {error ||
-                'لا توجد جلسة استعادة صالحة. اطلب رابط استعادة جديدًا.'}
+              {error}
             </p>
+          )}
 
-            <button
-              type="button"
-              onClick={() => router.replace('/forgot-password')}
-              className="w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white"
+          {message && (
+            <p
+              role="status"
+              className="rounded-xl bg-[#eaf5f2] p-3 text-sm font-bold leading-6 text-[#2563eb]"
             >
-              طلب رابط استعادة جديد
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={submit} className="mt-8 space-y-5">
-            <label className="flex flex-col gap-2 text-sm font-bold">
-              كلمة المرور الجديدة
+              {message}
+            </p>
+          )}
 
-              <div className="flex items-center gap-3 rounded-xl border border-[#e1e5e8] px-4 py-3 text-[#94a3b8] focus-within:border-[#2563eb]">
-                <LockKeyhole size={18} />
-
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="w-full outline-none"
-                />
-              </div>
-            </label>
-
-            <label className="flex flex-col gap-2 text-sm font-bold">
-              تأكيد كلمة المرور
-
-              <div className="flex items-center gap-3 rounded-xl border border-[#e1e5e8] px-4 py-3 text-[#94a3b8] focus-within:border-[#2563eb]">
-                <LockKeyhole size={18} />
-
-                <input
-                  required
-                  minLength={6}
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) =>
-                    setConfirmPassword(event.target.value)
-                  }
-                  className="w-full outline-none"
-                />
-              </div>
-            </label>
-
-            {error && (
-              <p
-                role="alert"
-                className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700"
-              >
-                {error}
-              </p>
-            )}
-
-            <button
-              disabled={busy || !hasSession}
-              className="w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white disabled:opacity-60"
-            >
-              {busy ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور'}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white disabled:opacity-60"
+          >
+            {busy
+              ? 'جارٍ الإرسال...'
+              : 'إرسال رابط الاستعادة'}
+          </button>
+        </form>
       </section>
     </main>
   )
