@@ -22,8 +22,9 @@ export default function ForgotPasswordPage() {
     try {
       const supabase = createClient()
 
+      // Use the current domain for both Preview and Production.
       const redirectTo =
-        'https://ramyalaadesigner-d8jw.vercel.app/auth/callback?next=/reset-password'
+        `${window.location.origin}/auth/callback?next=/reset-password`
 
       const { error: resetError } =
         await supabase.auth.resetPasswordForEmail(
