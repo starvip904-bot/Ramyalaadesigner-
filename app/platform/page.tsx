@@ -13,7 +13,6 @@ import {
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import PlatformPlanSettingsEditor from '@/components/platform-plan-settings-editor'
-import PlatformOwnerGrantButton from '@/components/platform-owner-grant-button'
 import {
   PLAN_DEFINITIONS,
   PLAN_CODES,
@@ -100,7 +99,7 @@ function getStatusStyle(status: string | null) {
 }
 
 export default async function PlatformPage() {
-  const { supabase, user } = await requirePlatformOwner().catch(() =>
+  const { supabase } = await requirePlatformOwner().catch(() =>
     redirect('/dashboard')
   )
 
@@ -188,23 +187,6 @@ export default async function PlatformPage() {
             </div>
           </div>
         </header>
-
-        {/* تفعيل حساب مدير المنصة الجديد */}
-        {user.id === 'e6e59e14-a3f0-4ec2-80aa-94035993461d' &&
-          user.email?.toLowerCase() === 'kamelalaa480@gmail.com' && (
-            <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
-              <h2 className="font-extrabold text-slate-900">
-                إدارة حساب مدير المنصة
-              </h2>
-
-              <p className="my-3 text-sm leading-6 text-slate-600">
-                تفعيل حساب مدير المنصة الجديد:
-                maxbin060@gmail.com
-              </p>
-
-              <PlatformOwnerGrantButton />
-            </section>
-          )}
 
         {/* ملخص المنصة */}
         <section>
