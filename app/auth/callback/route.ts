@@ -4,40 +4,21 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
-
   const code = url.searchParams.get('code')
   const next = url.searchParams.get('next')
 
   const supabase = await createClient()
 
-  // Exchange the recovery/login code for a Supabase session.
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('Supabase auth callback failed:', error)
+      console.error('Auth callback exchange failed:', error)
 
       return NextResponse.redirect(
         new URL('/login?error=callback', url.origin)
       )
     }
-  }
-
-  // Allow only safe internal redirect paths.
-  const safeNext =
-    next &&
-    next.startsWith('/') &&
-    !next.startsWith('//') &&
-    !next.includes('\\')
-      ? next
-      : null
-
-  // Password recovery must reach the password reset page
-  // before the normal platform-owner/store routing.
-  if (safeNext === '/reset-password') {
-    return NextResponse.redirect(
-      new URL('/reset-password', url.origin)
-    )
   }
 
   const {
@@ -47,29 +28,41 @@ export async function GET(request: Request) {
 
   if (authError || !user) {
     return NextResponse.redirect(
-      new URL('/login', url.origin)
+      new URL('/login?error=authentication', url.origin)
     )
   }
 
-  // Check whether this user is the platform owner.
-  const { data: owner, error: ownerError } =
-    await supabase.rpc('dokkan_is_platform_owner')
+  // Handle password recovery before normal owner/store routing.
+  if (next === '/reset-password') {
+    return NextResponse.redirect(
+      new URL('/reset-password', url.origin)
+    )
+  }
 
-  if (!ownerError && owner === true) {
+  const { data: owner, error: ownerError } = await supabase.rpc(
+    'dokkan_is_platform_owner'
+  )
+
+  if (ownerError) {
+    console.error('Platform owner check failed:', ownerError)
+  }
+
+  if (owner === true) {
     return NextResponse.redirect(
       new URL('/platform', url.origin)
     )
   }
 
-  // Check active store membership.
-  const { data: membership, error: membershipError } =
-    await supabase
-      .from('dokkan_members')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .limit(1)
-      .maybeSingle()
+  const {
+    data: membership,
+    error: membershipError,
+  } = await supabase
+    .from('dokkan_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle()
 
   if (membershipError) {
     console.error(
