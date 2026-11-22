@@ -1,3 +1,4 @@
+
 import 'server-only'
 
 import {
@@ -36,6 +37,27 @@ export async function requireRedaBranch(
 
   if (!data) {
     throw new Error('BRANCH_ACCESS_DENIED')
+  }
+
+  // مدير الفرع لا يصل إلا للفروع المسندة إليه.
+  // المالك ومدير الإدارة يحتفظان بصلاحية الوصول على مستوى المتجر.
+  if (context.membership.role === 'manager') {
+    const { data: assignment, error: assignmentError } =
+      await context.supabase
+        .from('dokkan_member_branches')
+        .select('id')
+        .eq('store_id', context.storeId)
+        .eq('member_id', context.membership.id)
+        .eq('branch_id', branchId)
+        .maybeSingle()
+
+    if (assignmentError) {
+      throw new Error('BRANCH_ASSIGNMENT_LOOKUP_FAILED')
+    }
+
+    if (!assignment) {
+      throw new Error('BRANCH_ACCESS_DENIED')
+    }
   }
 
   return data
