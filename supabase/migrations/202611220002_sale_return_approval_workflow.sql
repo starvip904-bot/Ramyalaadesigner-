@@ -376,6 +376,7 @@ BEGIN
   END IF;
 
   IF p_request_id IS NULL
+     OR p_decision IS NULL
      OR p_decision NOT IN ('approved', 'rejected')
      OR length(coalesce(p_decision_notes, '')) > 1000 THEN
     RAISE EXCEPTION 'invalid decision';
