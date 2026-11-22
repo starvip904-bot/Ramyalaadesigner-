@@ -28,6 +28,8 @@ export default async function ReturnsPage() {
         <ReturnsManagementPage
           sales={data.sales}
           returns={data.returns}
+          requests={data.requests}
+          userRole={reda.membership.role}
         />
       }
     />
