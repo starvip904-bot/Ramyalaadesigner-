@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSaleReturn } from '@/app/actions/returns'
+import { createSaleReturn, decideSaleReturn } from '@/app/actions/returns'
 import {
   RotateCcw,
   Search,
@@ -72,9 +72,41 @@ type SaleReturn = {
   original_sale?: Sale | null
 }
 
+type ReturnRequestItem = {
+  id: string
+  request_id: string
+  product_variant_id: string
+  quantity: number
+  dokkan_product_variants?: {
+    sku?: string | null
+    size?: string | null
+    color?: string | null
+    dokkan_products?: { name?: string | null } | null
+  } | null
+}
+
+type SaleReturnRequest = {
+  id: string
+  sale_id: string
+  branch_id: string
+  status: 'pending' | 'approved' | 'rejected'
+  requested_refund_method: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  decided_by: string | null
+  decided_at: string | null
+  decision_notes: string | null
+  processed_return_id: string | null
+  items: ReturnRequestItem[]
+  original_sale?: Sale | null
+}
+
 type Props = {
   sales: Sale[]
   returns: SaleReturn[]
+  requests: SaleReturnRequest[]
+  userRole: string | null
 }
 
 type PendingReturnAttempt = {
@@ -125,6 +157,8 @@ const escapeHtml = (value: unknown) =>
 export default function ReturnsManagementPage({
   sales,
   returns,
+  requests,
+  userRole,
 }: Props) {
   const router = useRouter()
 
@@ -141,6 +175,13 @@ export default function ReturnsManagementPage({
   const [pendingAttempt, setPendingAttempt] =
     useState<PendingReturnAttempt | null>(null)
 
+  const [decisionLoadingId, setDecisionLoadingId] =
+    useState<string | null>(null)
+  const [decisionMessage, setDecisionMessage] = useState('')
+
+  const canDecideReturns =
+    userRole === 'owner' || userRole === 'manager'
+
   const selectedSale = sales.find(
     (sale) => sale.id === selectedSaleId
   )
@@ -153,12 +194,11 @@ export default function ReturnsManagementPage({
     return sales.filter((sale) => {
       const customer = sale.dokkan_customers?.name || 'عميل نقدي'
       const phone = sale.dokkan_customers?.phone || ''
-      const invoice = sale.id
 
       return (
         customer.toLowerCase().includes(query) ||
         phone.toLowerCase().includes(query) ||
-        invoice.toLowerCase().includes(query)
+        sale.id.toLowerCase().includes(query)
       )
     }).slice(0, 30)
   }, [sales, search])
@@ -181,19 +221,45 @@ export default function ReturnsManagementPage({
     return totals
   }, [returns, selectedSale])
 
+  const pendingReservedQuantities = useMemo(() => {
+    const totals: Record<string, number> = {}
+
+    if (!selectedSale) return totals
+
+    for (const request of requests) {
+      if (
+        request.sale_id !== selectedSale.id ||
+        request.status !== 'pending'
+      ) {
+        continue
+      }
+
+      for (const item of request.items || []) {
+        totals[item.product_variant_id] =
+          (totals[item.product_variant_id] || 0) +
+          Number(item.quantity || 0)
+      }
+    }
+
+    return totals
+  }, [requests, selectedSale])
+
   const saleItems = useMemo(() => {
     if (!selectedSale) return []
 
-    const grouped = new Map<string, {
-      variantId: string
-      name: string
-      sku: string
-      size: string
-      color: string
-      quantity: number
-      unitPrice: number
-      discount: number
-    }>()
+    const grouped = new Map<
+      string,
+      {
+        variantId: string
+        name: string
+        sku: string
+        size: string
+        color: string
+        quantity: number
+        unitPrice: number
+        discount: number
+      }
+    >()
 
     for (const item of selectedSale.dokkan_sale_items || []) {
       const variantId = item.product_variant_id
@@ -221,17 +287,38 @@ export default function ReturnsManagementPage({
 
     return Array.from(grouped.values()).map((item) => ({
       ...item,
-      alreadyReturned: returnedQuantities[item.variantId] || 0,
+      alreadyReturned:
+        returnedQuantities[item.variantId] || 0,
+      pendingRequested:
+        pendingReservedQuantities[item.variantId] || 0,
       available: Math.max(
         0,
-        item.quantity - (returnedQuantities[item.variantId] || 0)
+        item.quantity -
+          (returnedQuantities[item.variantId] || 0) -
+          (pendingReservedQuantities[item.variantId] || 0)
       ),
     }))
-  }, [selectedSale, returnedQuantities])
+  }, [
+    selectedSale,
+    returnedQuantities,
+    pendingReservedQuantities,
+  ])
 
   const selectedReturns = returns.filter(
     (record) => record.sale_id === selectedSaleId
   )
+
+  const pendingRequests = requests.filter(
+    (request) => request.status === 'pending'
+  )
+
+  const requestStatusLabel = (
+    status: SaleReturnRequest['status']
+  ) => {
+    if (status === 'approved') return 'تمت الموافقة'
+    if (status === 'rejected') return 'مرفوض'
+    return 'بانتظار المراجعة'
+  }
 
   const totalReturnQuantity = saleItems.reduce(
     (sum, item) => sum + item.available,
@@ -242,12 +329,65 @@ export default function ReturnsManagementPage({
     (item) => Number(quantities[item.variantId] || 0) > 0
   )
 
+  async function handleDecision(
+    request: SaleReturnRequest,
+    decision: 'approved' | 'rejected'
+  ) {
+    if (!canDecideReturns || decisionLoadingId) return
+
+    const actionLabel =
+      decision === 'approved' ? 'الموافقة على' : 'رفض'
+
+    const confirmed = window.confirm(
+      `هل أنت متأكد من ${actionLabel} طلب المرتجع رقم ${request.id.slice(0, 8)}؟`
+    )
+
+    if (!confirmed) return
+
+    const decisionNotes = window.prompt(
+      'ملاحظات القرار (اختياري):',
+      ''
+    )
+
+    if (decisionNotes === null) return
+
+    setDecisionLoadingId(request.id)
+    setDecisionMessage('')
+
+    try {
+      const result = await decideSaleReturn({
+        requestId: request.id,
+        decision,
+        decisionNotes,
+      })
+
+      if (!result.ok) {
+        setDecisionMessage(result.message)
+        return
+      }
+
+      setDecisionMessage(
+        decision === 'approved'
+          ? `تم اعتماد الطلب وتنفيذ المرتجع. رقم العملية: ${result.returnId}`
+          : 'تم رفض طلب المرتجع.'
+      )
+
+      router.refresh()
+    } catch {
+      setDecisionMessage(
+        'تعذر تأكيد القرار بسبب الاتصال. حدّث الصفحة وتحقق من حالة الطلب قبل إعادة المحاولة.'
+      )
+    } finally {
+      setDecisionLoadingId(null)
+    }
+  }
+
   function printReturn(record: SaleReturn) {
     const originalSale = record.original_sale
 
     if (!originalSale) {
       setMessage(
-        'تعذر طباعة الإيصال: بيانات الفاتورة الأصلية غير متاحة لهذا المرتجع.'
+        'تعذر طباعة الإيصال: بيانات الفاتورة الأصلية غير متاحة.'
       )
       return
     }
@@ -259,15 +399,18 @@ export default function ReturnsManagementPage({
     )
 
     if (!popup) {
-      setMessage('اسمح بفتح النوافذ المنبثقة حتى تتمكن من طباعة الإيصال.')
+      setMessage(
+        'اسمح بفتح النوافذ المنبثقة حتى تتمكن من طباعة الإيصال.'
+      )
       return
     }
 
-    const returnItems = record.dokkan_sale_return_items || []
-
-    const rows = returnItems.map((item, index) => {
+    const rows = (
+      record.dokkan_sale_return_items || []
+    ).map((item, index) => {
       const variant = item.dokkan_product_variants
       const product = variant?.dokkan_products
+
       const details = [
         variant?.sku ? `الكود: ${variant.sku}` : '',
         variant?.size ? `المقاس: ${variant.size}` : '',
@@ -279,10 +422,10 @@ export default function ReturnsManagementPage({
           <td>${index + 1}</td>
           <td>
             <strong>${escapeHtml(product?.name || 'منتج')}</strong>
-            <div class="muted">${escapeHtml(details)}</div>
+            <div>${escapeHtml(details)}</div>
           </td>
-          <td>${escapeHtml(Number(item.quantity || 0))}</td>
-          <td>${escapeHtml(money(Number(item.amount || 0)))}</td>
+          <td>${escapeHtml(item.quantity)}</td>
+          <td>${escapeHtml(money(item.amount))}</td>
         </tr>
       `
     }).join('')
@@ -291,200 +434,117 @@ export default function ReturnsManagementPage({
       Number(record.refund_amount || 0) +
       Number(record.applied_to_balance || 0)
 
-    const customerName =
-      originalSale.dokkan_customers?.name || 'عميل نقدي'
-
-    const customerPhone =
-      originalSale.dokkan_customers?.phone || '—'
-
-    const branchName =
-      originalSale.dokkan_branches?.name || '—'
-
     const receiptHtml = `
       <!DOCTYPE html>
       <html lang="ar" dir="rtl">
       <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>فاتورة مرتجع</title>
         <style>
-          * { box-sizing: border-box; }
           body {
             font-family: Tahoma, Arial, sans-serif;
-            color: #111827;
-            margin: 0;
             padding: 24px;
-            background: #fff;
+            color: #111827;
           }
           .receipt {
             max-width: 760px;
             margin: auto;
           }
-          .header {
+          h1, .center {
             text-align: center;
-            border-bottom: 2px solid #111827;
-            padding-bottom: 18px;
-            margin-bottom: 20px;
-          }
-          h1 {
-            font-size: 27px;
-            margin: 0 0 8px;
-          }
-          .subtitle {
-            color: #64748b;
-            font-size: 13px;
           }
           .notice {
-            border: 1px solid #dc2626;
-            color: #b91c1c;
             background: #fef2f2;
+            color: #b91c1c;
+            padding: 12px;
             text-align: center;
-            padding: 10px;
-            font-weight: bold;
             margin: 18px 0;
-            border-radius: 8px;
+            font-weight: bold;
           }
           .info {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 20px;
           }
           .info div {
-            border: 1px solid #e5e7eb;
+            border: 1px solid #ddd;
             padding: 10px;
-            border-radius: 7px;
-            font-size: 13px;
-          }
-          .label {
-            color: #64748b;
-            display: block;
-            margin-bottom: 5px;
           }
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 12px;
+            margin-top: 20px;
           }
           th, td {
-            border: 1px solid #d1d5db;
-            padding: 10px 8px;
+            border: 1px solid #ddd;
+            padding: 10px;
             text-align: right;
-            font-size: 13px;
           }
           th {
             background: #f3f4f6;
           }
-          .muted {
-            color: #64748b;
-            font-size: 11px;
-            margin-top: 4px;
-          }
-          .totals {
+          .total {
             margin-top: 20px;
-            margin-right: auto;
-            width: min(100%, 360px);
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 9px 0;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 14px;
-          }
-          .grand-total {
             font-weight: bold;
             font-size: 18px;
-            color: #b91c1c;
           }
-          .notes {
-            margin-top: 20px;
-            padding: 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 7px;
-            font-size: 13px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 35px;
+          .muted {
             color: #64748b;
             font-size: 12px;
           }
-          .actions {
-            text-align: center;
-            margin: 0 0 20px;
-          }
-          .actions button {
-            background: #1d4ed8;
-            color: white;
-            border: 0;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 15px;
-            cursor: pointer;
+          button {
+            padding: 10px 20px;
+            margin-bottom: 20px;
           }
           @media print {
-            body { padding: 0; }
-            .actions { display: none; }
-            .receipt { max-width: none; }
-          }
-          @media (max-width: 520px) {
-            body { padding: 12px; }
-            .info { grid-template-columns: 1fr; }
-            th, td { padding: 7px 5px; font-size: 11px; }
+            button { display: none; }
           }
         </style>
       </head>
       <body>
         <div class="receipt">
-          <div class="actions">
+          <div class="center">
             <button onclick="window.print()">طباعة إيصال المرتجع</button>
+            <h1>فاتورة مرتجع</h1>
           </div>
 
-          <header class="header">
-            <h1>فاتورة مرتجع</h1>
-            <div class="subtitle">إيصال إرجاع أصناف من فاتورة بيع</div>
-          </header>
+          <div class="notice">
+            إيصال مرتجع — ليس فاتورة بيع
+          </div>
 
-          <div class="notice">إيصال مرتجع — ليس فاتورة بيع</div>
-
-          <section class="info">
+          <div class="info">
             <div>
-              <span class="label">رقم المرتجع</span>
+              رقم المرتجع:
               <strong>${escapeHtml(record.id)}</strong>
             </div>
             <div>
-              <span class="label">تاريخ المرتجع</span>
+              تاريخ المرتجع:
               <strong>${escapeHtml(date(record.created_at))}</strong>
             </div>
             <div>
-              <span class="label">رقم فاتورة البيع الأصلية</span>
+              الفاتورة الأصلية:
               <strong>${escapeHtml(originalSale.id)}</strong>
             </div>
             <div>
-              <span class="label">تاريخ فاتورة البيع الأصلية</span>
-              <strong>${escapeHtml(date(originalSale.created_at))}</strong>
+              العميل:
+              <strong>${escapeHtml(originalSale.dokkan_customers?.name || 'عميل نقدي')}</strong>
             </div>
             <div>
-              <span class="label">اسم العميل</span>
-              <strong>${escapeHtml(customerName)}</strong>
+              الهاتف:
+              <strong>${escapeHtml(originalSale.dokkan_customers?.phone || '—')}</strong>
             </div>
             <div>
-              <span class="label">هاتف العميل</span>
-              <strong>${escapeHtml(customerPhone)}</strong>
+              الفرع:
+              <strong>${escapeHtml(originalSale.dokkan_branches?.name || '—')}</strong>
             </div>
             <div>
-              <span class="label">الفرع</span>
-              <strong>${escapeHtml(branchName)}</strong>
-            </div>
-            <div>
-              <span class="label">طريقة رد المبلغ</span>
+              طريقة رد المبلغ:
               <strong>${escapeHtml(paymentLabel(record.refund_method))}</strong>
             </div>
-          </section>
+          </div>
 
           <h3>الأصناف المرتجعة</h3>
+
           <table>
             <thead>
               <tr>
@@ -499,34 +559,30 @@ export default function ReturnsManagementPage({
             </tbody>
           </table>
 
-          <section class="totals">
-            <div class="total-row">
-              <span>قيمة المرتجع</span>
-              <strong>${escapeHtml(money(returnValue))}</strong>
-            </div>
-            <div class="total-row">
-              <span>المخصوم من رصيد العميل</span>
-              <strong>${escapeHtml(money(Number(record.applied_to_balance || 0)))}</strong>
-            </div>
-            <div class="total-row">
-              <span>المبلغ المردود</span>
-              <strong>${escapeHtml(money(Number(record.refund_amount || 0)))}</strong>
-            </div>
-            <div class="total-row grand-total">
-              <span>إجمالي قيمة المرتجع</span>
-              <strong>${escapeHtml(money(returnValue))}</strong>
-            </div>
-          </section>
+          <p>
+            المبلغ المردود:
+            <strong>${escapeHtml(money(record.refund_amount))}</strong>
+          </p>
+
+          <p>
+            المخصوم من رصيد العميل:
+            <strong>${escapeHtml(money(record.applied_to_balance))}</strong>
+          </p>
+
+          <p class="total">
+            إجمالي قيمة المرتجع:
+            ${escapeHtml(money(returnValue))}
+          </p>
 
           ${
             record.notes
-              ? `<div class="notes"><strong>ملاحظات:</strong> ${escapeHtml(record.notes)}</div>`
+              ? `<p>ملاحظات: ${escapeHtml(record.notes)}</p>`
               : ''
           }
 
-          <footer class="footer">
+          <p class="center muted">
             تم إصدار هذا الإيصال لإثبات عملية مرتجع مرتبطة بفاتورة البيع الأصلية.
-          </footer>
+          </p>
         </div>
       </body>
       </html>
@@ -549,7 +605,10 @@ export default function ReturnsManagementPage({
     setSuccess('')
   }
 
-  function updateQuantity(variantId: string, value: string) {
+  function updateQuantity(
+    variantId: string,
+    value: string
+  ) {
     if (pendingAttempt || loading) return
 
     setQuantities((current) => ({
@@ -583,7 +642,9 @@ export default function ReturnsManagementPage({
         .filter((item) => item.quantity > 0)
 
       if (items.length === 0) {
-        setMessage('أدخل كمية مرتجعة لصنف واحد على الأقل')
+        setMessage(
+          'أدخل كمية مرتجعة لصنف واحد على الأقل'
+        )
         return
       }
 
@@ -595,7 +656,9 @@ export default function ReturnsManagementPage({
       )
 
       if (invalid) {
-        setMessage('راجع الكميات؛ يوجد صنف تجاوز الكمية المتاحة للمرتجع')
+        setMessage(
+          'راجع الكميات؛ يوجد صنف تجاوز الكمية المتاحة للمرتجع'
+        )
         return
       }
 
@@ -624,7 +687,7 @@ export default function ReturnsManagementPage({
       if (!result.ok) {
         setMessage(
           result.retryable
-            ? `${result.message}. لو هتعيد المحاولة، استخدم زر إعادة المحاولة بنفس الطلب.`
+            ? `${result.message}. استخدم إعادة المحاولة بنفس الطلب.`
             : result.message
         )
 
@@ -636,7 +699,7 @@ export default function ReturnsManagementPage({
       }
 
       setSuccess(
-        `تم تسجيل المرتجع بنجاح. رقم العملية: ${result.returnId}`
+        `تم إرسال طلب المرتجع للمراجعة بنجاح. رقم الطلب: ${result.requestId}`
       )
 
       setPendingAttempt(null)
@@ -645,7 +708,7 @@ export default function ReturnsManagementPage({
       router.refresh()
     } catch {
       setMessage(
-        'تعذر تأكيد النتيجة بسبب الاتصال. اضغط إعادة المحاولة بنفس الطلب، ولا تنشئ مرتجعًا جديدًا.'
+        'تعذر تأكيد النتيجة بسبب الاتصال. استخدم إعادة المحاولة بنفس الطلب، ولا تنشئ طلبًا جديدًا.'
       )
     } finally {
       setLoading(false)
@@ -672,6 +735,163 @@ export default function ReturnsManagementPage({
           {returns.length} عملية مرتجع مسجلة
         </div>
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-extrabold">
+            طلبات المرتجعات
+          </h3>
+
+          <span className="rounded-lg bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700">
+            {pendingRequests.length} طلب بانتظار المراجعة
+          </span>
+        </div>
+
+        {decisionMessage && (
+          <p className="mb-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
+            {decisionMessage}
+          </p>
+        )}
+
+        {requests.length === 0 ? (
+          <p className="py-5 text-center text-sm text-slate-400">
+            لا توجد طلبات مرتجعات حتى الآن
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {requests.map((request) => {
+              const isPending =
+                request.status === 'pending'
+
+              const busy =
+                decisionLoadingId === request.id
+
+              return (
+                <article
+                  key={request.id}
+                  className="rounded-xl border border-slate-200 p-4"
+                >
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <b>
+                      طلب #{request.id.slice(0, 8)}
+                      {' — '}
+                      فاتورة #{request.sale_id.slice(0, 8)}
+                    </b>
+
+                    <span className="text-sm font-bold">
+                      {requestStatusLabel(request.status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                    <p>
+                      تاريخ الطلب:
+                      {' '}
+                      <b>{date(request.created_at)}</b>
+                    </p>
+
+                    <p>
+                      مقدم الطلب (معرّف المستخدم):
+                      {' '}
+                      <b>{request.created_by || 'غير متاح'}</b>
+                    </p>
+
+                    <p>
+                      طريقة رد المبلغ:
+                      {' '}
+                      <b>{paymentLabel(request.requested_refund_method)}</b>
+                    </p>
+
+                    {request.decided_at && (
+                      <p>
+                        تاريخ القرار:
+                        {' '}
+                        <b>{date(request.decided_at)}</b>
+                      </p>
+                    )}
+
+                    {request.decided_by && (
+                      <p>
+                        صاحب القرار:
+                        {' '}
+                        <b>{request.decided_by}</b>
+                      </p>
+                    )}
+
+                    {request.processed_return_id && (
+                      <p>
+                        رقم المرتجع المنفذ:
+                        {' '}
+                        <b>{request.processed_return_id}</b>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs">
+                    <b>الأصناف المطلوبة</b>
+
+                    {(request.items || []).map((item) => (
+                      <p key={item.id} className="mt-2">
+                        {item.dokkan_product_variants?.dokkan_products?.name || 'منتج'}
+                        {' — '}
+                        الكمية:
+                        {' '}
+                        <b>{item.quantity}</b>
+                      </p>
+                    ))}
+                  </div>
+
+                  {request.notes && (
+                    <p className="mt-2 text-xs text-slate-600">
+                      ملاحظات مقدم الطلب: {request.notes}
+                    </p>
+                  )}
+
+                  {request.decision_notes && (
+                    <p className="mt-2 text-xs text-slate-600">
+                      ملاحظات القرار: {request.decision_notes}
+                    </p>
+                  )}
+
+                  {isPending && canDecideReturns && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDecision(request, 'approved')
+                        }
+                        disabled={Boolean(decisionLoadingId)}
+                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      >
+                        {busy
+                          ? 'جارٍ التنفيذ...'
+                          : 'اعتماد وتنفيذ المرتجع'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDecision(request, 'rejected')
+                        }
+                        disabled={Boolean(decisionLoadingId)}
+                        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      >
+                        رفض الطلب
+                      </button>
+                    </div>
+                  )}
+
+                  {isPending && !canDecideReturns && (
+                    <p className="mt-3 text-xs text-orange-700">
+                      في انتظار اعتماد المالك أو مدير الفرع المختص.
+                    </p>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="mb-4 flex items-center gap-2">
@@ -757,7 +977,9 @@ export default function ReturnsManagementPage({
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">إجمالي الفاتورة</p>
+                <p className="text-xs text-slate-500">
+                  إجمالي الفاتورة
+                </p>
                 <p className="mt-2 font-extrabold">
                   {money(Number(selectedSale.total))}
                 </p>
@@ -771,7 +993,9 @@ export default function ReturnsManagementPage({
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">المتبقي على العميل</p>
+                <p className="text-xs text-slate-500">
+                  المتبقي على العميل
+                </p>
                 <p className="mt-2 font-extrabold text-orange-600">
                   {money(Number(selectedSale.remaining))}
                 </p>
@@ -813,15 +1037,15 @@ export default function ReturnsManagementPage({
                           item.sku && `كود: ${item.sku}`,
                           item.size && `المقاس: ${item.size}`,
                           item.color && `اللون: ${item.color}`,
-                        ]
-                          .filter(Boolean)
-                          .join(' — ') || 'بدون تفاصيل إضافية'}
+                        ].filter(Boolean).join(' — ') || 'بدون تفاصيل إضافية'}
                       </p>
 
                       <p className="mt-2 text-xs text-slate-500">
                         المباع: {item.quantity}
                         {' — '}
                         المرتجع سابقًا: {item.alreadyReturned}
+                        {' — '}
+                        محجوز بطلبات معلقة: {item.pendingRequested}
                       </p>
                     </div>
 
@@ -849,7 +1073,10 @@ export default function ReturnsManagementPage({
                         }
                         value={quantities[item.variantId] || ''}
                         onChange={(event) =>
-                          updateQuantity(item.variantId, event.target.value)
+                          updateQuantity(
+                            item.variantId,
+                            event.target.value
+                          )
                         }
                         placeholder="0"
                         className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-center outline-none focus:border-blue-500 disabled:bg-slate-100"
@@ -862,7 +1089,9 @@ export default function ReturnsManagementPage({
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="mb-4 font-extrabold">بيانات رد المبلغ</h3>
+            <h3 className="mb-4 font-extrabold">
+              بيانات طلب المرتجع
+            </h3>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-bold">
@@ -885,7 +1114,7 @@ export default function ReturnsManagementPage({
               </label>
 
               <label className="text-sm font-bold">
-                ملاحظات المرتجع
+                ملاحظات الطلب
 
                 <input
                   value={pendingAttempt?.notes ?? notes}
@@ -899,15 +1128,15 @@ export default function ReturnsManagementPage({
             </div>
 
             <p className="mt-4 rounded-xl bg-blue-50 p-3 text-xs leading-6 text-blue-800">
-              سيتم خصم قيمة المرتجع من المبلغ المتبقي على الفاتورة أولًا.
-              وإذا زادت قيمة المرتجع عن المتبقي، يتم رد الزيادة بطريقة الدفع المختارة.
-              إجمالي الفاتورة الأصلية والمبلغ المدفوع الأصلي لن يتم تغييرهما.
+              سيتم إرسال طلب المرتجع للمراجعة. لن يتم تنفيذ المرتجع أو
+              رد المبلغ قبل اعتماد المالك أو مدير الفرع المختص.
             </p>
 
             {pendingAttempt && (
               <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm leading-6 text-orange-800">
-                توجد عملية مرتجع لم يتم تأكيد نتيجتها بعد.
-                استخدم زر إعادة المحاولة بنفس الطلب، ولا تبدأ مرتجعًا جديدًا قبل التأكد من نتيجتها.
+                توجد محاولة طلب لم يتم تأكيد نتيجتها بعد.
+                استخدم إعادة المحاولة بنفس الطلب، ولا تنشئ طلبًا جديدًا
+                قبل التأكد من نتيجتها.
               </div>
             )}
 
@@ -937,14 +1166,14 @@ export default function ReturnsManagementPage({
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={18} />
-                  جارٍ تسجيل المرتجع...
+                  جارٍ إرسال طلب المرتجع...
                 </>
               ) : (
                 <>
                   <RotateCcw size={18} />
                   {pendingAttempt
-                    ? 'إعادة محاولة نفس المرتجع'
-                    : 'تسجيل المرتجع'}
+                    ? 'إعادة محاولة نفس الطلب'
+                    : 'إرسال طلب للمراجعة'}
                 </>
               )}
             </button>
@@ -974,19 +1203,20 @@ export default function ReturnsManagementPage({
 
                     <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                       <p>
-                        رد نقدي:{' '}
+                        رد نقدي:
+                        {' '}
                         <b>{money(Number(record.refund_amount))}</b>
                       </p>
 
                       <p>
-                        خصم من المتبقي:{' '}
-                        <b>
-                          {money(Number(record.applied_to_balance))}
-                        </b>
+                        خصم من المتبقي:
+                        {' '}
+                        <b>{money(Number(record.applied_to_balance))}</b>
                       </p>
 
                       <p>
-                        طريقة الرد:{' '}
+                        طريقة الرد:
+                        {' '}
                         <b>{paymentLabel(record.refund_method)}</b>
                       </p>
                     </div>
