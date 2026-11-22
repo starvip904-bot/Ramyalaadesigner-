@@ -1,15 +1,15 @@
 
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LockKeyhole } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
 
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
@@ -19,35 +19,67 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let active = true
+    let subscription: { unsubscribe: () => void } | undefined
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return
-      setHasSession(Boolean(session))
-      setChecking(false)
-    })
+    async function initialize() {
+      try {
+        const client = createClient()
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return
+        if (!active) return
 
-      if (error) {
-        setError(error.message)
+        setSupabase(client)
+
+        const {
+          data: { subscription: authSubscription },
+        } = client.auth.onAuthStateChange((_event, session) => {
+          if (!active) return
+          setHasSession(Boolean(session))
+          setChecking(false)
+        })
+
+        subscription = authSubscription
+
+        const {
+          data: { session },
+          error: sessionError,
+        } = await client.auth.getSession()
+
+        if (!active) return
+
+        if (sessionError) {
+          setError(sessionError.message)
+        }
+
+        setHasSession(Boolean(session))
+        setChecking(false)
+      } catch (err) {
+        if (!active) return
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'تعذر تهيئة الاتصال بخدمة الاستعادة.'
+        )
+        setChecking(false)
       }
+    }
 
-      setHasSession(Boolean(data.session))
-      setChecking(false)
-    })
+    initialize()
 
     return () => {
       active = false
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+
+    if (!supabase) {
+      setError('الاتصال بالخدمة غير جاهز. أعد تحميل الصفحة.')
+      return
+    }
 
     if (password.length < 6) {
       setError('كلمة المرور يجب ألا تقل عن 6 أحرف.')
@@ -81,8 +113,6 @@ export default function ResetPasswordPage() {
 
       if (updateError) throw updateError
 
-      // إعادة التوجيه من خلال callback لتحديد
-      // صفحة مدير المنصة أو لوحة المتجر حسب صلاحية الحساب.
       router.replace('/auth/callback')
       router.refresh()
     } catch (err) {
@@ -182,7 +212,7 @@ export default function ResetPasswordPage() {
             )}
 
             <button
-              disabled={busy || !hasSession}
+              disabled={busy || !hasSession || !supabase}
               className="w-full rounded-xl bg-[#2563eb] py-3.5 font-bold text-white disabled:opacity-60"
             >
               {busy ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور'}
