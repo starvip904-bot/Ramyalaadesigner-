@@ -2,6 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 
 type Relation<T> = T | T[] | null
 
@@ -23,6 +24,9 @@ export type DokkanSale = {
   branch_id: string
   subtotal: number
   discount: number
+  tax_enabled: boolean
+  tax_rate: number
+  tax_amount: number
   total: number
   amount_paid: number
   remaining: number
@@ -33,6 +37,30 @@ export type DokkanSale = {
   dokkan_branches: Relation<{ name: string }>
   dokkan_customers: Relation<{ name: string; phone: string | null }>
   dokkan_sale_items: SaleItem[]
+}
+
+type ReturnItem = {
+  product_variant_id: string
+  quantity: number
+  amount: number
+  dokkan_product_variants: Relation<{
+    sku: string | null
+    size: string | null
+    color: string | null
+    dokkan_products: Relation<{ name: string }>
+  }>
+}
+
+export type SaleReturn = {
+  id: string
+  sale_id: string
+  branch_id: string
+  refund_amount: number
+  applied_to_balance: number
+  refund_method: string | null
+  notes: string | null
+  created_at: string
+  dokkan_sale_return_items: ReturnItem[]
 }
 
 function one<T>(value: Relation<T> | undefined): T | null {
@@ -46,13 +74,18 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   })} ج.م`
 
-const invoiceNumber = (id: string) => `INV-${id.slice(0, 8).toUpperCase()}`
+const invoiceNumber = (id: string) =>
+  `INV-${id.slice(0, 8).toUpperCase()}`
 
-const paymentLabel = (value: string) => ({
+const returnNumber = (id: string) =>
+  `RET-${id.slice(0, 8).toUpperCase()}`
+
+const paymentLabel = (value: string | null) => ({
   cash: 'نقدي',
   card: 'بطاقة',
-  transfer: 'تحويل',
-}[value] || value)
+  wallet: 'محفظة إلكترونية',
+  transfer: 'تحويل بنكي',
+}[value || ''] || value || 'غير محدد')
 
 const statusLabel = (value: string) => ({
   completed: 'مكتملة',
@@ -60,16 +93,55 @@ const statusLabel = (value: string) => ({
   partially_returned: 'مرتجع جزئي',
 }[value] || value)
 
+const statusStyle = (value: string) => {
+  if (value === 'returned') return 'bg-red-50 text-red-700'
+  if (value === 'partially_returned') return 'bg-orange-50 text-orange-700'
+  return 'bg-green-50 text-green-700'
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: string
+  color?: string
+}) {
+  return (
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <p className="text-xs font-semibold leading-6 text-slate-500 sm:text-sm">
+        {label}
+      </p>
+      <p className={`mt-2 break-words text-lg font-extrabold sm:text-xl ${color || 'text-slate-900'}`}>
+        {value}
+      </p>
+    </article>
+  )
+}
+
 export default function SalesPage({
   initialSales,
+  initialReturns,
+  storeName,
 }: {
   initialSales: DokkanSale[]
+  initialReturns: SaleReturn[]
+  storeName: string
 }) {
   const [sales] = useState(initialSales)
+  const [returns] = useState(initialReturns)
   const [selected, setSelected] = useState<DokkanSale | null>(null)
   const [search, setSearch] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+
+  const selectedReturns = useMemo(() => {
+    if (!selected) return []
+    return returns.filter((record) => record.sale_id === selected.id)
+  }, [returns, selected])
+
+  const isFullyReturned = selected?.status === 'returned'
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -94,105 +166,113 @@ export default function SalesPage({
   }, [sales, search, from, to])
 
   const totalSales = filtered.reduce(
-    (sum, sale) => sum + Number(sale.total || 0),
-    0
+    (sum, sale) => sum + Number(sale.total || 0), 0
   )
-
   const totalPaid = filtered.reduce(
-    (sum, sale) => sum + Number(sale.amount_paid || 0),
-    0
+    (sum, sale) => sum + Number(sale.amount_paid || 0), 0
   )
-
   const totalRemaining = filtered.reduce(
-    (sum, sale) => sum + Number(sale.remaining || 0),
-    0
+    (sum, sale) => sum + Number(sale.remaining || 0), 0
   )
 
   return (
-    <main dir="rtl" className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
+    <main dir="rtl" className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-3 sm:space-y-6 sm:p-5 lg:p-6">
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          .invoice-print,
-          .invoice-print * {
-            visibility: visible !important;
-          }
+          body * { visibility: hidden !important; }
+          .invoice-print, .invoice-print * { visibility: visible !important; }
           .invoice-print {
             position: absolute !important;
             inset: 0 !important;
             width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 12px !important;
             background: white !important;
             color: black !important;
             box-shadow: none !important;
+            border-radius: 0 !important;
           }
-          .no-print {
-            display: none !important;
-          }
+          .no-print { display: none !important; }
+          .invoice-print table { page-break-inside: auto; }
+          .invoice-print tr { page-break-inside: avoid; }
         }
       `}</style>
 
-      <header className="no-print flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-slate-500">إدارة المتجر</p>
-          <h1 className="mt-1 text-2xl font-extrabold">المبيعات والفواتير</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            سجل فواتير البيع المحفوظة في قاعدة البيانات
+      <header className="no-print flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500 sm:text-sm">إدارة المتجر</p>
+          <h1 className="mt-2 break-words text-xl font-extrabold text-slate-900 sm:text-2xl">
+            المبيعات والفواتير
+          </h1>
+          <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
+            سجل فواتير البيع والمرتجعات المحفوظة
           </p>
         </div>
-        <span className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
+        <span className="w-fit rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700">
           {filtered.length.toLocaleString('ar-EG')} فاتورة
         </span>
       </header>
 
-      <section className="no-print grid gap-3 sm:grid-cols-3">
-        <article className="rounded-2xl border bg-white p-4">
-          <p className="text-sm text-slate-500">إجمالي المبيعات المعروضة</p>
-          <p className="mt-2 text-xl font-extrabold">{money(totalSales)}</p>
-        </article>
-        <article className="rounded-2xl border bg-white p-4">
-          <p className="text-sm text-slate-500">إجمالي المدفوع</p>
-          <p className="mt-2 text-xl font-extrabold text-green-700">{money(totalPaid)}</p>
-        </article>
-        <article className="rounded-2xl border bg-white p-4">
-          <p className="text-sm text-slate-500">إجمالي المتبقي</p>
-          <p className="mt-2 text-xl font-extrabold text-orange-600">{money(totalRemaining)}</p>
-        </article>
+      <section className="no-print grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard label="إجمالي المبيعات المعروضة" value={money(totalSales)} />
+        <StatCard label="إجمالي المدفوع" value={money(totalPaid)} color="text-green-700" />
+        <StatCard label="إجمالي المتبقي" value={money(totalRemaining)} color="text-orange-600" />
       </section>
 
-      <section className="no-print space-y-3 rounded-2xl border bg-white p-4">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="ابحث برقم الفاتورة أو اسم العميل أو رقم الهاتف..."
-          className="w-full rounded-xl border px-4 py-3 outline-none focus:border-blue-500"
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm font-semibold text-slate-600">
+      <section className="no-print min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-700">البحث عن فاتورة</label>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="رقم الفاتورة أو اسم العميل أو رقم الهاتف..."
+            aria-label="البحث عن فاتورة"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
+
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="min-w-0 text-sm font-semibold text-slate-600">
             من تاريخ
             <input
               type="date"
               value={from}
+              max={to || undefined}
               onChange={(event) => setFrom(event.target.value)}
-              className="mt-2 w-full rounded-xl border p-3"
+              className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
             />
           </label>
-          <label className="text-sm font-semibold text-slate-600">
+          <label className="min-w-0 text-sm font-semibold text-slate-600">
             إلى تاريخ
             <input
               type="date"
               value={to}
+              min={from || undefined}
               onChange={(event) => setTo(event.target.value)}
-              className="mt-2 w-full rounded-xl border p-3"
+              className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
             />
           </label>
         </div>
+
+        {(search || from || to) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setFrom('')
+              setTo('')
+            }}
+            className="rounded-lg bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200"
+          >
+            مسح البحث والفلاتر
+          </button>
+        )}
       </section>
 
-      <section className="no-print overflow-hidden rounded-2xl border bg-white">
+      <section className="no-print hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-right text-sm">
+          <table className="w-full min-w-[900px] text-right text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="p-4">رقم الفاتورة</th>
@@ -210,158 +290,300 @@ export default function SalesPage({
               {filtered.map((sale) => {
                 const customer = one(sale.dokkan_customers)
                 const branch = one(sale.dokkan_branches)
-
                 return (
-                  <tr key={sale.id} className="border-t hover:bg-slate-50">
-                    <td className="p-4 font-bold">{invoiceNumber(sale.id)}</td>
+                  <tr key={sale.id} className="border-t border-slate-100 transition hover:bg-slate-50">
+                    <td className="p-4 font-bold text-slate-900">{invoiceNumber(sale.id)}</td>
                     <td className="p-4">{customer?.name || 'عميل نقدي'}</td>
                     <td className="p-4">{branch?.name || '—'}</td>
-                    <td className="p-4">
-                      {new Date(sale.created_at).toLocaleString('ar-EG')}
-                    </td>
+                    <td className="p-4 text-xs text-slate-600">{new Date(sale.created_at).toLocaleString('ar-EG')}</td>
                     <td className="p-4 font-bold">{money(sale.total)}</td>
-                    <td className="p-4 text-green-700">{money(sale.amount_paid)}</td>
-                    <td className="p-4 text-orange-600">{money(sale.remaining)}</td>
-                    <td className="p-4">{statusLabel(sale.status)}</td>
+                    <td className="p-4 font-semibold text-green-700">{money(sale.amount_paid)}</td>
+                    <td className="p-4 font-semibold text-orange-600">{money(sale.remaining)}</td>
+                    <td className="p-4">
+                      <span className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(sale.status)}`}>
+                        {statusLabel(sale.status)}
+                      </span>
+                    </td>
                     <td className="p-4">
                       <button
+                        type="button"
                         onClick={() => setSelected(sale)}
-                        className="rounded-lg bg-blue-600 px-3 py-2 font-bold text-white"
+                        className="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 font-bold text-white transition hover:bg-blue-700"
                       >
-                        عرض الفاتورة
+                        {sale.status === 'returned' ? 'عرض تفاصيل المرتجع' : 'عرض الفاتورة'}
                       </button>
                     </td>
                   </tr>
                 )
               })}
               {!filtered.length && (
-                <tr>
-                  <td colSpan={9} className="p-10 text-center text-slate-500">
-                    لا توجد فواتير في نتائج البحث
-                  </td>
-                </tr>
+                <tr><td colSpan={9} className="p-12 text-center text-slate-500">لا توجد فواتير في نتائج البحث</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
 
-      {selected && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-3 md:p-8">
-          <section className="invoice-print mx-auto my-4 max-w-3xl rounded-2xl bg-white p-5 shadow-2xl md:p-8">
-            <div className="no-print mb-5 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold">تفاصيل الفاتورة</h2>
-              <div className="flex gap-2">
+      <section className="no-print grid min-w-0 grid-cols-1 gap-3 lg:hidden">
+        {filtered.map((sale) => {
+          const customer = one(sale.dokkan_customers)
+          const branch = one(sale.dokkan_branches)
+          return (
+            <article key={sale.id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-all text-sm font-extrabold text-slate-900">{invoiceNumber(sale.id)}</p>
+                  <p className="mt-2 break-words text-sm font-semibold text-slate-700">{customer?.name || 'عميل نقدي'}</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(sale.status)}`}>
+                  {statusLabel(sale.status)}
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+                <div><p className="text-xs text-slate-500">الإجمالي</p><p className="mt-1 text-sm font-extrabold">{money(sale.total)}</p></div>
+                <div><p className="text-xs text-slate-500">المدفوع</p><p className="mt-1 text-sm font-bold text-green-700">{money(sale.amount_paid)}</p></div>
+                <div><p className="text-xs text-slate-500">المتبقي</p><p className="mt-1 text-sm font-bold text-orange-600">{money(sale.remaining)}</p></div>
+                <div><p className="text-xs text-slate-500">الفرع</p><p className="mt-1 text-sm font-semibold">{branch?.name || '—'}</p></div>
+              </div>
+
+              <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+                <p className="text-xs leading-5 text-slate-500">{new Date(sale.created_at).toLocaleString('ar-EG')}</p>
                 <button
-                  onClick={() => window.print()}
-                  className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white"
+                  type="button"
+                  onClick={() => setSelected(sale)}
+                  className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
                 >
-                  طباعة
+                  {sale.status === 'returned' ? 'عرض تفاصيل المرتجع' : 'عرض تفاصيل الفاتورة'}
+                </button>
+              </div>
+            </article>
+          )
+        })}
+        {!filtered.length && (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <p className="font-bold text-slate-700">لا توجد فواتير في نتائج البحث</p>
+            <p className="mt-2 text-sm text-slate-500">جرّب تغيير البحث أو الفترة الزمنية.</p>
+          </div>
+        )}
+      </section>
+
+      {selected && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-2 sm:p-4 md:p-8">
+          <section className="invoice-print mx-auto my-2 w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl sm:my-4 sm:p-6 md:p-8">
+            <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-extrabold text-slate-900">
+                {isFullyReturned ? 'تفاصيل فاتورة المرتجع' : 'تفاصيل الفاتورة'}
+              </h2>
+              <div className="flex w-full gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 sm:flex-none"
+                >
+                  {isFullyReturned ? 'طباعة المرتجع' : 'طباعة الفاتورة'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setSelected(null)}
-                  className="rounded-xl border px-4 py-2 font-bold"
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 sm:flex-none"
                 >
                   إغلاق
                 </button>
               </div>
             </div>
 
-            <div className="border-b pb-5 text-center">
-              <h2 className="text-2xl font-extrabold">فاتورة بيع</h2>
-              <p className="mt-2 font-bold">{invoiceNumber(selected.id)}</p>
-              <p className="mt-1 text-sm text-slate-500">
-                {new Date(selected.created_at).toLocaleString('ar-EG')}
+            <div className="border-b border-slate-200 pb-5 text-center">
+              <h1 className="break-words text-2xl font-extrabold text-slate-900 sm:text-3xl">
+                {storeName || 'اسم المتجر'}
+              </h1>
+              <h2 className={`mt-2 text-lg font-bold sm:text-xl ${isFullyReturned ? 'text-red-700' : ''}`}>
+                {isFullyReturned ? 'فاتورة مرتجع' : 'فاتورة بيع'}
+              </h2>
+              <p className="mt-3 break-all text-sm font-bold">
+                رقم فاتورة البيع الأصلية: {invoiceNumber(selected.id)}
+              </p>
+              <p className="mt-2 text-xs text-slate-600 sm:text-sm">
+                تاريخ فاتورة البيع: {new Date(selected.created_at).toLocaleString('ar-EG')}
               </p>
             </div>
 
-            <div className="grid gap-3 border-b py-5 text-sm sm:grid-cols-2">
-              <p>
-                العميل: <strong>{one(selected.dokkan_customers)?.name || 'عميل نقدي'}</strong>
-              </p>
-              <p>
-                الهاتف: <strong>{one(selected.dokkan_customers)?.phone || '—'}</strong>
-              </p>
-              <p>
-                الفرع: <strong>{one(selected.dokkan_branches)?.name || '—'}</strong>
-              </p>
-              <p>
-                طريقة الدفع: <strong>{paymentLabel(selected.payment_method)}</strong>
-              </p>
+            <div className="grid min-w-0 grid-cols-1 gap-3 border-b border-slate-200 py-5 text-sm sm:grid-cols-2">
+              <p className="break-words">العميل: <strong>{one(selected.dokkan_customers)?.name || 'عميل نقدي'}</strong></p>
+              <p className="break-words">الهاتف: <strong>{one(selected.dokkan_customers)?.phone || '—'}</strong></p>
+              <p className="break-words">الفرع: <strong>{one(selected.dokkan_branches)?.name || '—'}</strong></p>
+              <p className="break-words">طريقة الدفع الأصلية: <strong>{paymentLabel(selected.payment_method)}</strong></p>
+              <p className="break-words">حالة الفاتورة: <strong>{statusLabel(selected.status)}</strong></p>
             </div>
 
-            <div className="overflow-x-auto py-5">
-              <table className="w-full min-w-[500px] text-right text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="p-3">الصنف</th>
-                    <th className="p-3">الكمية</th>
-                    <th className="p-3">سعر الوحدة</th>
-                    <th className="p-3">الخصم</th>
-                    <th className="p-3">الإجمالي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selected.dokkan_sale_items.map((item) => {
-                    const variant = one(item.dokkan_product_variants)
-                    const product = one(variant?.dokkan_products)
-                    const lineTotal =
-                      Number(item.quantity) * Number(item.unit_price) -
-                      Number(item.discount)
-
-                    return (
-                      <tr key={item.id} className="border-b">
-                        <td className="p-3">
-                          <strong>{product?.name || 'منتج'}</strong>
-                          <div className="text-xs text-slate-500">
-                            {[variant?.size, variant?.color, variant?.sku]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </div>
-                        </td>
-                        <td className="p-3">{Number(item.quantity)}</td>
-                        <td className="p-3">{money(item.unit_price)}</td>
-                        <td className="p-3">{money(item.discount)}</td>
-                        <td className="p-3 font-bold">{money(lineTotal)}</td>
+            {!isFullyReturned && (
+              <>
+                <h3 className="pt-5 font-extrabold">أصناف فاتورة البيع الأصلية</h3>
+                <div className="overflow-x-auto py-4">
+                  <table className="w-full min-w-[480px] text-right text-xs sm:text-sm">
+                    <thead className="bg-slate-50 text-slate-700">
+                      <tr>
+                        <th className="p-3">الصنف</th>
+                        <th className="p-3">الكمية</th>
+                        <th className="p-3">سعر الوحدة</th>
+                        <th className="p-3">الخصم</th>
+                        <th className="p-3">الإجمالي</th>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {selected.dokkan_sale_items.map((item) => {
+                        const variant = one(item.dokkan_product_variants)
+                        const product = one(variant?.dokkan_products)
+                        const lineTotal = Number(item.quantity) * Number(item.unit_price) - Number(item.discount)
+                        return (
+                          <tr key={item.id} className="border-b border-slate-100">
+                            <td className="p-3">
+                              <strong>{product?.name || 'منتج'}</strong>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {[variant?.size, variant?.color, variant?.sku].filter(Boolean).join(' · ')}
+                              </div>
+                            </td>
+                            <td className="p-3">{Number(item.quantity).toLocaleString('ar-EG')}</td>
+                            <td className="p-3">{money(item.unit_price)}</td>
+                            <td className="p-3">{money(item.discount)}</td>
+                            <td className="p-3 font-bold">{money(lineTotal)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-            <div className="mr-auto max-w-sm space-y-3 border-t pt-5 text-sm">
-              <div className="flex justify-between">
-                <span>المجموع الفرعي</span>
-                <strong>{money(selected.subtotal)}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>الخصم</span>
-                <strong>{money(selected.discount)}</strong>
-              </div>
-              <div className="flex justify-between border-t pt-3 text-lg">
-                <span>الإجمالي</span>
-                <strong>{money(selected.total)}</strong>
-              </div>
-              <div className="flex justify-between text-green-700">
-                <span>المدفوع</span>
-                <strong>{money(selected.amount_paid)}</strong>
-              </div>
-              <div className="flex justify-between text-orange-600">
-                <span>المتبقي</span>
-                <strong>{money(selected.remaining)}</strong>
-              </div>
-            </div>
+                <div className="mr-auto w-full max-w-sm space-y-3 border-t border-slate-200 pt-5 text-sm">
+                  <div className="flex justify-between gap-3"><span>المجموع الفرعي</span><strong>{money(selected.subtotal)}</strong></div>
+                  <div className="flex justify-between gap-3"><span>الخصم</span><strong>{money(selected.discount)}</strong></div>
+                  <div className="flex justify-between gap-3"><span>المبلغ بعد الخصم</span><strong>{money(Math.max(0, Number(selected.subtotal) - Number(selected.discount)))}</strong></div>
+                  <div className="flex justify-between gap-3">
+                    <span>الضريبة {selected.tax_enabled ? `(${Number(selected.tax_rate || 0).toLocaleString('ar-EG')}%)` : '(غير مفعلة)'}</span>
+                    <strong>{money(selected.tax_amount)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base">
+                    <span className="font-bold">الإجمالي شامل الضريبة</span><strong>{money(selected.total)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-3 text-green-700"><span>المبلغ المدفوع</span><strong>{money(selected.amount_paid)}</strong></div>
+                  <div className="flex justify-between gap-3 text-orange-600"><span>المبلغ المتبقي</span><strong>{money(selected.remaining)}</strong></div>
+                </div>
+              </>
+            )}
+
+            {selectedReturns.length > 0 ? (
+              <section className="mt-6 border-t-2 border-red-200 pt-5">
+                <h3 className="text-lg font-extrabold text-red-700">
+                  {isFullyReturned ? 'تفاصيل المرتجع' : 'المرتجعات المسجلة على الفاتورة'}
+                </h3>
+
+                {selectedReturns.map((record) => {
+                  const returnValue = record.dokkan_sale_return_items.reduce(
+                    (sum, item) => sum + Number(item.amount || 0), 0
+                  )
+
+                  return (
+                    <article key={record.id} className="mt-4 rounded-xl border border-red-100 p-4">
+                      <div className="grid gap-3 text-sm sm:grid-cols-2">
+                        <p>رقم المرتجع: <strong>{returnNumber(record.id)}</strong></p>
+                        <p>تاريخ المرتجع: <strong>{new Date(record.created_at).toLocaleString('ar-EG')}</strong></p>
+                        <p>فاتورة البيع الأصلية: <strong>{invoiceNumber(record.sale_id)}</strong></p>
+                        <p>طريقة رد المبلغ: <strong>{paymentLabel(record.refund_method)}</strong></p>
+                      </div>
+
+                      <h4 className="mt-5 font-bold">الأصناف المرتجعة</h4>
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full min-w-[380px] text-right text-xs sm:text-sm">
+                          <thead className="bg-red-50">
+                            <tr>
+                              <th className="p-3">الصنف</th>
+                              <th className="p-3">الكمية المرتجعة</th>
+                              <th className="p-3">القيمة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {record.dokkan_sale_return_items.map((item, index) => {
+                              const variant = one(item.dokkan_product_variants)
+                              const product = one(variant?.dokkan_products)
+                              return (
+                                <tr key={`${record.id}-${item.product_variant_id}-${index}`} className="border-b border-slate-100">
+                                  <td className="p-3">
+                                    <strong>{product?.name || 'منتج'}</strong>
+                                    <div className="mt-1 text-xs text-slate-500">
+                                      {[variant?.size, variant?.color, variant?.sku].filter(Boolean).join(' · ')}
+                                    </div>
+                                  </td>
+                                  <td className="p-3">{Number(item.quantity).toLocaleString('ar-EG')}</td>
+                                  <td className="p-3 font-bold">{money(item.amount)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 text-sm">
+                        <div className="flex justify-between gap-3"><span>إجمالي قيمة الأصناف المرتجعة</span><strong>{money(returnValue)}</strong></div>
+                        <div className="flex justify-between gap-3"><span>المبلغ المردود للعميل</span><strong>{money(record.refund_amount)}</strong></div>
+                        <div className="flex justify-between gap-3"><span>المخصوم من رصيد العميل</span><strong>{money(record.applied_to_balance)}</strong></div>
+                        <div className="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base font-extrabold text-red-700">
+                          <span>قيمة المرتجع</span>
+                          <strong>{money(returnValue)}</strong>
+                        </div>
+                      </div>
+
+                      {record.notes && (
+                        <p className="mt-3 text-sm leading-6">ملاحظات المرتجع: {record.notes}</p>
+                      )}
+
+                      <p className="mt-3 text-center text-xs font-bold text-red-700">
+                        إيصال مرتجع مرتبط بفاتورة البيع الأصلية
+                      </p>
+                    </article>
+                  )
+                })}
+              </section>
+            ) : (
+              isFullyReturned && (
+                <p className="mt-6 rounded-xl bg-red-50 p-4 text-center font-bold text-red-700">
+                  حالة الفاتورة مسترجعة، لكن لم يتم العثور على سجل مرتجع مرتبط بها. يرجى مراجعة بيانات المرتجع.
+                </p>
+              )
+            )}
 
             {selected.notes && (
-              <p className="mt-5 border-t pt-4 text-sm">
-                ملاحظات: {selected.notes}
+              <p className="mt-5 break-words border-t border-slate-200 pt-4 text-sm leading-7">
+                ملاحظات الفاتورة: {selected.notes}
               </p>
             )}
 
-            <p className="mt-8 text-center text-sm text-slate-500">
-              شكراً لتعاملكم معنا
-            </p>
+            <div className="mt-8 flex flex-col items-center border-t border-slate-200 pt-6 text-center">
+              <p className="mb-3 text-sm font-bold">
+                {isFullyReturned ? 'كود عملية المرتجع' : 'كود الفاتورة'}
+              </p>
+              <QRCodeSVG
+                value={isFullyReturned
+                  ? `DOKKAN|RETURN|${selectedReturns.map((record) => record.id).join(',')}`
+                  : `DOKKAN|SALE|${selected.id}`}
+                size={144}
+                level="M"
+                includeMargin
+              />
+              <p className="mt-2 text-xs font-semibold text-slate-600">
+                {isFullyReturned
+                  ? selectedReturns.map((record) => returnNumber(record.id)).join(' - ')
+                  : invoiceNumber(selected.id)}
+              </p>
+            </div>
+
+            <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+              <p className="text-base font-extrabold">
+                {isFullyReturned ? 'تم تسجيل عملية المرتجع' : 'شكرًا لزيارتكم'}
+              </p>
+              <p className="mt-3 text-sm font-bold">سياسة الاستبدال والاسترجاع</p>
+              <p className="mt-1 text-sm text-slate-600">الاستبدال والاسترجاع خلال 14 يومًا</p>
+              <p className="mt-2 text-xs text-slate-500">برجاء الاحتفاظ بالإيصال</p>
+            </div>
           </section>
         </div>
       )}

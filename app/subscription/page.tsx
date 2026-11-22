@@ -1,22 +1,19 @@
 
 import { redirect } from 'next/navigation'
+import SubscriptionRequestManager from '@/app/subscription/subscription-request-manager'
 import {
   PlanGrid,
   SubscriptionHero,
 } from '@/components/subscription-plans'
 import { requireRedaContext } from '@/lib/reda-scope'
+import {
+  getPlanDefinition,
+  isPermanentFreePlan,
+} from '@/lib/subscription-plans'
 
 export const metadata = {
   title: 'اشتراكي | DOKKAN',
-  description: 'إدارة خطة اشتراك متجرك.',
-}
-
-const planNames: Record<string, string> = {
-  free: 'Free المجانية',
-  starter: 'Starter',
-  pro: 'Pro',
-  business: 'Business',
-  enterprise: 'Enterprise',
+  description: 'إدارة خطة اشتراك متجرك وأسعار الخطط وطلبات الترقية.',
 }
 
 function formatDate(value: string | null) {
@@ -38,6 +35,7 @@ export default async function SubscriptionPage() {
   const { data: store, error } = await context.supabase
     .from('dokkan_stores')
     .select(`
+      name,
       plan_code,
       subscription_status,
       subscription_started_at,
@@ -51,7 +49,11 @@ export default async function SubscriptionPage() {
   }
 
   const planCode = store.plan_code?.toLowerCase() ?? ''
-  const planName = planNames[planCode] ?? 'خطة غير محددة'
+  const planDefinition = getPlanDefinition(planCode)
+
+  const planName =
+    planDefinition?.name ??
+    (planCode ? 'خطة قديمة تحتاج إلى مراجعة' : 'خطة غير محددة')
 
   const statusLabels: Record<string, string> = {
     active: 'نشطة',
@@ -59,16 +61,18 @@ export default async function SubscriptionPage() {
     cancelled: 'ملغاة',
     expired: 'منتهية',
     pending: 'قيد الانتظار',
+    paused: 'متوقفة مؤقتًا',
   }
 
   const status =
     statusLabels[store.subscription_status ?? ''] ??
     'غير محددة'
 
-  const isPermanentFree =
-    planCode === 'free' &&
-    store.subscription_status === 'active' &&
-    !store.subscription_ends_at
+  const isPermanentFree = isPermanentFreePlan(
+    planCode,
+    store.subscription_status,
+    store.subscription_ends_at
+  )
 
   return (
     <main
@@ -76,6 +80,7 @@ export default async function SubscriptionPage() {
       dir="rtl"
     >
       <div className="mx-auto flex max-w-[1500px] flex-col gap-8">
+
         <header>
           <p className="text-sm font-extrabold tracking-wide text-blue-700">
             الاشتراك والفوترة
@@ -86,22 +91,14 @@ export default async function SubscriptionPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
-            بيانات الاشتراك الفعلية المسجلة لمتجرك.
+            تابع اشتراك متجرك، وقارن الخطط والأسعار، وقدم طلب الترقية من مكان واحد.
           </p>
         </header>
 
         <SubscriptionHero
-          eyebrow="اشتراك متجرك"
-          title={
-            isPermanentFree
-              ? 'أنت على الخطة المجانية الدائمة'
-              : `خطتك الحالية: ${planName}`
-          }
-          description={
-            isPermanentFree
-              ? 'تستفيد من خطة Dokkan Free دون رسوم اشتراك ودون تاريخ انتهاء. لن يتم تفعيل أي خطة مدفوعة تلقائيًا.'
-              : 'تعرض هذه الصفحة حالة الخطة المسجلة حاليًا في قاعدة البيانات.'
-          }
+          eyebrow="DOKKAN SUBSCRIPTIONS"
+          title="اختر الخطة المناسبة لنمو متجرك"
+          description="ابدأ مجانًا مدى الحياة، أو اختر إحدى الخطط المدفوعة للحصول على إمكانيات وحدود أكبر. جميع طلبات الاشتراك تخضع لمراجعة الإدارة قبل التفعيل."
         />
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -148,30 +145,61 @@ export default async function SubscriptionPage() {
           {isPermanentFree && (
             <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-semibold leading-7 text-emerald-800">
               خطتك المجانية دائمة. لا يوجد تجديد شهري أو سنوي،
-              ولا يتم تحصيل أي مبالغ منك.
+              ولا يتم تحصيل أي مبالغ منك مقابلها.
             </p>
           )}
-
-          <p className="mt-5 text-sm text-slate-500">
-            الدفع الإلكتروني وتغيير الخطط المدفوعة غير مفعّلين
-            حاليًا.
-          </p>
         </section>
 
-        <section>
-          <div className="mb-4">
-            <h2 className="text-xl font-extrabold">
-              الخطط المتاحة
+        <section id="available-plans" className="flex flex-col gap-5">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-950">
+              الخطط والأسعار
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              يمكنك الاطلاع على الخطط. اختيار خطة مدفوعة لا
-              يغيّر اشتراكك حاليًا.
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              قارن بين الخطط واختر الاشتراك الشهري أو السنوي،
+              وشاهد الحدود والمميزات والإضافات المتاحة.
             </p>
           </div>
 
           <PlanGrid currentPlan={planCode} />
         </section>
+
+        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+          <h2 className="font-extrabold text-blue-950">
+            كيف يتم تفعيل الاشتراك؟
+          </h2>
+
+          <ol className="mt-3 flex flex-col gap-2 text-sm leading-7 text-blue-900">
+            <li>1. اختر الخطة ودورة الاشتراك المناسبة.</li>
+            <li>2. قدم طلب الاشتراك وأرفق إثبات الدفع.</li>
+            <li>3. تراجع إدارة Dokkan الطلب وإثبات الدفع.</li>
+            <li>4. بعد الموافقة يتم تفعيل الاشتراك وتسجيل العملية.</li>
+          </ol>
+
+          <p className="mt-3 text-xs leading-6 text-blue-800">
+            إرسال الطلب لا يعني تفعيل الاشتراك تلقائيًا.
+            يظل اشتراكك الحالي كما هو حتى اعتماد الطلب من الإدارة.
+          </p>
+        </section>
+
+        <section>
+          <div className="mb-5">
+            <h2 className="text-2xl font-extrabold">
+              طلبات الاشتراك
+            </h2>
+
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              قدم طلب اشتراك جديد، وارفع إثبات الدفع،
+              وتابع حالة الطلبات السابقة.
+            </p>
+          </div>
+
+          <SubscriptionRequestManager
+            storeName={store.name}
+          />
+        </section>
+
       </div>
     </main>
   )

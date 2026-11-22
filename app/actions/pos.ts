@@ -43,7 +43,7 @@ function getSaleErrorMessage(error: unknown) {
   }
 
   if (message.includes('invalid payment')) {
-    return 'راجع المبلغ المدفوع'
+    return 'راجع طريقة الدفع'
   }
 
   if (message.includes('invalid product') || message.includes('invalid product variant')) {
@@ -87,10 +87,10 @@ export async function createPosSale(
     }
 
     if (!Number.isFinite(input.amountPaid) || input.amountPaid < 0) {
-      return { ok: false, message: 'المبلغ المدفوع غير صحيح' }
+      return { ok: false, message: 'بيانات الدفع غير صحيحة' }
     }
 
-    if (!['cash', 'card', 'transfer'].includes(input.paymentMethod)) {
+    if (!['cash', 'wallet', 'transfer'].includes(input.paymentMethod)) {
       return { ok: false, message: 'طريقة الدفع غير صحيحة' }
     }
 

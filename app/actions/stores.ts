@@ -14,6 +14,21 @@ function validateText(value: string, label: string) {
   return trimmed
 }
 
+function getBranchMutationError(
+  message: string | undefined,
+  fallback: string
+) {
+  if (message?.includes('FREE_PLAN_BRANCH_LIMIT_REACHED')) {
+    return new Error('FREE_PLAN_BRANCH_LIMIT_REACHED')
+  }
+
+  if (message?.includes('SUBSCRIPTION_PLAN_UNRESOLVED')) {
+    return new Error('SUBSCRIPTION_PLAN_UNRESOLVED')
+  }
+
+  return new Error(fallback)
+}
+
 export async function createStoreAction(_input: {
   name: string
   phone?: string
@@ -54,13 +69,8 @@ export async function createBranchAction(input: {
   })
 
   if (error) {
-    if (error.message?.includes('FREE_PLAN_BRANCH_LIMIT_REACHED')) {
-      throw new Error(
-        'الخطة المجانية تسمح بفرع واحد فقط، وهو الفرع الرئيسي. قم بترقية خطتك لإضافة فروع أخرى.'
-      )
-    }
-
-    throw new Error(
+    throw getBranchMutationError(
+      error.message,
       'تعذر إنشاء الفرع. تحقق من الصلاحيات والبيانات.'
     )
   }
@@ -106,7 +116,10 @@ export async function setBranchStatusAction(
   })
 
   if (error) {
-    throw new Error('Unable to update branch status')
+    throw getBranchMutationError(
+      error.message,
+      'تعذر تحديث حالة الفرع.'
+    )
   }
 
   revalidatePath('/stores')

@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react'
 
 import { createPosSale } from '@/app/actions/pos'
-import { calculateSaleTotals, getRemainingBalance, paymentMethods } from '@/lib/pos'
+import { calculateSaleTotals, paymentMethods } from '@/lib/pos'
 import type { PaymentMethod, SaleItem } from '@/data/models'
 
 type PosVariant = {
@@ -62,9 +63,15 @@ type PosCatalog = {
 
 type PosPageProps = {
   initialData: PosCatalog
+  taxEnabled: boolean
+  taxRate: number
 }
 
-export default function PosPage({ initialData }: PosPageProps) {
+export default function PosPage({
+  initialData,
+  taxEnabled,
+  taxRate,
+}: PosPageProps) {
   const router = useRouter()
   const requestKey = useRef<string | null>(null)
 
@@ -75,7 +82,6 @@ export default function PosPage({ initialData }: PosPageProps) {
   const [cart, setCart] = useState<SaleItem[]>([])
   const [discount, setDiscount] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
-  const [amountPaid, setAmountPaid] = useState('0')
   const [customerId, setCustomerId] = useState('')
   const [notes, setNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -153,9 +159,12 @@ export default function PosPage({ initialData }: PosPageProps) {
     )
   }, [products, query])
 
-  const totals = calculateSaleTotals(cart, discount)
-  const paid = Math.max(0, Number(amountPaid) || 0)
-  const remaining = getRemainingBalance(totals.total, paid)
+  const totals = calculateSaleTotals(
+    cart,
+    discount,
+    taxEnabled,
+    taxRate
+  )
 
   const invalidateRequest = () => {
     requestKey.current = null
@@ -247,11 +256,6 @@ export default function PosPage({ initialData }: PosPageProps) {
       return
     }
 
-    if (!Number.isFinite(paid) || paid > totals.total) {
-      setError('المبلغ المدفوع لا يمكن أن يزيد عن إجمالي الفاتورة')
-      return
-    }
-
     for (const item of cart) {
       if (item.quantity > getStock(item.productVariantId)) {
         setError(`المخزون غير كافٍ للصنف: ${item.name}`)
@@ -271,7 +275,7 @@ export default function PosPage({ initialData }: PosPageProps) {
           quantity: item.quantity,
         })),
         discountPercent: discount,
-        amountPaid: paid,
+        amountPaid: totals.total,
         paymentMethod,
         customerId: customerId || null,
         notes,
@@ -286,7 +290,6 @@ export default function PosPage({ initialData }: PosPageProps) {
       requestKey.current = null
       setCart([])
       setDiscount(0)
-      setAmountPaid('0')
       setCustomerId('')
       setNotes('')
 
@@ -532,10 +535,37 @@ export default function PosPage({ initialData }: PosPageProps) {
               />
             </label>
 
+            <div className="mt-3 flex justify-between text-sm">
+              <span>قيمة الخصم</span>
+              <b>{totals.discountAmount.toFixed(2)} ج.م</b>
+            </div>
+
+            <div className="mt-3 flex justify-between text-sm">
+              <span>المبلغ بعد الخصم</span>
+              <b>{totals.taxableAmount.toFixed(2)} ج.م</b>
+            </div>
+
+            <div className="mt-3 flex justify-between text-sm">
+              <span>
+                {totals.taxEnabled
+                  ? `الضريبة (${totals.taxRate}%)`
+                  : 'الضريبة'}
+              </span>
+              <b>
+                {totals.taxEnabled
+                  ? `${totals.taxAmount.toFixed(2)} ج.م`
+                  : 'غير مفعلة'}
+              </b>
+            </div>
+
             <div className="mt-3 flex justify-between text-base font-extrabold">
-              <span>الإجمالي</span>
+              <span>الإجمالي النهائي</span>
               <b>{totals.total.toFixed(2)} ج.م</b>
             </div>
+
+            <p className="mt-2 text-xs font-bold text-green-700">
+              المبلغ المدفوع بالكامل: {totals.total.toFixed(2)} ج.م
+            </p>
 
             <div className="mt-4 grid grid-cols-3 gap-2">
               {paymentMethods.map((method) => (
@@ -556,26 +586,6 @@ export default function PosPage({ initialData }: PosPageProps) {
                 </button>
               ))}
             </div>
-
-            <label className="mt-3 block text-xs font-bold">
-              المبلغ المدفوع
-              <input
-                type="number"
-                min="0"
-                max={totals.total}
-                step="0.01"
-                value={amountPaid}
-                onChange={(event) => {
-                  invalidateRequest()
-                  setAmountPaid(event.target.value)
-                }}
-                className="mt-1 w-full rounded-lg border border-[#e2e8f0] p-2"
-              />
-            </label>
-
-            <p className="mt-2 text-xs text-[#64748b]">
-              المتبقي: <b>{remaining.toFixed(2)} ج.م</b>
-            </p>
 
             <button
               type="button"
