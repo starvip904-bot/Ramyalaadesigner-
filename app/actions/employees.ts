@@ -87,10 +87,33 @@ async function validateBranches(
     .in('id', branchIds)
 
   if (error || !data || data.length !== branchIds.length) {
-    throw new Error('أحد الفروع المختارة غير صحيح أو غير نشط')
+    throw new Error('أحد الفروع المختارة غير صحيح أو غير نشط أو ليس لديك صلاحية عليه')
   }
 
   return branchIds
+}
+
+/**
+ * Synchronizes the employee's permanent branch assignments.
+ * Uses a server-side RPC restricted to service_role.
+ */
+async function saveEmployeeBranches(params: {
+  storeId: string
+  employeeId: string
+  branchIds: string[]
+}) {
+  const admin = createAdminClient()
+
+  const { error } = await admin.rpc('dokkan_set_employee_branches', {
+    target_store_id: params.storeId,
+    target_employee_id: params.employeeId,
+    target_branch_ids: params.branchIds,
+  })
+
+  if (error) {
+    console.error('[Employees] Branch assignments save failed:', error.code)
+    throw new Error('تعذر حفظ فروع الموظف')
+  }
 }
 
 /**
@@ -134,7 +157,6 @@ async function saveInvitationDraft(params: {
     )
   }
 
-  // An explicitly empty email cancels an unsent draft.
   if (!email) {
     if (existing?.status === 'draft') {
       const { error } = await admin
@@ -264,6 +286,12 @@ export async function createEmployee(input: EmployeeInput) {
   }
 
   try {
+    await saveEmployeeBranches({
+      storeId: context.storeId,
+      employeeId: data.id,
+      branchIds,
+    })
+
     if (input.email !== undefined) {
       await saveInvitationDraft({
         storeId: context.storeId,
@@ -274,7 +302,6 @@ export async function createEmployee(input: EmployeeInput) {
       })
     }
   } catch (err) {
-    // Roll back the new employee if draft creation fails.
     await context.supabase
       .from('dokkan_employees')
       .delete()
@@ -331,6 +358,12 @@ export async function updateEmployee(
     console.error('[Employees] Update failed:', error?.code)
     throw new Error('تعذر تعديل بيانات الموظف')
   }
+
+  await saveEmployeeBranches({
+    storeId: context.storeId,
+    employeeId: id,
+    branchIds,
+  })
 
   if (input.email !== undefined) {
     await saveInvitationDraft({
