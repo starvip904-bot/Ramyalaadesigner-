@@ -128,18 +128,38 @@ async function getAttendanceContext(
   }
 
   if (employeeId) {
-    const { data: employee, error } =
+    const { data: employee, error: employeeError } =
       await context.supabase
         .from('dokkan_employees')
         .select('id')
         .eq('id', employeeId)
         .eq('store_id', context.storeId)
-        .eq('branch_id', branchId)
         .eq('status', 'active')
         .maybeSingle()
 
-    if (error || !employee) {
-      throw new Error('الموظف غير موجود في هذا الفرع أو غير نشط')
+    if (employeeError || !employee) {
+      throw new Error('الموظف غير موجود في هذا المتجر أو غير نشط')
+    }
+
+    const { data: assignment, error: assignmentError } =
+      await context.supabase
+        .from('dokkan_employee_branches')
+        .select('employee_id')
+        .eq('store_id', context.storeId)
+        .eq('employee_id', employeeId)
+        .eq('branch_id', branchId)
+        .maybeSingle()
+
+    if (assignmentError) {
+      console.error(
+        '[EmployeeAttendance] Assignment lookup failed:',
+        assignmentError.code
+      )
+      throw new Error('تعذر التحقق من تعيين الموظف للفرع')
+    }
+
+    if (!assignment) {
+      throw new Error('الموظف غير معين للعمل في الفرع المحدد')
     }
   }
 
