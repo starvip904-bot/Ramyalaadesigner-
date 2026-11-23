@@ -16,8 +16,12 @@ import {
   UserRound,
   RefreshCw,
   Mail,
+  CalendarDays,
 } from 'lucide-react'
+
 import EmployeeMonthlyAttendancePanel from '@/components/employee-monthly-attendance-panel'
+import EmployeeWeeklySchedule from '@/components/employee-weekly-schedule'
+
 import {
   createEmployee,
   updateEmployee,
@@ -87,7 +91,7 @@ const emptyForm = {
   branchIds: [] as string[],
 }
 
-type ActiveTab = 'employees' | 'attendance'
+type ActiveTab = 'employees' | 'attendance' | 'schedule'
 
 export default function EmployeesManagementPage({
   initialEmployees,
@@ -100,7 +104,8 @@ export default function EmployeesManagementPage({
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<ActiveTab>('employees')
+  const [activeTab, setActiveTab] =
+    useState<ActiveTab>('employees')
 
   const activeBranches = branches.filter(
     (branch) => branch.status === 'active'
@@ -168,7 +173,9 @@ export default function EmployeesManagementPage({
     }))
   }
 
-  async function saveEmployee(event: React.FormEvent<HTMLFormElement>) {
+  async function saveEmployee(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault()
     setError('')
 
@@ -205,7 +212,9 @@ export default function EmployeesManagementPage({
       window.location.reload()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ الموظف'
+        err instanceof Error
+          ? err.message
+          : 'حدث خطأ أثناء حفظ الموظف'
       )
       setLoading(false)
     }
@@ -228,6 +237,7 @@ export default function EmployeesManagementPage({
 
     try {
       await setEmployeeStatus(employee.id, nextStatus)
+
       setEmployees((current) =>
         current.map((item) =>
           item.id === employee.id
@@ -237,7 +247,9 @@ export default function EmployeesManagementPage({
       )
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'تعذر تحديث حالة الموظف'
+        err instanceof Error
+          ? err.message
+          : 'تعذر تحديث حالة الموظف'
       )
     } finally {
       setLoading(false)
@@ -268,12 +280,13 @@ export default function EmployeesManagementPage({
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
               <Users size={24} />
             </div>
+
             <div>
               <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
                 إدارة الموظفين
               </h2>
               <p className="mt-1 text-xs leading-6 text-slate-500 sm:text-sm">
-                إدارة بيانات فريق العمل والدعوات ومتابعة الحضور والانصراف
+                إدارة بيانات فريق العمل والدعوات ومتابعة الحضور والانصراف والورديات
               </p>
             </div>
           </div>
@@ -291,35 +304,53 @@ export default function EmployeesManagementPage({
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
+      <div className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('employees')}
-          className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 py-3 text-xs font-bold transition sm:text-sm ${
+          className={`flex min-h-12 items-center justify-center gap-1 rounded-xl px-1 py-3 text-xs font-bold transition sm:gap-2 sm:text-sm ${
             activeTab === 'employees'
               ? 'bg-white text-blue-700 shadow-sm'
               : 'text-slate-600 hover:bg-white/60'
           }`}
         >
-          <Users size={18} />
+          <Users size={17} />
           إدارة الموظفين
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('attendance')}
-          className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 py-3 text-xs font-bold transition sm:text-sm ${
+          className={`flex min-h-12 items-center justify-center gap-1 rounded-xl px-1 py-3 text-xs font-bold transition sm:gap-2 sm:text-sm ${
             activeTab === 'attendance'
               ? 'bg-white text-blue-700 shadow-sm'
               : 'text-slate-600 hover:bg-white/60'
           }`}
         >
-          <Clock3 size={18} />
+          <Clock3 size={17} />
           الحضور والانصراف
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('schedule')}
+          className={`flex min-h-12 items-center justify-center gap-1 rounded-xl px-1 py-3 text-xs font-bold transition sm:gap-2 sm:text-sm ${
+            activeTab === 'schedule'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:bg-white/60'
+          }`}
+        >
+          <CalendarDays size={17} />
+          مواعيد الورديات
         </button>
       </div>
 
-      {activeTab === 'attendance' ? (
+      {activeTab === 'schedule' ? (
+        <EmployeeWeeklySchedule
+          employees={employees}
+          branches={branches}
+        />
+      ) : activeTab === 'attendance' ? (
         <EmployeeMonthlyAttendancePanel
           employees={employees}
           branches={branches}
@@ -392,6 +423,7 @@ export default function EmployeesManagementPage({
                     {query.trim() ? ' مطابق للبحث' : ' مسجل'}
                   </p>
                 </div>
+
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
                   <Users size={18} />
                 </div>
@@ -405,6 +437,7 @@ export default function EmployeesManagementPage({
                   placeholder="ابحث بالاسم أو الهاتف أو البريد أو الفرع..."
                   className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
+
                 {query && (
                   <button
                     type="button"
@@ -456,6 +489,7 @@ export default function EmployeesManagementPage({
                             <Phone size={14} />
                             {employee.phone || 'لا يوجد هاتف'}
                           </span>
+
                           <span className="flex items-center gap-1.5 break-all">
                             <Mail size={14} />
                             {employee.email || 'لا يوجد بريد إلكتروني'}
@@ -465,7 +499,9 @@ export default function EmployeesManagementPage({
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <Store size={14} />
                           {assignedBranches.length > 0
-                            ? assignedBranches.map((branch) => branch!.name).join('، ')
+                            ? assignedBranches
+                                .map((branch) => branch!.name)
+                                .join('، ')
                             : 'غير محدد'}
                         </div>
 
@@ -473,6 +509,7 @@ export default function EmployeesManagementPage({
                           <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
                             {roleLabels[employee.role]}
                           </span>
+
                           <span
                             className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${getInvitationStyle(
                               employee.invitation_status
@@ -527,12 +564,15 @@ export default function EmployeesManagementPage({
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm">
                     <Search size={22} />
                   </div>
+
                   <p className="font-bold text-slate-700">
                     لا يوجد موظفون مطابقون
                   </p>
+
                   <p className="mt-1 text-xs text-slate-500">
                     جرّب البحث باسم أو بريد أو رقم هاتف مختلف
                   </p>
+
                   {query && (
                     <button
                       type="button"
@@ -551,7 +591,10 @@ export default function EmployeesManagementPage({
             <div
               className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
               onClick={(event) => {
-                if (event.target === event.currentTarget && !loading) {
+                if (
+                  event.target === event.currentTarget &&
+                  !loading
+                ) {
                   setModal(false)
                 }
               }}
@@ -563,12 +606,20 @@ export default function EmployeesManagementPage({
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                      {editingId ? <Pencil size={19} /> : <Plus size={21} />}
+                      {editingId ? (
+                        <Pencil size={19} />
+                      ) : (
+                        <Plus size={21} />
+                      )}
                     </div>
+
                     <div>
                       <h3 className="font-extrabold text-slate-900">
-                        {editingId ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
+                        {editingId
+                          ? 'تعديل بيانات الموظف'
+                          : 'إضافة موظف جديد'}
                       </h3>
+
                       <p className="mt-1 text-xs text-slate-500">
                         أدخل بيانات الموظف وحدد فروع عمله
                       </p>
@@ -614,6 +665,7 @@ export default function EmployeesManagementPage({
                     placeholder="employee@example.com"
                     dir="ltr"
                   />
+
                   <span className="block text-xs font-normal text-slate-400">
                     اختياري حاليًا، وسيتم حفظ الدعوة كمسودة فقط
                   </span>
@@ -621,7 +673,10 @@ export default function EmployeesManagementPage({
 
                 <label className="block space-y-2 text-sm font-bold text-slate-700">
                   رقم الهاتف
-                  <span className="font-normal text-slate-400"> (اختياري)</span>
+                  <span className="font-normal text-slate-400">
+                    {' '}(اختياري)
+                  </span>
+
                   <input
                     maxLength={40}
                     value={form.phone}
@@ -657,6 +712,7 @@ export default function EmployeesManagementPage({
                   <p className="text-sm font-bold text-slate-700">
                     الفروع المسموح للموظف بالعمل بها
                   </p>
+
                   <p className="text-xs text-slate-400">
                     يمكنك اختيار فرع واحد أو أكثر
                   </p>
@@ -678,12 +734,14 @@ export default function EmployeesManagementPage({
                             onChange={() => toggleBranch(branch.id)}
                             className="h-4 w-4 accent-blue-600"
                           />
+
                           <Store size={16} className="text-slate-400" />
                           {branch.name}
                         </label>
                       ))}
                     </div>
                   )}
+
                   <p className="text-xs text-slate-500">
                     الفروع المختارة: {form.branchIds.length}
                   </p>
