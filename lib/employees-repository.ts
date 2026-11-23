@@ -45,112 +45,95 @@ export async function getEmployeesPageData() {
   ])
 
   if (employeesResult.error) {
-    console.error(
-      '[Employees] Load failed:',
-      employeesResult.error.code
-    )
+    console.error('[Employees] Load failed:', employeesResult.error.code)
     throw new Error('تعذر تحميل الموظفين')
   }
 
   if (branchesResult.error) {
-    console.error(
-      '[Employees] Branches load failed:',
-      branchesResult.error.code
-    )
+    console.error('[Employees] Branches load failed:', branchesResult.error.code)
     throw new Error('تعذر تحميل الفروع')
   }
 
   const employees = employeesResult.data ?? []
-  const hasAdminKey = Boolean(
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY
-  )
+  const branchIdsByEmployee = new Map<string, string[]>()
 
   const invitationByEmployee = new Map<
     string,
-    {
-      id: string
-      email: string
-      status: InvitationStatus
-    }
+    { email: string; status: InvitationStatus }
   >()
 
-  const branchIdsByInvitation = new Map<string, string[]>()
+  let invitationStatusAvailable = false
 
-  let invitationStatusAvailable = hasAdminKey
-
-  if (hasAdminKey && employees.length > 0) {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SECRET_KEY) {
     try {
       const admin = createAdminClient()
 
-      const { data: invitations, error: invitationsError } =
-        await admin
-          .from('dokkan_employee_invitations')
-          .select('id, employee_id, email, status, created_at')
-          .eq('store_id', context.storeId)
-          .order('created_at', { ascending: false })
+      if (employees.length > 0) {
+        const employeeIds = employees.map((employee) => employee.id)
 
-      if (invitationsError) {
-        console.error(
-          '[Employees] Invitations load failed:',
-          invitationsError.code
-        )
-        throw new Error('INVITATIONS_LOAD_FAILED')
-      }
-
-      for (const invitation of invitations ?? []) {
-        if (!invitationByEmployee.has(invitation.employee_id)) {
-          invitationByEmployee.set(invitation.employee_id, {
-            id: invitation.id,
-            email: invitation.email,
-            status: invitation.status as InvitationStatus,
-          })
-        }
-      }
-
-      const invitationIds = Array.from(
-        invitationByEmployee.values()
-      ).map((item) => item.id)
-
-      if (invitationIds.length > 0) {
-        const { data: invitationBranches, error: branchesError } =
+        const { data: assignments, error: assignmentsError } =
           await admin
-            .from('dokkan_employee_invitation_branches')
-            .select('invitation_id, branch_id')
+            .from('dokkan_employee_branches')
+            .select('employee_id, branch_id')
             .eq('store_id', context.storeId)
-            .in('invitation_id', invitationIds)
+            .in('employee_id', employeeIds)
 
-        if (branchesError) {
+        if (assignmentsError) {
           console.error(
-            '[Employees] Invitation branches load failed:',
-            branchesError.code
+            '[Employees] Branch assignments load failed:',
+            assignmentsError.code
           )
-          throw new Error('INVITATION_BRANCHES_LOAD_FAILED')
+          throw new Error('EMPLOYEE_BRANCHES_LOAD_FAILED')
         }
 
-        for (const item of invitationBranches ?? []) {
+        for (const assignment of assignments ?? []) {
           const current =
-            branchIdsByInvitation.get(item.invitation_id) ?? []
+            branchIdsByEmployee.get(assignment.employee_id) ?? []
 
-          current.push(item.branch_id)
-          branchIdsByInvitation.set(item.invitation_id, current)
+          current.push(assignment.branch_id)
+          branchIdsByEmployee.set(assignment.employee_id, current)
+        }
+
+        const { data: invitations, error: invitationsError } =
+          await admin
+            .from('dokkan_employee_invitations')
+            .select('employee_id, email, status, created_at')
+            .eq('store_id', context.storeId)
+            .order('created_at', { ascending: false })
+
+        if (invitationsError) {
+          console.error(
+            '[Employees] Invitations load failed:',
+            invitationsError.code
+          )
+          throw new Error('INVITATIONS_LOAD_FAILED')
+        }
+
+        for (const invitation of invitations ?? []) {
+          if (!invitationByEmployee.has(invitation.employee_id)) {
+            invitationByEmployee.set(invitation.employee_id, {
+              email: invitation.email,
+              status: invitation.status as InvitationStatus,
+            })
+          }
         }
       }
+
+      invitationStatusAvailable = true
     } catch {
-      invitationStatusAvailable = false
+      branchIdsByEmployee.clear()
       invitationByEmployee.clear()
-      branchIdsByInvitation.clear()
+      invitationStatusAvailable = false
     }
   }
 
-  const employeesWithInvitation = employees.map((employee) => {
+  const employeesWithAssignments = employees.map((employee) => {
     const invitation = invitationByEmployee.get(employee.id)
 
-    const assignedBranchIds = invitation
-      ? branchIdsByInvitation.get(invitation.id) ?? []
-      : employee.branch_id
-        ? [employee.branch_id]
-        : []
+    const assignedBranchIds =
+      branchIdsByEmployee.get(employee.id) ??
+      (employee.branch_id ? [employee.branch_id] : [])
 
     return {
       ...employee,
@@ -164,7 +147,7 @@ export async function getEmployeesPageData() {
 
   return {
     storeId: context.storeId,
-    employees: employeesWithInvitation,
+    employees: employeesWithAssignments,
     branches: branchesResult.data ?? [],
   }
 }
