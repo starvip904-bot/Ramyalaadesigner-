@@ -67,6 +67,10 @@ function validateShiftInput(input: SaveWeeklyShiftInput) {
   const startsAt = normalizeTime(input.startsAt)
   const endsAt = normalizeTime(input.endsAt)
 
+  if (startsAt === endsAt) {
+    throw new Error('بداية الوردية ونهايتها لا يمكن أن تكونا متطابقتين')
+  }
+
   const graceMinutes = input.graceMinutes ?? 0
   const fixedBreakMinutes = input.fixedBreakMinutes ?? 0
 
@@ -90,17 +94,11 @@ function validateShiftInput(input: SaveWeeklyShiftInput) {
     throw new Error('نوع الاستراحة غير صحيح')
   }
 
-  if (
-    input.breakMode === 'none' &&
-    fixedBreakMinutes !== 0
-  ) {
+  if (input.breakMode === 'none' && fixedBreakMinutes !== 0) {
     throw new Error('لا يمكن تحديد مدة استراحة عند اختيار بدون استراحة')
   }
 
-  if (
-    input.breakMode === 'fixed' &&
-    fixedBreakMinutes <= 0
-  ) {
+  if (input.breakMode === 'fixed' && fixedBreakMinutes <= 0) {
     throw new Error('يجب تحديد مدة الاستراحة الثابتة')
   }
 
@@ -130,6 +128,8 @@ async function getScheduleContext(branchId: string, employeeId: string) {
     'manager',
   ])
 
+  // التحقق من أن الفرع تابع للمتجر ونشط.
+  // صلاحية المستخدم على الفرع تُفرض أيضًا من خلال RLS.
   const { data: branch, error: branchError } = await context.supabase
     .from('dokkan_branches')
     .select('id')
@@ -142,18 +142,33 @@ async function getScheduleContext(branchId: string, employeeId: string) {
     throw new Error('الفرع غير صحيح أو غير نشط')
   }
 
+  // التحقق من تعيين الموظف في هذا الفرع تحديدًا.
+  // لا نعتمد على dokkan_employees.branch_id لأنه الفرع الأساسي فقط.
+  const { data: assignment, error: assignmentError } =
+    await context.supabase
+      .from('dokkan_employee_branches')
+      .select('branch_id')
+      .eq('store_id', context.storeId)
+      .eq('employee_id', employeeId)
+      .eq('branch_id', branchId)
+      .maybeSingle()
+
+  if (assignmentError || !assignment) {
+    throw new Error('الموظف غير معيّن في هذا الفرع')
+  }
+
+  // التأكد من أن الموظف نفسه نشط وتابع للمتجر.
   const { data: employee, error: employeeError } =
     await context.supabase
       .from('dokkan_employees')
       .select('id')
       .eq('id', employeeId)
       .eq('store_id', context.storeId)
-      .eq('branch_id', branchId)
       .eq('status', 'active')
       .maybeSingle()
 
   if (employeeError || !employee) {
-    throw new Error('الموظف غير موجود في هذا الفرع أو غير نشط')
+    throw new Error('الموظف غير موجود أو غير نشط')
   }
 
   return context
@@ -228,7 +243,7 @@ export async function saveEmployeeWeeklyShift(
 
   let shiftId = input.id
 
-  // If no ID was supplied, look for the existing slot.
+  // البحث عن الوردية الحالية عند عدم إرسال معرفها.
   if (!shiftId) {
     const { data: existing, error: lookupError } =
       await context.supabase
