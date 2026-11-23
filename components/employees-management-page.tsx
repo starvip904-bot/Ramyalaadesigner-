@@ -15,6 +15,7 @@ import {
   Store,
   UserRound,
   RefreshCw,
+  Mail,
 } from 'lucide-react'
 import EmployeeMonthlyAttendancePanel from '@/components/employee-monthly-attendance-panel'
 import {
@@ -26,13 +27,25 @@ import {
 type EmployeeRole = 'manager' | 'cashier' | 'stock_manager' | 'viewer'
 type EmployeeStatus = 'active' | 'inactive'
 
+type InvitationStatus =
+  | 'none'
+  | 'draft'
+  | 'pending'
+  | 'accepted'
+  | 'expired'
+  | 'cancelled'
+  | 'unavailable'
+
 type Employee = {
   id: string
   name: string
   phone: string | null
+  email: string | null
   role: EmployeeRole
   status: EmployeeStatus
   branch_id: string | null
+  branch_ids: string[]
+  invitation_status: InvitationStatus
   created_at: string
   updated_at: string
 }
@@ -50,17 +63,28 @@ type Props = {
 }
 
 const roleLabels: Record<EmployeeRole, string> = {
-  manager: 'مدير',
+  manager: 'مدير فرع',
   cashier: 'كاشير',
   stock_manager: 'مسؤول مخزون',
   viewer: 'مشاهد',
 }
 
+const invitationLabels: Record<InvitationStatus, string> = {
+  none: 'لا توجد دعوة',
+  draft: 'مسودة غير مرسلة',
+  pending: 'دعوة معلقة',
+  accepted: 'تم قبول الدعوة',
+  expired: 'انتهت صلاحية الدعوة',
+  cancelled: 'دعوة ملغاة',
+  unavailable: 'حالة الدعوة غير متاحة',
+}
+
 const emptyForm = {
   name: '',
   phone: '',
+  email: '',
   role: 'cashier' as EmployeeRole,
-  branchId: '',
+  branchIds: [] as string[],
 }
 
 type ActiveTab = 'employees' | 'attendance'
@@ -94,12 +118,19 @@ export default function EmployeesManagementPage({
     if (!search) return employees
 
     return employees.filter((employee) => {
-      const branchName =
-        branches.find((branch) => branch.id === employee.branch_id)?.name || ''
+      const branchNames = employee.branch_ids
+        .map(
+          (id) => branches.find((branch) => branch.id === id)?.name || ''
+        )
+        .join(' ')
 
-      return `${employee.name} ${employee.phone || ''} ${branchName} ${
-        roleLabels[employee.role]
-      }`.toLowerCase().includes(search)
+      return `${employee.name} ${employee.phone || ''} ${
+        employee.email || ''
+      } ${branchNames} ${roleLabels[employee.role]} ${
+        invitationLabels[employee.invitation_status]
+      }`
+        .toLowerCase()
+        .includes(search)
     })
   }, [employees, query, branches])
 
@@ -115,11 +146,26 @@ export default function EmployeesManagementPage({
     setForm({
       name: employee.name,
       phone: employee.phone || '',
+      email: employee.email || '',
       role: employee.role,
-      branchId: employee.branch_id || '',
+      branchIds:
+        employee.branch_ids?.length > 0
+          ? employee.branch_ids
+          : employee.branch_id
+            ? [employee.branch_id]
+            : [],
     })
     setError('')
     setModal(true)
+  }
+
+  function toggleBranch(branchId: string) {
+    setForm((current) => ({
+      ...current,
+      branchIds: current.branchIds.includes(branchId)
+        ? current.branchIds.filter((id) => id !== branchId)
+        : [...current.branchIds, branchId],
+    }))
   }
 
   async function saveEmployee(event: React.FormEvent<HTMLFormElement>) {
@@ -131,14 +177,23 @@ export default function EmployeesManagementPage({
       return
     }
 
+    if (
+      form.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+    ) {
+      setError('اكتب بريدًا إلكترونيًا صحيحًا')
+      return
+    }
+
     setLoading(true)
 
     try {
       const input = {
         name: form.name.trim(),
         phone: form.phone.trim() || undefined,
+        email: form.email.trim(),
         role: form.role,
-        branchId: form.branchId || null,
+        branchIds: form.branchIds,
       }
 
       if (editingId) {
@@ -189,9 +244,24 @@ export default function EmployeesManagementPage({
     }
   }
 
+  function getInvitationStyle(status: InvitationStatus) {
+    switch (status) {
+      case 'draft':
+        return 'bg-amber-50 text-amber-700'
+      case 'pending':
+        return 'bg-blue-50 text-blue-700'
+      case 'accepted':
+        return 'bg-green-50 text-green-700'
+      case 'expired':
+      case 'cancelled':
+        return 'bg-red-50 text-red-700'
+      default:
+        return 'bg-slate-100 text-slate-600'
+    }
+  }
+
   return (
     <div className="space-y-5 sm:space-y-6" dir="rtl">
-      {/* Page heading */}
       <header className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-l from-blue-50 via-white to-white p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -203,7 +273,7 @@ export default function EmployeesManagementPage({
                 إدارة الموظفين
               </h2>
               <p className="mt-1 text-xs leading-6 text-slate-500 sm:text-sm">
-                إدارة بيانات فريق العمل ومتابعة الحضور والانصراف
+                إدارة بيانات فريق العمل والدعوات ومتابعة الحضور والانصراف
               </p>
             </div>
           </div>
@@ -221,7 +291,6 @@ export default function EmployeesManagementPage({
         </div>
       </header>
 
-      {/* Main tabs */}
       <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
         <button
           type="button"
@@ -257,7 +326,6 @@ export default function EmployeesManagementPage({
         />
       ) : (
         <>
-          {/* Employee summary */}
           <section className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 sm:h-10 sm:w-10">
@@ -296,24 +364,22 @@ export default function EmployeesManagementPage({
             </div>
           </section>
 
-          {/* Information note */}
           <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs leading-6 text-amber-800 sm:p-4 sm:text-sm">
             <div className="mt-0.5 shrink-0">
               <UserRound size={19} />
             </div>
             <p>
-              بيانات الموظفين هنا مخصصة لتنظيم فريق العمل والحضور والانصراف.
-              إضافة الموظف لا تنشئ له حساب دخول أو صلاحيات دخول فعلية للنظام.
+              حفظ البريد الإلكتروني ينشئ مسودة دعوة فقط. لا يتم إرسال بريد
+              إلكتروني أو إنشاء حساب دخول للموظف في هذه المرحلة.
             </p>
           </div>
 
-          {error && !modal && (
+          {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
               {error}
             </div>
           )}
 
-          {/* Employee list */}
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-3 sm:p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -336,7 +402,7 @@ export default function EmployeesManagementPage({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="ابحث بالاسم أو الهاتف أو الفرع..."
+                  placeholder="ابحث بالاسم أو الهاتف أو البريد أو الفرع..."
                   className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
                 {query && (
@@ -354,9 +420,9 @@ export default function EmployeesManagementPage({
 
             <div className="space-y-3 p-3 sm:p-5">
               {filteredEmployees.map((employee) => {
-                const branch = branches.find(
-                  (item) => item.id === employee.branch_id
-                )
+                const assignedBranches = employee.branch_ids
+                  .map((id) => branches.find((item) => item.id === id))
+                  .filter(Boolean)
 
                 return (
                   <article
@@ -390,15 +456,29 @@ export default function EmployeesManagementPage({
                             <Phone size={14} />
                             {employee.phone || 'لا يوجد هاتف'}
                           </span>
-                          <span className="flex items-center gap-1.5">
-                            <Store size={14} />
-                            {branch?.name || 'غير محدد'}
+                          <span className="flex items-center gap-1.5 break-all">
+                            <Mail size={14} />
+                            {employee.email || 'لا يوجد بريد إلكتروني'}
                           </span>
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <Store size={14} />
+                          {assignedBranches.length > 0
+                            ? assignedBranches.map((branch) => branch!.name).join('، ')
+                            : 'غير محدد'}
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
                           <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
                             {roleLabels[employee.role]}
+                          </span>
+                          <span
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${getInvitationStyle(
+                              employee.invitation_status
+                            )}`}
+                          >
+                            {invitationLabels[employee.invitation_status]}
                           </span>
                         </div>
                       </div>
@@ -451,7 +531,7 @@ export default function EmployeesManagementPage({
                     لا يوجد موظفون مطابقون
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    جرّب البحث باسم أو رقم هاتف مختلف
+                    جرّب البحث باسم أو بريد أو رقم هاتف مختلف
                   </p>
                   {query && (
                     <button
@@ -467,7 +547,6 @@ export default function EmployeesManagementPage({
             </div>
           </section>
 
-          {/* Add / Edit modal */}
           {modal && (
             <div
               className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -491,7 +570,7 @@ export default function EmployeesManagementPage({
                         {editingId ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
                       </h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        أدخل بيانات الموظف الأساسية
+                        أدخل بيانات الموظف وحدد فروع عمله
                       </p>
                     </div>
                   </div>
@@ -523,6 +602,24 @@ export default function EmployeesManagementPage({
                 </label>
 
                 <label className="block space-y-2 text-sm font-bold text-slate-700">
+                  البريد الإلكتروني
+                  <input
+                    type="email"
+                    maxLength={320}
+                    value={form.email}
+                    onChange={(event) =>
+                      setForm({ ...form, email: event.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    placeholder="employee@example.com"
+                    dir="ltr"
+                  />
+                  <span className="block text-xs font-normal text-slate-400">
+                    اختياري حاليًا، وسيتم حفظ الدعوة كمسودة فقط
+                  </span>
+                </label>
+
+                <label className="block space-y-2 text-sm font-bold text-slate-700">
                   رقم الهاتف
                   <span className="font-normal text-slate-400"> (اختياري)</span>
                   <input
@@ -551,28 +648,46 @@ export default function EmployeesManagementPage({
                   >
                     <option value="cashier">كاشير</option>
                     <option value="stock_manager">مسؤول مخزون</option>
-                    <option value="manager">مدير</option>
+                    <option value="manager">مدير فرع</option>
                     <option value="viewer">مشاهد</option>
                   </select>
                 </label>
 
-                <label className="block space-y-2 text-sm font-bold text-slate-700">
-                  الفرع
-                  <select
-                    value={form.branchId}
-                    onChange={(event) =>
-                      setForm({ ...form, branchId: event.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">غير محدد</option>
-                    {activeBranches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-slate-700">
+                    الفروع المسموح للموظف بالعمل بها
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    يمكنك اختيار فرع واحد أو أكثر
+                  </p>
+
+                  {activeBranches.length === 0 ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-800">
+                      لا توجد فروع نشطة متاحة للاختيار حاليًا.
+                    </div>
+                  ) : (
+                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      {activeBranches.map((branch) => (
+                        <label
+                          key={branch.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg bg-white p-3 text-sm font-medium text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.branchIds.includes(branch.id)}
+                            onChange={() => toggleBranch(branch.id)}
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          <Store size={16} className="text-slate-400" />
+                          {branch.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    الفروع المختارة: {form.branchIds.length}
+                  </p>
+                </div>
 
                 {error && (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold leading-6 text-red-700">
