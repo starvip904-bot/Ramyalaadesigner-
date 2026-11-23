@@ -36,19 +36,14 @@ function isValidDate(value: string) {
 }
 
 function isValidMonth(value: string) {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return false
-
-  return true
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
 }
 
 function getMonthRange(month: string) {
   const [year, monthNumber] = month.split('-').map(Number)
 
   const startDate = `${month}-01`
-  const nextMonth = new Date(
-    Date.UTC(year, monthNumber, 1)
-  )
-
+  const nextMonth = new Date(Date.UTC(year, monthNumber, 1))
   const endDate = nextMonth.toISOString().slice(0, 10)
 
   return { startDate, endDate }
@@ -113,16 +108,33 @@ function validateAttendanceInput(input: SaveMonthlyAttendanceInput) {
     throw new Error('وقت الانصراف لا يمكن أن يسبق وقت الحضور')
   }
 
-  return {
-    checkInAt,
-    checkOutAt,
-    notes,
+  return { checkInAt, checkOutAt, notes }
+}
+
+async function requireEmployeeBranchAssignment(
+  supabase: Awaited<ReturnType<typeof requireRedaContext>>['supabase'],
+  storeId: string,
+  employeeId: string,
+  branchId: string
+) {
+  const { data, error } = await supabase
+    .from('dokkan_employee_branches')
+    .select('employee_id')
+    .eq('store_id', storeId)
+    .eq('employee_id', employeeId)
+    .eq('branch_id', branchId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[MonthlyAttendance] Assignment lookup failed:', error.code)
+    throw new Error('تعذر التحقق من تعيين الموظف للفرع')
+  }
+
+  if (!data) {
+    throw new Error('الموظف غير معين للعمل في الفرع المحدد')
   }
 }
 
-/**
- * تحميل سجلات حضور موظفي فرع خلال شهر محدد.
- */
 export async function getMonthlyEmployeeAttendance(
   branchId: string,
   month: string
@@ -170,10 +182,7 @@ export async function getMonthlyEmployeeAttendance(
     .order('work_date', { ascending: true })
 
   if (error) {
-    console.error(
-      '[MonthlyAttendance] Load failed:',
-      error.code
-    )
+    console.error('[MonthlyAttendance] Load failed:', error.code)
     throw new Error('تعذر تحميل سجلات الحضور')
   }
 
@@ -203,26 +212,16 @@ export async function getMonthlyEmployeeAttendance(
         .order('changed_at', { ascending: false })
 
     if (historyError) {
-      console.error(
-        '[MonthlyAttendance] History load failed:',
-        historyError.code
-      )
+      console.error('[MonthlyAttendance] History load failed:', historyError.code)
       throw new Error('تعذر تحميل سجل تعديلات الحضور')
     }
 
     history = (historyRows ?? []) as Record<string, unknown>[]
   }
 
-  return {
-    attendance: records,
-    history,
-  }
+  return { attendance: records, history }
 }
 
-/**
- * تسجيل حضور يوم أو تعديل سجل سابق.
- * عند التعديل يجب كتابة سبب واضح لا يقل عن 3 أحرف.
- */
 export async function saveMonthlyEmployeeAttendance(
   input: SaveMonthlyAttendanceInput
 ) {
@@ -239,7 +238,7 @@ export async function saveMonthlyEmployeeAttendance(
   const { data: employee, error: employeeError } =
     await context.supabase
       .from('dokkan_employees')
-      .select('id, branch_id, status')
+      .select('id, status')
       .eq('id', input.employeeId)
       .eq('store_id', context.storeId)
       .maybeSingle()
@@ -248,9 +247,12 @@ export async function saveMonthlyEmployeeAttendance(
     throw new Error('الموظف غير موجود في هذا المتجر')
   }
 
-  if (employee.branch_id !== input.branchId) {
-    throw new Error('الموظف غير مربوط بالفرع المحدد')
-  }
+  await requireEmployeeBranchAssignment(
+    context.supabase,
+    context.storeId,
+    input.employeeId,
+    input.branchId
+  )
 
   const { data: existing, error: existingError } =
     await context.supabase
@@ -263,10 +265,7 @@ export async function saveMonthlyEmployeeAttendance(
       .maybeSingle()
 
   if (existingError) {
-    console.error(
-      '[MonthlyAttendance] Existing record lookup failed:',
-      existingError.code
-    )
+    console.error('[MonthlyAttendance] Existing record lookup failed:', existingError.code)
     throw new Error('تعذر التحقق من سجل اليوم')
   }
 
@@ -276,9 +275,7 @@ export async function saveMonthlyEmployeeAttendance(
     throw new Error('سبب تعديل اليوم السابق مطلوب')
   }
 
-  const changeReason =
-    suppliedReason || 'تسجيل أولي للحضور'
-
+  const changeReason = suppliedReason || 'تسجيل أولي للحضور'
   const now = new Date().toISOString()
 
   const record = {
@@ -306,13 +303,8 @@ export async function saveMonthlyEmployeeAttendance(
       .maybeSingle()
 
     if (error || !data) {
-      console.error(
-        '[MonthlyAttendance] Update failed:',
-        error?.code
-      )
-      throw new Error(
-        'تعذر تعديل سجل الحضور. تأكد من صلاحيات الفرع'
-      )
+      console.error('[MonthlyAttendance] Update failed:', error?.code)
+      throw new Error('تعذر تعديل سجل الحضور. تأكد من صلاحيات الفرع')
     }
 
     revalidatePath('/employees')
@@ -334,13 +326,8 @@ export async function saveMonthlyEmployeeAttendance(
     .single()
 
   if (error || !data) {
-    console.error(
-      '[MonthlyAttendance] Insert failed:',
-      error?.code
-    )
-    throw new Error(
-      'تعذر تسجيل الحضور. تأكد من صلاحيات الفرع'
-    )
+    console.error('[MonthlyAttendance] Insert failed:', error?.code)
+    throw new Error('تعذر تسجيل الحضور. تأكد من صلاحيات الفرع')
   }
 
   revalidatePath('/employees')
