@@ -4,7 +4,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
-  Clock3,
   Save,
   RefreshCw,
 } from 'lucide-react'
@@ -18,6 +17,7 @@ type Employee = {
   name: string
   status: 'active' | 'inactive'
   branch_id: string | null
+  branch_ids?: string[] | null
 }
 
 type Branch = {
@@ -58,7 +58,10 @@ const DAYS = [
   { value: 5, label: 'الجمعة' },
 ]
 
-function emptyShift(weekday: number, shiftNumber: 1 | 2): Shift {
+function emptyShift(
+  weekday: number,
+  shiftNumber: 1 | 2
+): Shift {
   return {
     weekday,
     shift_number: shiftNumber,
@@ -69,6 +72,20 @@ function emptyShift(weekday: number, shiftNumber: 1 | 2): Shift {
     fixed_break_minutes: 0,
     is_active: false,
   }
+}
+
+function employeeBelongsToBranch(
+  employee: Employee,
+  branchId: string
+) {
+  const assignedBranches = employee.branch_ids
+
+  if (Array.isArray(assignedBranches)) {
+    return assignedBranches.includes(branchId)
+  }
+
+  // توافق مؤقت مع بيانات الموظفين القديمة.
+  return employee.branch_id === branchId
 }
 
 export default function EmployeeWeeklySchedule({
@@ -99,14 +116,18 @@ export default function EmployeeWeeklySchedule({
 
   const branchEmployees = useMemo(
     () =>
-      activeEmployees.filter(
-        (employee) => employee.branch_id === branchId
+      activeEmployees.filter((employee) =>
+        employeeBelongsToBranch(employee, branchId)
       ),
     [activeEmployees, branchId]
   )
 
   useEffect(() => {
-    if (!branchEmployees.some((employee) => employee.id === employeeId)) {
+    if (
+      !branchEmployees.some(
+        (employee) => employee.id === employeeId
+      )
+    ) {
       setEmployeeId(branchEmployees[0]?.id || '')
     }
   }, [branchEmployees, employeeId])
@@ -133,7 +154,6 @@ export default function EmployeeWeeklySchedule({
         if (cancelled) return
 
         const loaded = data as Shift[]
-
         const complete: Shift[] = []
 
         for (const day of DAYS) {
@@ -164,6 +184,7 @@ export default function EmployeeWeeklySchedule({
               ? err.message
               : 'تعذر تحميل مواعيد الموظف'
           )
+          setShifts([])
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -217,7 +238,9 @@ export default function EmployeeWeeklySchedule({
         shift.starts_at === shift.ends_at
       ) {
         setError(
-          `راجع مواعيد ${DAYS.find((d) => d.value === shift.weekday)?.label || ''} - الوردية ${shift.shift_number}`
+          `راجع مواعيد ${
+            DAYS.find((day) => day.value === shift.weekday)?.label || ''
+          } - الوردية ${shift.shift_number}`
         )
         return
       }
@@ -226,6 +249,8 @@ export default function EmployeeWeeklySchedule({
     setSaving(true)
     setError('')
     setSuccess('')
+
+    let savedCount = 0
 
     try {
       for (const shift of shifts) {
@@ -248,6 +273,8 @@ export default function EmployeeWeeklySchedule({
           isActive: shift.is_active,
           changeReason: reason.trim(),
         })
+
+        savedCount++
       }
 
       setSuccess('تم حفظ جدول الورديات بنجاح')
@@ -256,9 +283,15 @@ export default function EmployeeWeeklySchedule({
     } catch (err) {
       setError(
         err instanceof Error
-          ? err.message
+          ? savedCount > 0
+            ? `تم حفظ ${savedCount} وردية، لكن حدث خطأ أثناء حفظ باقي الجدول: ${err.message}`
+            : err.message
           : 'تعذر حفظ جدول الورديات'
       )
+
+      if (savedCount > 0) {
+        setRefreshKey((value) => value + 1)
+      }
     } finally {
       setSaving(false)
     }
@@ -309,7 +342,11 @@ export default function EmployeeWeeklySchedule({
           الفرع
           <select
             value={branchId}
-            onChange={(event) => setBranchId(event.target.value)}
+            onChange={(event) => {
+              setBranchId(event.target.value)
+              setError('')
+              setSuccess('')
+            }}
             className="w-full rounded-xl border bg-white px-3 py-3 font-normal"
           >
             <option value="">اختر الفرع</option>
@@ -325,7 +362,11 @@ export default function EmployeeWeeklySchedule({
           الموظف
           <select
             value={employeeId}
-            onChange={(event) => setEmployeeId(event.target.value)}
+            onChange={(event) => {
+              setEmployeeId(event.target.value)
+              setError('')
+              setSuccess('')
+            }}
             disabled={!branchId || branchEmployees.length === 0}
             className="w-full rounded-xl border bg-white px-3 py-3 font-normal disabled:bg-slate-100"
           >
@@ -360,8 +401,13 @@ export default function EmployeeWeeklySchedule({
                 className="overflow-hidden rounded-2xl border bg-white"
               >
                 <div className="flex items-center gap-2 border-b bg-slate-50 p-4">
-                  <CalendarDays size={19} className="text-blue-600" />
-                  <h3 className="font-extrabold">{day.label}</h3>
+                  <CalendarDays
+                    size={19}
+                    className="text-blue-600"
+                  />
+                  <h3 className="font-extrabold">
+                    {day.label}
+                  </h3>
 
                   <span className="mr-auto text-xs text-slate-500">
                     {shifts.filter(
@@ -450,7 +496,9 @@ export default function EmployeeWeeklySchedule({
                                   value={shift.grace_minutes}
                                   onChange={(event) =>
                                     updateShift(day.value, number, {
-                                      grace_minutes: Number(event.target.value),
+                                      grace_minutes: Number(
+                                        event.target.value
+                                      ),
                                     })
                                   }
                                   className="w-full rounded-xl border px-3 py-3 font-normal"
@@ -472,9 +520,15 @@ export default function EmployeeWeeklySchedule({
                                   }
                                   className="w-full rounded-xl border bg-white px-3 py-3 font-normal"
                                 >
-                                  <option value="none">بدون استراحة</option>
-                                  <option value="fixed">استراحة ثابتة</option>
-                                  <option value="variable">استراحة متغيرة</option>
+                                  <option value="none">
+                                    بدون استراحة
+                                  </option>
+                                  <option value="fixed">
+                                    استراحة ثابتة
+                                  </option>
+                                  <option value="variable">
+                                    استراحة متغيرة
+                                  </option>
                                 </select>
                               </label>
                             </div>
@@ -489,7 +543,9 @@ export default function EmployeeWeeklySchedule({
                                   value={shift.fixed_break_minutes}
                                   onChange={(event) =>
                                     updateShift(day.value, number, {
-                                      fixed_break_minutes: Number(event.target.value),
+                                      fixed_break_minutes: Number(
+                                        event.target.value
+                                      ),
                                     })
                                   }
                                   className="w-full rounded-xl border px-3 py-3 font-normal"
@@ -531,7 +587,9 @@ export default function EmployeeWeeklySchedule({
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-bold text-white disabled:opacity-50"
             >
               <Save size={19} />
-              {saving ? 'جاري حفظ الجدول...' : 'حفظ جدول الورديات'}
+              {saving
+                ? 'جاري حفظ الجدول...'
+                : 'حفظ جدول الورديات'}
             </button>
           </section>
         </>
