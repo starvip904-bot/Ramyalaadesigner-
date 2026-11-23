@@ -4,11 +4,24 @@
 
 BEGIN;
 
--- 1) Add the optional employee link to store memberships.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.dokkan_employees'::regclass
+      AND conname = 'dokkan_employees_id_store_unique'
+  ) THEN
+    ALTER TABLE public.dokkan_employees
+      ADD CONSTRAINT dokkan_employees_id_store_unique
+      UNIQUE (id, store_id);
+  END IF;
+END;
+$$;
+
 ALTER TABLE public.dokkan_members
   ADD COLUMN IF NOT EXISTS employee_id uuid;
 
--- 2) Enforce that the linked employee belongs to the same store.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -26,13 +39,11 @@ BEGIN
 END;
 $$;
 
--- 3) One employee record can be linked to only one login account.
 CREATE UNIQUE INDEX IF NOT EXISTS
   dokkan_members_employee_id_unique_idx
 ON public.dokkan_members (employee_id)
 WHERE employee_id IS NOT NULL;
 
--- 4) Document the relationship.
 COMMENT ON COLUMN public.dokkan_members.employee_id IS
   'Optional link to the internal employee record. NULL for store owners and non-employee memberships.';
 
