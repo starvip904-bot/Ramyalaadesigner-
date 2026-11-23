@@ -30,6 +30,7 @@ type Employee = {
   role: string
   status: 'active' | 'inactive'
   branch_id: string | null
+  branch_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -217,13 +218,21 @@ export default function EmployeeMonthlyAttendancePanel({
     [branches]
   )
 
+  // الموظف يظهر في كل فرع معين له.
+  // الاحتفاظ بالتوافق مع الموظفين القدامى الذين لديهم branch_id فقط.
   const branchEmployees = useMemo(
     () =>
-      employees.filter(
-        (employee) =>
-          employee.branch_id === branchId &&
-          employee.status === 'active'
-      ),
+      employees.filter((employee) => {
+        if (employee.status !== 'active') return false
+
+        const assignedBranchIds = employee.branch_ids ?? []
+
+        if (assignedBranchIds.length > 0) {
+          return assignedBranchIds.includes(branchId)
+        }
+
+        return employee.branch_id === branchId
+      }),
     [employees, branchId]
   )
 
