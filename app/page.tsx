@@ -22,7 +22,7 @@ import {
 
 const features = [
   {
-    icon: LayoutDashboardIcon,
+    icon: Boxes,
     title: "لوحة تحكم موحدة",
     description: "تابع نشاط متجرك ومبيعاتك ومخزونك من مكان واحد.",
   },
@@ -67,22 +67,22 @@ const faqs = [
   {
     question: "هل أستطيع استخدام Dokkan مجانًا؟",
     answer:
-      "نعم، تتوفر خطة Free مجانية مدى الحياة، وتشمل متجرًا واحدًا وفرعًا واحدًا وحسابي دخول كحد أقصى.",
+      "نعم، تتوفر خطة Free بمتجر واحد وفرع نشط واحد ومستخدم دخول واحد، وحتى 50 منتجًا نشطًا ومساحة تخزين 1GB. نقطة البيع POS متاحة كتجربة لمدة 7 أيام.",
   },
   {
     question: "هل يمكنني الترقية إلى خطة مدفوعة؟",
     answer:
-      "نعم، الخطط المدفوعة Basic وProfessional وEnterprise قيد التجهيز حاليًا، وسيتم الإعلان عن تفاصيلها عند اعتمادها.",
+      "يمكنك الاطلاع على الخطط والأسعار المتاحة من صفحة الخطط والاشتراكات. تفعيل الاشتراكات المدفوعة يتم بعد مراجعة الإدارة واعتماد الطلب.",
   },
   {
     question: "هل يعمل Dokkan على الموبايل؟",
     answer:
-      "نعم، يمكنك استخدام Dokkan من متصفح الموبايل والتابلت والكمبيوتر.",
+      "نعم، يمكنك استخدام Dokkan من متصفح الموبايل والتابلت والكمبيوتر، مع واجهة تتكيف مع حجم الشاشة.",
   },
   {
     question: "هل يمكنني إدارة أكثر من فرع؟",
     answer:
-      "تسمح خطة Free بفرع نشط واحد. حدود الخطط المدفوعة سيتم الإعلان عنها لاحقًا.",
+      "تسمح الخطة المجانية بفرع نشط واحد، ويمكنك مراجعة حدود الفروع في الخطط الأخرى من صفحة الخطط والاشتراكات.",
   },
   {
     question: "هل بيانات متجري منفصلة عن المتاجر الأخرى؟",
@@ -91,38 +91,98 @@ const faqs = [
   },
 ];
 
-function LayoutDashboardIcon(props: React.ComponentProps<"svg">) {
-  return <Boxes {...props} />;
+const dashboardItems = [
+  {
+    label: "المبيعات",
+    icon: Wallet,
+    description: "تابع إجمالي مبيعاتك",
+  },
+  {
+    label: "الفواتير",
+    icon: ClipboardList,
+    description: "راجع عمليات البيع",
+  },
+  {
+    label: "المنتجات",
+    icon: Boxes,
+    description: "نظّم أصناف متجرك",
+  },
+  {
+    label: "المخزون",
+    icon: Package,
+    description: "تابع أرصدة الأصناف",
+  },
+];
+
+const steps = [
+  {
+    number: "01",
+    icon: Users,
+    title: "أنشئ حسابك",
+    description: "سجّل حسابك وفعّل بريدك الإلكتروني.",
+  },
+  {
+    number: "02",
+    icon: Store,
+    title: "جهّز متجرك",
+    description: "أدخل اسم المتجر والبيانات الأساسية.",
+  },
+  {
+    number: "03",
+    icon: Smartphone,
+    title: "ابدأ الإدارة",
+    description: "تابع منتجاتك ومخزونك وعملياتك من أجهزتك.",
+  },
+];
+
+function Brand({ light = false }: { light?: boolean }) {
+  return (
+    <Link href="/" className="inline-flex items-center gap-3">
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--brand)] text-xl font-extrabold text-white shadow-lg shadow-[var(--brand)]/20">
+        د
+      </span>
+      <span className="flex flex-col leading-tight">
+        <span
+          className={`text-xl font-extrabold ${
+            light ? "text-white" : "text-[var(--foreground)]"
+          }`}
+        >
+          دكان
+        </span>
+        <span
+          className={`mt-1 text-[9px] font-extrabold tracking-[0.28em] ${
+            light ? "text-white/55" : "text-[var(--muted)]"
+          }`}
+        >
+          DOKKAN
+        </span>
+      </span>
+    </Link>
+  );
 }
 
 export default function HomePage() {
   return (
     <main
       dir="rtl"
-      className="min-h-screen overflow-hidden bg-white text-slate-800"
+      className="min-h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
     >
-      <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <Store size={23} />
-            </span>
-            <span className="text-2xl font-extrabold tracking-tight text-slate-900">
-              DOKKAN
-            </span>
-          </Link>
+          <Brand />
 
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 lg:flex">
-            <a href="#features" className="transition hover:text-blue-600">
+          <nav className="hidden items-center gap-7 text-sm font-bold text-[var(--muted)] lg:flex">
+            <a href="#features" className="transition hover:text-[var(--brand)]">
               المميزات
             </a>
-            <a href="#how" className="transition hover:text-blue-600">
+            <a href="#how" className="transition hover:text-[var(--brand)]">
               كيف يعمل
             </a>
-            <a href="#pricing" className="transition hover:text-blue-600">
+            <a href="#pricing" className="transition hover:text-[var(--brand)]">
               الخطط
             </a>
-            <a href="#faq" className="transition hover:text-blue-600">
+            <a href="#faq" className="transition hover:text-[var(--brand)]">
               الأسئلة الشائعة
             </a>
           </nav>
@@ -130,141 +190,130 @@ export default function HomePage() {
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href="/login"
-              className="hidden rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 sm:block"
+              className="hidden rounded-xl px-4 py-2.5 text-sm font-extrabold text-[var(--foreground)] transition hover:bg-[var(--card-muted)] sm:block"
             >
               تسجيل الدخول
             </Link>
             <Link
               href="/sign-up"
-              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-[var(--brand)]/15 transition hover:bg-[var(--brand-hover)]"
             >
               ابدأ مجانًا
+              <ArrowLeft size={16} />
             </Link>
           </div>
         </div>
       </header>
 
-      <section className="relative bg-gradient-to-bl from-blue-50 via-white to-indigo-50">
+      {/* Hero */}
+      <section className="relative isolate">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-bl from-[var(--brand-soft)] via-[var(--background)] to-[var(--surface)]" />
+        <div className="pointer-events-none absolute -left-32 top-10 -z-10 h-80 w-80 rounded-full bg-[var(--brand)]/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-32 bottom-0 -z-10 h-80 w-80 rounded-full bg-[var(--brand)]/10 blur-3xl" />
+
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2 lg:px-8">
           <div className="relative z-10">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--brand)]/20 bg-[var(--surface)] px-4 py-2 text-sm font-extrabold text-[var(--brand)] shadow-sm">
               <Zap size={16} />
               إدارة تجارتك أصبحت أسهل
             </div>
 
-            <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-extrabold leading-[1.45] tracking-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl">
               كل تجارتك في مكان واحد مع{" "}
-              <span className="text-blue-600">Dokkan</span>
+              <span className="text-[var(--brand)]">دكان</span>
             </h1>
 
-            <p className="mt-6 max-w-xl text-base leading-9 text-slate-600 sm:text-lg">
+            <p className="mt-6 max-w-xl text-base leading-9 text-[var(--muted)] sm:text-lg">
               نظام عربي لإدارة المتاجر والمبيعات والمخزون والعملاء والفروع.
-              نظّم عملياتك وتابع نشاط تجارتك من أي مكان.
+              نظّم عملياتك وتابع نشاط تجارتك من أي مكان، سواء كان نشاطك متجرًا
+              صغيرًا أو تجارة متعددة الفروع.
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/sign-up"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 font-extrabold text-white shadow-xl shadow-blue-600/20 transition hover:-translate-y-1 hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--brand)] px-7 py-4 font-extrabold text-white shadow-xl shadow-[var(--brand)]/20 transition hover:-translate-y-1 hover:bg-[var(--brand-hover)]"
               >
                 ابدأ مجانًا الآن
                 <ArrowLeft size={19} />
               </Link>
               <a
                 href="#features"
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-4 font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
+                className="inline-flex items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-7 py-4 font-bold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand)]"
               >
                 اكتشف المميزات
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-slate-500">
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-bold text-[var(--muted)]">
               <span className="flex items-center gap-2">
-                <Check size={17} className="text-emerald-600" />
-                مجانية مدى الحياة
+                <Check size={17} className="text-[var(--success)]" />
+                خطة مجانية
               </span>
               <span className="flex items-center gap-2">
-                <Check size={17} className="text-emerald-600" />
+                <Check size={17} className="text-[var(--success)]" />
                 يعمل على الموبايل
               </span>
               <span className="flex items-center gap-2">
-                <Check size={17} className="text-emerald-600" />
+                <Check size={17} className="text-[var(--success)]" />
                 إدارة منظمة
               </span>
             </div>
           </div>
 
+          {/* Dashboard preview */}
           <div className="relative mx-auto w-full max-w-xl">
-            <div className="absolute -inset-5 rounded-[2.5rem] bg-blue-200/40 blur-3xl" />
-            <div className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl shadow-blue-900/10 sm:p-7">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-5">
+            <div className="absolute -inset-5 rounded-[2.5rem] bg-[var(--brand)]/15 blur-3xl" />
+
+            <div className="relative rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] sm:p-7">
+              <div className="flex items-center justify-between border-b border-[var(--line)] pb-5">
                 <div>
-                  <p className="text-xs font-semibold text-slate-400">
-                    Dokkan
+                  <p className="text-xs font-bold text-[var(--muted)]">
+                    DOKKAN
                   </p>
-                  <h3 className="mt-1 text-xl font-extrabold text-slate-900">
+                  <h3 className="mt-1 text-xl font-extrabold text-[var(--foreground)]">
                     إدارة متجرك بذكاء
                   </h3>
                 </div>
-                <span className="rounded-xl bg-blue-50 p-3 text-blue-600">
-                  <Store size={24} />
+                <span className="rounded-2xl bg-[var(--brand-soft)] p-3 text-[var(--brand)]">
+                  <Store size={25} />
                 </span>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: "المبيعات",
-                    icon: Wallet,
-                    description: "تابع إجمالي مبيعاتك",
-                  },
-                  {
-                    label: "الفواتير",
-                    icon: ClipboardList,
-                    description: "راجع عمليات البيع",
-                  },
-                  {
-                    label: "المنتجات",
-                    icon: Boxes,
-                    description: "نظّم أصناف متجرك",
-                  },
-                  {
-                    label: "المخزون",
-                    icon: Package,
-                    description: "تابع أرصدة الأصناف",
-                  },
-                ].map((item) => (
+                {dashboardItems.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                    className="rounded-2xl border border-[var(--line)] bg-[var(--card-muted)] p-4 transition hover:border-[var(--brand)]/40"
                   >
-                    <span className="mb-3 inline-flex rounded-xl bg-blue-50 p-2 text-blue-600">
+                    <span className="mb-3 inline-flex rounded-xl bg-[var(--brand-soft)] p-2 text-[var(--brand)]">
                       <item.icon size={20} />
                     </span>
-                    <p className="font-extrabold text-slate-900">
+                    <p className="font-extrabold text-[var(--foreground)]">
                       {item.label}
                     </p>
-                    <p className="mt-1 text-xs leading-6 text-slate-500">
+                    <p className="mt-1 text-xs leading-6 text-[var(--muted)]">
                       {item.description}
                     </p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-blue-50 p-4">
-                <span className="rounded-xl bg-white p-2 text-blue-600">
+              <div className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--brand)]/15 bg-[var(--brand-soft)] p-4">
+                <span className="rounded-xl bg-[var(--surface)] p-2 text-[var(--brand)]">
                   <ShieldCheck size={21} />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-slate-800">
+                  <p className="text-sm font-extrabold text-[var(--foreground)]">
                     بيانات متجرك في مكان واحد
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[var(--muted)]">
                     متابعة أسهل وتنظيم أفضل لعملياتك
                   </p>
                 </div>
               </div>
-              <p className="mt-3 text-center text-xs text-slate-400">
+
+              <p className="mt-3 text-center text-xs text-[var(--muted)]">
                 توضيح بصري لأقسام النظام، وليس بيانات متجر فعلية
               </p>
             </div>
@@ -272,16 +321,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="features" className="scroll-mt-24 px-4 py-20 sm:px-6 lg:px-8">
+      {/* Features */}
+      <section
+        id="features"
+        className="scroll-mt-24 px-4 py-20 sm:px-6 lg:px-8"
+      >
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-extrabold text-blue-600">
+            <span className="text-sm font-extrabold text-[var(--brand)]">
               كل ما تحتاجه تجارتك
             </span>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900 sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-extrabold text-[var(--foreground)] sm:text-4xl">
               أدوات لإدارة شغلك بسهولة
             </h2>
-            <p className="mt-4 leading-8 text-slate-500">
+            <p className="mt-4 leading-8 text-[var(--muted)]">
               اجمع عمليات متجرك الأساسية في منصة واحدة بدلًا من استخدام أنظمة
               متفرقة.
             </p>
@@ -291,15 +344,15 @@ export default function HomePage() {
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/5"
+                className="group rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:border-[var(--brand)]/40"
               >
-                <span className="inline-flex rounded-2xl bg-blue-50 p-3 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+                <span className="inline-flex rounded-2xl bg-[var(--brand-soft)] p-3 text-[var(--brand)] transition group-hover:bg-[var(--brand)] group-hover:text-white">
                   <feature.icon size={24} />
                 </span>
-                <h3 className="mt-5 text-lg font-extrabold text-slate-900">
+                <h3 className="mt-5 text-lg font-extrabold text-[var(--foreground)]">
                   {feature.title}
                 </h3>
-                <p className="mt-2 text-sm leading-7 text-slate-500">
+                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
                   {feature.description}
                 </p>
               </div>
@@ -308,59 +361,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* How it works */}
       <section
         id="how"
-        className="scroll-mt-24 bg-slate-50 px-4 py-20 sm:px-6 lg:px-8"
+        className="scroll-mt-24 border-y border-[var(--line)] bg-[var(--surface-secondary)] px-4 py-20 sm:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-extrabold text-blue-600">
+            <span className="text-sm font-extrabold text-[var(--brand)]">
               ابدأ في دقائق
             </span>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900 sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-extrabold text-[var(--foreground)] sm:text-4xl">
               ثلاث خطوات لتنظيم تجارتك
             </h2>
-            <p className="mt-4 leading-8 text-slate-500">
+            <p className="mt-4 leading-8 text-[var(--muted)]">
               أنشئ حسابك، جهّز متجرك، وابدأ إدارة عملياتك.
             </p>
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {[
-              {
-                number: "01",
-                icon: Users,
-                title: "أنشئ حسابك",
-                desc: "سجّل حسابك وفعّل بريدك الإلكتروني.",
-              },
-              {
-                number: "02",
-                icon: Store,
-                title: "جهّز متجرك",
-                desc: "أدخل اسم المتجر والبيانات الأساسية.",
-              },
-              {
-                number: "03",
-                icon: Smartphone,
-                title: "ابدأ الإدارة",
-                desc: "تابع منتجاتك ومخزونك وعملياتك من أجهزتك.",
-              },
-            ].map((step) => (
+            {steps.map((step) => (
               <div
                 key={step.number}
-                className="rounded-3xl border border-slate-200 bg-white p-7 text-center"
+                className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-7 text-center shadow-[var(--shadow-card)]"
               >
-                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)]">
                   <step.icon size={29} />
                 </span>
-                <p className="mt-5 text-sm font-extrabold text-blue-600">
+                <p className="mt-5 text-sm font-extrabold text-[var(--brand)]">
                   الخطوة {step.number}
                 </p>
-                <h3 className="mt-2 text-xl font-extrabold text-slate-900">
+                <h3 className="mt-2 text-xl font-extrabold text-[var(--foreground)]">
                   {step.title}
                 </h3>
-                <p className="mt-3 text-sm leading-7 text-slate-500">
-                  {step.desc}
+                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                  {step.description}
                 </p>
               </div>
             ))}
@@ -368,159 +403,128 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Pricing */}
       <section
         id="pricing"
         className="scroll-mt-24 px-4 py-20 sm:px-6 lg:px-8"
       >
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-extrabold text-blue-600">
-              خطط Dokkan
-            </span>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900 sm:text-4xl">
-              ابدأ مجانًا وتوسّع وقت ما تحتاج
-            </h2>
-            <p className="mt-4 leading-8 text-slate-500">
-              ابدأ بالخطة المجانية الدائمة، والخطط المدفوعة قيد التجهيز.
-            </p>
-          </div>
-
-          <div className="mx-auto mt-12 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="relative flex flex-col rounded-3xl border-2 border-blue-600 bg-blue-50/40 p-6 shadow-xl shadow-blue-900/5">
-              <span className="absolute -top-3 right-6 rounded-full bg-blue-600 px-4 py-1 text-xs font-extrabold text-white">
-                ابدأ الآن
+        <div className="mx-auto max-w-5xl">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-7 shadow-[var(--shadow-card)] sm:p-12">
+            <div className="mx-auto max-w-2xl text-center">
+              <span className="text-sm font-extrabold text-[var(--brand)]">
+                خطط Dokkan
               </span>
-              <h3 className="text-xl font-extrabold text-slate-900">Free</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                خطتك المجانية مدى الحياة
+              <h2 className="mt-3 text-3xl font-extrabold text-[var(--foreground)] sm:text-4xl">
+                الخطة المناسبة لاحتياجات تجارتك
+              </h2>
+              <p className="mt-4 leading-8 text-[var(--muted)]">
+                ابدأ بالخطة المجانية، واستكشف الخطط الأخرى وأسعارها وحدودها
+                وتفاصيل الاشتراك من صفحة الخطط الرسمية.
               </p>
-              <p className="mt-6 text-3xl font-extrabold text-slate-900">
-                مجانًا
-              </p>
-              <p className="mt-1 text-xs font-semibold text-emerald-700">
-                بدون مدة انتهاء
-              </p>
-              <Link
-                href="/sign-up"
-                className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-blue-700"
-              >
-                ابدأ مجانًا <ArrowLeft size={17} />
-              </Link>
-              <div className="my-6 border-t border-blue-100" />
-              <p className="mb-4 text-sm font-extrabold text-slate-800">
-                حدود الخطة
-              </p>
-              <ul className="space-y-3 text-sm leading-6 text-slate-600">
-                {["متجر واحد", "فرع نشط واحد", "حسابا دخول كحد أقصى"].map(
-                  (item) => (
-                    <li key={item} className="flex items-start gap-2">
-                      <Check
-                        size={17}
-                        className="mt-1 shrink-0 text-emerald-600"
-                      />
-                      {item}
-                    </li>
-                  )
-                )}
-              </ul>
             </div>
 
-            {[
-              {
-                name: "Basic",
-                description: "للأعمال التي تحتاج إلى إمكانيات إضافية.",
-              },
-              {
-                name: "Professional",
-                description: "للمتاجر التي تتوسع في عملياتها.",
-              },
-              {
-                name: "Enterprise",
-                description: "للأنشطة والمؤسسات الكبيرة.",
-              },
-            ].map((plan) => (
-              <div
-                key={plan.name}
-                className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6"
-              >
-                <h3 className="text-xl font-extrabold text-slate-900">
-                  {plan.name}
+            <div className="mt-9 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[var(--brand)]/30 bg-[var(--brand-soft)] p-6">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[var(--surface)] px-3 py-1 text-xs font-extrabold text-[var(--brand)]">
+                  <Check size={14} />
+                  ابدأ الآن
+                </span>
+                <h3 className="mt-4 text-2xl font-extrabold text-[var(--foreground)]">
+                  Free
                 </h3>
-                <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">
-                  {plan.description}
+                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                  خطة مجانية بحدود واضحة تساعدك على بدء إدارة متجرك.
                 </p>
-                <p className="mt-6 text-2xl font-extrabold text-slate-700">
-                  قريبًا
-                </p>
-                <p className="mt-1 text-xs font-semibold text-slate-400">
-                  التفاصيل قيد التجهيز
-                </p>
-                <div className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
-                  <LockKeyhole size={16} />
-                  غير متاحة حاليًا
-                </div>
-                <div className="my-6 border-t border-slate-100" />
-                <p className="text-sm leading-7 text-slate-500">
-                  سيتم الإعلان عن الأسعار والحدود والمميزات بعد اعتمادها.
-                </p>
+                <Link
+                  href="/sign-up"
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 py-3 font-extrabold text-white transition hover:bg-[var(--brand-hover)]"
+                >
+                  أنشئ حسابك مجانًا
+                  <ArrowLeft size={17} />
+                </Link>
               </div>
-            ))}
+
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--card-muted)] p-6">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-extrabold text-[var(--muted)]">
+                  <LockKeyhole size={14} />
+                  تفاصيل الخطط
+                </span>
+                <h3 className="mt-4 text-2xl font-extrabold text-[var(--foreground)]">
+                  كل الخطط والإضافات
+                </h3>
+                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                  اعرف الأسعار ودورات الاشتراك والحدود والإضافات المتاحة من
+                  الكتالوج الرسمي.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 font-extrabold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand)]"
+                >
+                  عرض الخطط والأسعار
+                  <ArrowLeft size={17} />
+                </Link>
+              </div>
+            </div>
           </div>
-
-          <p className="mt-6 text-center text-xs leading-6 text-slate-400">
-            لا يتم تفعيل أي خطة مدفوعة قبل الإعلان عن تفاصيلها وإتاحة الاشتراك
-            رسميًا.
-          </p>
         </div>
       </section>
 
+      {/* Call to action */}
       <section className="px-4 pb-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-gradient-to-l from-blue-700 to-indigo-700 px-6 py-14 text-center text-white sm:px-12">
-          <span className="inline-flex rounded-full bg-white/15 p-3">
-            <Zap size={25} />
-          </span>
-          <h2 className="mt-5 text-3xl font-extrabold sm:text-4xl">
-            جاهز تبدأ تنظيم تجارتك؟
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl leading-8 text-blue-100">
-            ابدأ بخطة Dokkan المجانية، ونظّم متجرك وعملياتك خطوة بخطوة.
-          </p>
-          <Link
-            href="/sign-up"
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-7 py-4 font-extrabold text-blue-700 transition hover:bg-blue-50"
-          >
-            أنشئ حسابك مجانًا <ArrowLeft size={18} />
-          </Link>
+        <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-[var(--navy)] px-6 py-14 text-center text-white sm:px-12">
+          <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border-[45px] border-white/5" />
+          <div className="pointer-events-none absolute -bottom-36 -right-20 h-80 w-80 rounded-full bg-[var(--brand)]/20 blur-2xl" />
+
+          <div className="relative z-10">
+            <span className="inline-flex rounded-2xl bg-white/10 p-3 text-[var(--brand)]">
+              <Zap size={25} />
+            </span>
+            <h2 className="mt-5 text-3xl font-extrabold sm:text-4xl">
+              جاهز تبدأ تنظيم تجارتك؟
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl leading-8 text-white/70">
+              ابدأ بخطة Dokkan المجانية، ونظّم متجرك وعملياتك خطوة بخطوة.
+            </p>
+            <Link
+              href="/sign-up"
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-7 py-4 font-extrabold text-white transition hover:bg-[var(--brand-hover)]"
+            >
+              أنشئ حسابك مجانًا
+              <ArrowLeft size={18} />
+            </Link>
+          </div>
         </div>
       </section>
 
+      {/* FAQ */}
       <section
         id="faq"
-        className="scroll-mt-24 bg-slate-50 px-4 py-20 sm:px-6 lg:px-8"
+        className="scroll-mt-24 border-t border-[var(--line)] bg-[var(--surface-secondary)] px-4 py-20 sm:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-3xl">
           <div className="text-center">
-            <span className="text-sm font-extrabold text-blue-600">
+            <span className="text-sm font-extrabold text-[var(--brand)]">
               هل لديك سؤال؟
             </span>
-            <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+            <h2 className="mt-3 text-3xl font-extrabold text-[var(--foreground)]">
               الأسئلة الشائعة
             </h2>
           </div>
+
           <div className="mt-10 space-y-3">
             {faqs.map((faq) => (
               <details
                 key={faq.question}
-                className="group rounded-2xl border border-slate-200 bg-white p-5"
+                className="group rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-extrabold text-slate-800">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-extrabold text-[var(--foreground)]">
                   {faq.question}
                   <ChevronDown
                     size={19}
-                    className="shrink-0 text-blue-600 transition group-open:rotate-180"
+                    className="shrink-0 text-[var(--brand)] transition group-open:rotate-180"
                   />
                 </summary>
-                <p className="mt-4 border-t border-slate-100 pt-4 text-sm leading-8 text-slate-500">
+                <p className="mt-4 border-t border-[var(--line)] pt-4 text-sm leading-8 text-[var(--muted)]">
                   {faq.answer}
                 </p>
               </details>
@@ -529,39 +533,40 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="bg-slate-950 px-4 py-12 text-white sm:px-6 lg:px-8">
+      {/* Footer */}
+      <footer className="bg-[var(--navy)] px-4 py-12 text-white sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-2">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2">
-              <span className="rounded-xl bg-blue-600 p-2">
-                <Store size={21} />
-              </span>
-              <span className="text-2xl font-extrabold">DOKKAN</span>
-            </Link>
-            <p className="mt-4 max-w-md text-sm leading-8 text-slate-400">
+            <Brand light />
+            <p className="mt-5 max-w-md text-sm leading-8 text-white/65">
               منصة عربية لإدارة المتاجر والفروع والمبيعات والمخزون، تساعدك على
               تنظيم تجارتك ومتابعتها من مكان واحد.
             </p>
           </div>
-          <div className="flex flex-wrap content-start gap-x-7 gap-y-4 text-sm font-semibold text-slate-300 md:justify-end">
-            <a href="#features" className="hover:text-white">
+
+          <div className="flex flex-wrap content-start gap-x-7 gap-y-4 text-sm font-bold text-white/70 md:justify-end">
+            <a href="#features" className="transition hover:text-white">
               المميزات
             </a>
-            <a href="#pricing" className="hover:text-white">
+            <a href="#pricing" className="transition hover:text-white">
               الخطط
             </a>
-            <a href="#faq" className="hover:text-white">
+            <a href="#faq" className="transition hover:text-white">
               الأسئلة الشائعة
             </a>
-            <Link href="/login" className="hover:text-white">
+            <Link href="/pricing" className="transition hover:text-white">
+              الأسعار
+            </Link>
+            <Link href="/login" className="transition hover:text-white">
               تسجيل الدخول
             </Link>
-            <Link href="/sign-up" className="hover:text-white">
+            <Link href="/sign-up" className="transition hover:text-white">
               إنشاء حساب
             </Link>
           </div>
         </div>
-        <div className="mx-auto mt-10 max-w-7xl border-t border-slate-800 pt-6 text-center text-xs text-slate-500">
+
+        <div className="mx-auto mt-10 max-w-7xl border-t border-white/10 pt-6 text-center text-xs text-white/45">
           © {new Date().getFullYear()} DOKKAN. جميع الحقوق محفوظة.
         </div>
       </footer>
