@@ -11,7 +11,6 @@ import {
 import {
   RotateCcw,
   Search,
-  ReceiptText,
   Package,
   CheckCircle2,
   AlertCircle,
@@ -66,6 +65,7 @@ type ReturnItem = {
 }
 
 type ExchangeItem = {
+  id: string
   product_variant_id: string
   quantity: number
   unit_price: number
@@ -210,13 +210,6 @@ const operationLabel = (type?: string | null) =>
 
 const itemName = (variant?: VariantInfo | null) =>
   variant?.dokkan_products?.name || 'منتج'
-
-const itemDetails = (variant?: VariantInfo | null) =>
-  [
-    variant?.sku ? `الكود: ${variant.sku}` : '',
-    variant?.size ? `المقاس: ${variant.size}` : '',
-    variant?.color ? `اللون: ${variant.color}` : '',
-  ].filter(Boolean).join(' — ')
 
 const escapeHtml = (value: unknown) =>
   String(value ?? '').replace(/[&<>"']/g, (character) => {
