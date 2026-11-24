@@ -37,10 +37,12 @@ function shiftDateKey(dateKey: string, days: number) {
   return date.toISOString().slice(0, 10)
 }
 
-function getDateLabel(dateKey: string) {
+function getDateLabel(dateKey: string, includeMonth = false) {
   return new Intl.DateTimeFormat('ar-EG', {
     timeZone: 'UTC',
-    weekday: 'short',
+    ...(includeMonth
+      ? { day: 'numeric', month: 'numeric' }
+      : { weekday: 'short' }),
   }).format(new Date(`${dateKey}T12:00:00.000Z`))
 }
 
@@ -493,11 +495,13 @@ export async function getDashboardData() {
     supabase
       .from('dokkan_sale_returns')
       .select(`
+        sale_id,
         refund_amount,
         applied_to_balance,
         created_at,
         dokkan_sale_return_items(
           quantity,
+          product_variant_id,
           dokkan_product_variants(
             dokkan_products(name)
           )
@@ -583,12 +587,22 @@ export async function getDashboardData() {
       return key >= startKey && key <= todayKey
     })
 
+    const periodSaleIds = new Set(
+      periodSales.map((sale) => sale.id)
+    )
+
     const returnedByProduct = new Map<
       string,
       { name: string; quantity: number }
     >()
 
     for (const record of periodReturns) {
+      // نخصم من المنتجات المرتجعة فقط إذا كانت فاتورة البيع الأصلية
+      // ضمن الفترة المختارة، حتى لا تتأثر مبيعات فترة بمرتجعات فترة أخرى.
+      if (!record.sale_id || !periodSaleIds.has(record.sale_id)) {
+        continue
+      }
+
       for (const item of record.dokkan_sale_return_items ?? []) {
         const variant = Array.isArray(item.dokkan_product_variants)
           ? item.dokkan_product_variants[0]
@@ -686,17 +700,21 @@ export async function getDashboardData() {
     }
 
     const salesByDay = []
-    const chartDays = 7
-    const chartStart = shiftDateKey(todayKey, -(chartDays - 1))
+    const chartDays =
+      Math.round(
+        (new Date(`${todayKey}T00:00:00.000Z`).getTime() -
+          new Date(`${startKey}T00:00:00.000Z`).getTime()) /
+          86400000
+      ) + 1
 
     for (let index = 0; index < chartDays; index++) {
-      const key = shiftDateKey(chartStart, index)
+      const key = shiftDateKey(startKey, index)
       const gross = dailySales.get(key) ?? 0
       const returned = dailyReturns.get(key) ?? 0
 
       salesByDay.push({
         date: key,
-        label: getDateLabel(key),
+        label: getDateLabel(key, chartDays > 7),
         total: gross - returned,
       })
     }
