@@ -2,7 +2,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireRedaContext } from '@/lib/reda-scope'
+import {
+  requireRedaBranch,
+  requireRedaContext,
+} from '@/lib/reda-scope'
 
 type BreakMode = 'none' | 'fixed' | 'variable'
 
@@ -121,29 +124,35 @@ function validateShiftInput(input: SaveWeeklyShiftInput) {
   }
 }
 
-async function getScheduleContext(branchId: string, employeeId: string) {
+async function getScheduleContext(
+  branchId: string,
+  employeeId: string
+) {
   const context = await requireRedaContext([
     'owner',
     'admin',
     'manager',
   ])
 
-  // التحقق من أن الفرع تابع للمتجر ونشط.
-  // صلاحية المستخدم على الفرع تُفرض أيضًا من خلال RLS.
-  const { data: branch, error: branchError } = await context.supabase
-    .from('dokkan_branches')
-    .select('id')
-    .eq('id', branchId)
-    .eq('store_id', context.storeId)
-    .eq('status', 'active')
-    .maybeSingle()
+  // التحقق من صلاحية المستخدم على الفرع نفسه.
+  // المدير لا يستطيع الوصول إلى فرع غير مسند إليه.
+  await requireRedaBranch(branchId)
+
+  // التأكد من أن الفرع تابع للمتجر ونشط.
+  const { data: branch, error: branchError } =
+    await context.supabase
+      .from('dokkan_branches')
+      .select('id')
+      .eq('id', branchId)
+      .eq('store_id', context.storeId)
+      .eq('status', 'active')
+      .maybeSingle()
 
   if (branchError || !branch) {
     throw new Error('الفرع غير صحيح أو غير نشط')
   }
 
-  // التحقق من تعيين الموظف في هذا الفرع تحديدًا.
-  // لا نعتمد على dokkan_employees.branch_id لأنه الفرع الأساسي فقط.
+  // التأكد من تعيين الموظف في الفرع المحدد.
   const { data: assignment, error: assignmentError } =
     await context.supabase
       .from('dokkan_employee_branches')
@@ -157,7 +166,7 @@ async function getScheduleContext(branchId: string, employeeId: string) {
     throw new Error('الموظف غير معيّن في هذا الفرع')
   }
 
-  // التأكد من أن الموظف نفسه نشط وتابع للمتجر.
+  // التأكد من أن الموظف نشط وتابع للمتجر.
   const { data: employee, error: employeeError } =
     await context.supabase
       .from('dokkan_employees')
@@ -181,7 +190,10 @@ export async function getEmployeeWeeklyShifts(
   validateUuid(employeeId, 'معرف الموظف')
   validateUuid(branchId, 'معرف الفرع')
 
-  const context = await getScheduleContext(branchId, employeeId)
+  const context = await getScheduleContext(
+    branchId,
+    employeeId
+  )
 
   const { data, error } = await context.supabase
     .from('dokkan_employee_weekly_shifts')
