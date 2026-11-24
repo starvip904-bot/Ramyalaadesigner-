@@ -1,6 +1,7 @@
 
 import { redirect } from 'next/navigation'
 import SubscriptionRequestManager from '@/app/subscription/subscription-request-manager'
+import SubscriptionUpgradeManager from '@/app/subscription/subscription-upgrade-manager'
 import {
   PlanGrid,
   SubscriptionHero,
@@ -153,6 +154,13 @@ export default async function SubscriptionPage() {
             </p>
           )}
         </section>
+
+        {planCode === 'basic' && store.subscription_status === 'active' && (
+          <SubscriptionUpgradeManager
+            currentPlanCode={planCode}
+            catalog={catalog}
+          />
+        )}
 
         <section id="available-plans" className="flex flex-col gap-5">
           <div>
