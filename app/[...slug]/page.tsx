@@ -9,6 +9,7 @@ import DashboardPage from '@/components/dashboard-page'
 import StoresPage from '@/components/stores-page'
 import ProductInventoryPage from '@/components/product-inventory-page'
 import InventoryThresholdsPanel from '@/components/inventory-thresholds-panel'
+import InventoryTransfersPage from '@/components/inventory-transfers-page'
 import Phase1ManagementPage from '@/components/phase1-management-page'
 import PurchasesPage from '@/components/purchases-page'
 import PosPage from '@/components/pos-page'
@@ -23,6 +24,7 @@ import { getReportsPageData } from '@/lib/reports-repository'
 import { getReturnsPageData } from '@/lib/returns-repository'
 import { getInventoryCountsPageData } from '@/lib/inventory-counts-repository'
 import { listInventoryAlertThresholds } from '@/lib/inventory-thresholds-repository'
+import { getInventoryTransfersPageData } from '@/lib/inventory-transfers-repository'
 
 import {
   getDashboardData,
@@ -102,6 +104,27 @@ export default async function Page({
         type={type}
         user={user}
         content={<DashboardPage data={data} />}
+      />
+    )
+  }
+
+  // Inventory transfers
+  if (type === 'transfers') {
+    const data = await getInventoryTransfersPageData()
+
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={
+          <InventoryTransfersPage
+            role={data.role}
+            branches={data.branches}
+            products={data.products}
+            movements={data.movements}
+            transfers={data.transfers}
+          />
+        }
       />
     )
   }
