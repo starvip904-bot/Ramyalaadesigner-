@@ -37,7 +37,7 @@ const navGroups = [
   {
     title: 'المنتجات والمخزون',
     items: [
-      { label: 'المنتجات والمخزون', href: '/products', icon: Package },
+      { label: 'المنتجات والمخزون', href: '/inventory', icon: Package },
       { label: 'الجرد', href: '/inventory-counts', icon: ClipboardList },
       {
         label: 'التحويلات بين الفروع',
