@@ -17,9 +17,14 @@ const ALLOWED_MIME_TYPES = [
 
 type ProofMimeType = (typeof ALLOWED_MIME_TYPES)[number]
 type PaidPlanCode = 'basic' | 'professional' | 'enterprise'
+type BillingCycle = 'monthly' | 'annual'
 
 function isPaidPlanCode(value: string): value is PaidPlanCode {
   return ['basic', 'professional', 'enterprise'].includes(value)
+}
+
+function isBillingCycle(value: string): value is BillingCycle {
+  return value === 'monthly' || value === 'annual'
 }
 
 function isProofMimeType(value: string): value is ProofMimeType {
@@ -79,6 +84,7 @@ function revalidateSubscriptionPages() {
  */
 export async function createSubscriptionRequestDraftAction(input: {
   planCode: string
+  billingCycle: string
   proofMimeType: string
   claimedAmountEgp?: number | null
 }) {
@@ -90,6 +96,10 @@ export async function createSubscriptionRequestDraftAction(input: {
 
   if (!isPaidPlanCode(input.planCode)) {
     throw new Error('الخطة المطلوبة غير صحيحة.')
+  }
+
+  if (!isBillingCycle(input.billingCycle)) {
+    throw new Error('دورة الاشتراك المطلوبة غير صحيحة.')
   }
 
   if (!isProofMimeType(input.proofMimeType)) {
@@ -113,6 +123,7 @@ export async function createSubscriptionRequestDraftAction(input: {
     {
       p_plan_code: input.planCode,
       p_proof_mime_type: input.proofMimeType,
+      p_billing_cycle: input.billingCycle,
       p_claimed_amount_egp: claimedAmount,
     }
   )
@@ -218,7 +229,6 @@ export async function uploadSubscriptionProofAndSubmitAction(
     throw new Error('مسار ملف الإثبات غير صحيح.')
   }
 
-  // التحقق مما إذا كان الملف قد رُفع في محاولة سابقة.
   const { data: existingFiles, error: listError } =
     await context.supabase.storage
       .from(PROOF_BUCKET)
@@ -237,7 +247,6 @@ export async function uploadSubscriptionProofAndSubmitAction(
     (item) => item.name === fileName
   )
 
-  // لا نستبدل الملف إذا كان قد رُفع بالفعل.
   if (!alreadyUploaded) {
     const { error: uploadError } =
       await context.supabase.storage
@@ -289,9 +298,6 @@ export async function uploadSubscriptionProofAndSubmitAction(
 
 /**
  * إلغاء مسودة غير مرسلة وحذف ملف إثباتها.
- *
- * يسمح بإعادة محاولة الحذف إذا أُلغيت المسودة
- * سابقًا وفشل حذف الملف من Storage.
  */
 export async function cancelSubscriptionRequestDraftAction(
   requestId: string
@@ -346,7 +352,6 @@ export async function cancelSubscriptionRequestDraftAction(
     )
   }
 
-  // تغيير الحالة أولًا حتى تسمح سياسة Storage بالحذف.
   if (request.status === 'draft') {
     const { error: cancelError } =
       await context.supabase.rpc(
@@ -370,7 +375,6 @@ export async function cancelSubscriptionRequestDraftAction(
     }
   }
 
-  // حذف ملف المسودة الملغاة فقط.
   const { error: removeError } =
     await context.supabase.storage
       .from(PROOF_BUCKET)
@@ -410,6 +414,7 @@ export async function getMySubscriptionRequestsAction() {
     .select(`
       id,
       requested_plan_code,
+      billing_cycle,
       status,
       proof_mime_type,
       claimed_amount_egp,
@@ -453,6 +458,7 @@ export async function getPlatformSubscriptionRequestsAction(
       id,
       store_id,
       requested_plan_code,
+      billing_cycle,
       status,
       proof_path,
       proof_mime_type,
