@@ -21,18 +21,36 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+type DashboardPeriod = {
+  salesTotal: number
+  salesCount: number
+  expensesTotal: number
+  salesByDay: Array<{
+    date: string
+    label: string
+    total: number
+  }>
+  topProducts: Array<{
+    name: string
+    quantity: number
+    total: number
+  }>
+}
+
 type DashboardData = {
   displayName: string | null
   role: string | null
   storeName: string | null
-  salesTotal: number
-  salesCount: number
-  expensesTotal: number
   inventoryUnits: number
   lowStockCount: number
-  salesByDay: Array<{ label: string; total: number }>
-  topProducts: Array<{ name: string; quantity: number; total: number }>
+  periods: {
+    '7': DashboardPeriod
+    '30': DashboardPeriod
+    month: DashboardPeriod
+  }
 }
+
+type PeriodKey = '7' | '30' | 'month'
 
 type Shortcut = {
   id: string
@@ -63,6 +81,15 @@ const defaultShortcutIds = [
   'inventory',
   'expenses',
   'reports',
+]
+
+const periodOptions: Array<{
+  id: PeriodKey
+  label: string
+}> = [
+  { id: '7', label: 'آخر 7 أيام' },
+  { id: '30', label: 'آخر 30 يومًا' },
+  { id: 'month', label: 'الشهر الحالي' },
 ]
 
 const money = (value: number) =>
@@ -116,7 +143,8 @@ export default function DashboardPage({
 }: {
   data: DashboardData
 }) {
-  const emptySales = data.salesCount === 0
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<PeriodKey>('7')
 
   const [selectedShortcuts, setSelectedShortcuts] =
     useState<string[]>(defaultShortcutIds)
@@ -124,7 +152,8 @@ export default function DashboardPage({
   const [showShortcutSettings, setShowShortcutSettings] =
     useState(false)
 
-  const [preferencesReady, setPreferencesReady] = useState(false)
+  const [preferencesReady, setPreferencesReady] =
+    useState(false)
 
   const storageKey = [
     'dokkan-dashboard-shortcuts',
@@ -170,14 +199,21 @@ export default function DashboardPage({
     }
   }, [preferencesReady, selectedShortcuts, storageKey])
 
+  const periodData = data.periods[selectedPeriod]
+  const emptySales = periodData.salesCount === 0
+
   const visibleShortcuts = shortcuts.filter((shortcut) =>
     selectedShortcuts.includes(shortcut.id)
   )
 
   const maxDay = Math.max(
-    ...data.salesByDay.map((day) => day.total),
+    ...periodData.salesByDay.map((day) => day.total),
     1
   )
+
+  const selectedPeriodLabel =
+    periodOptions.find((period) => period.id === selectedPeriod)?.label ??
+    'آخر 7 أيام'
 
   function toggleShortcut(id: string) {
     setSelectedShortcuts((current) =>
@@ -254,11 +290,16 @@ export default function DashboardPage({
                       onChange={() => toggleShortcut(shortcut.id)}
                       className="size-4 accent-[var(--brand)]"
                     />
+
                     <span className="min-w-0 flex-1">
                       {shortcut.label}
                     </span>
+
                     {selected && (
-                      <Check size={14} className="shrink-0 text-[var(--brand)]" />
+                      <Check
+                        size={14}
+                        className="shrink-0 text-[var(--brand)]"
+                      />
                     )}
                   </label>
                 )
@@ -300,30 +341,70 @@ export default function DashboardPage({
         </p>
       </section>
 
+      {/* اختيار الفترة الزمنية */}
+      <section className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)] sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-extrabold text-[var(--foreground)]">
+              الفترة الزمنية
+            </h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              اختر الفترة التي تريد عرض إحصائياتها.
+            </p>
+          </div>
+
+          <span className="text-xs font-bold text-[var(--brand)]">
+            {selectedPeriodLabel}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {periodOptions.map((period) => {
+            const active = selectedPeriod === period.id
+
+            return (
+              <button
+                key={period.id}
+                type="button"
+                onClick={() => setSelectedPeriod(period.id)}
+                aria-pressed={active}
+                className={`rounded-xl border px-2 py-3 text-xs font-bold transition sm:text-sm ${
+                  active
+                    ? 'border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand)]'
+                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--brand)]'
+                }`}
+              >
+                {period.label}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
       {/* بطاقات الإحصائيات */}
       <section
         aria-label="إحصائيات المتجر"
         className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4"
       >
         <Stat
-          label="إجمالي المبيعات"
-          value={money(data.salesTotal)}
+          label="صافي المبيعات"
+          value={money(periodData.salesTotal)}
           icon={CircleDollarSign}
           empty={emptySales}
         />
 
         <Stat
           label="عدد الفواتير"
-          value={data.salesCount.toLocaleString('ar-EG')}
+          value={periodData.salesCount.toLocaleString('ar-EG')}
           icon={ShoppingCart}
           empty={emptySales}
         />
 
         <Stat
           label="إجمالي المصروفات"
-          value={money(data.expensesTotal)}
+          value={money(periodData.expensesTotal)}
           icon={BarChart3}
-          empty={data.expensesTotal === 0}
+          empty={periodData.expensesTotal === 0}
         />
 
         <Stat
@@ -336,29 +417,29 @@ export default function DashboardPage({
 
       {/* الرسم البياني والمنتجات الأكثر مبيعًا */}
       <section className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[1.45fr_1fr] xl:gap-6">
-        {/* المبيعات خلال آخر 7 أيام */}
+        {/* المبيعات حسب الفترة المختارة */}
         <div className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)] sm:p-5">
           <div>
             <h3 className="font-extrabold text-[var(--foreground)]">
-              المبيعات خلال آخر 7 أيام
+              المبيعات - {selectedPeriodLabel}
             </h3>
 
             <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-              من فواتير البيع المحفوظة فعليًا
+              صافي المبيعات بعد احتساب المرتجعات المسجلة خلال الفترة
             </p>
           </div>
 
-          {emptySales ? (
+          {emptySales && periodData.salesByDay.every((day) => day.total === 0) ? (
             <div className="flex h-52 items-center justify-center text-center text-sm text-[var(--muted)]">
-              لا توجد مبيعات حتى الآن
+              لا توجد مبيعات خلال الفترة المحددة
             </div>
           ) : (
             <div
-              className="mt-6 flex h-52 min-w-0 items-end justify-between gap-2"
+              className="mt-6 flex h-52 min-w-0 items-end justify-between gap-2 overflow-x-auto"
               role="img"
-              aria-label="رسم بياني للمبيعات خلال آخر 7 أيام"
+              aria-label={`رسم بياني للمبيعات ${selectedPeriodLabel}`}
             >
-              {data.salesByDay.map((day, index) => {
+              {periodData.salesByDay.map((day, index) => {
                 const percentage =
                   day.total > 0
                     ? Math.max((day.total / maxDay) * 100, 5)
@@ -366,7 +447,7 @@ export default function DashboardPage({
 
                 return (
                   <div
-                    key={`${day.label}-${index}`}
+                    key={`${day.date}-${index}`}
                     className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
                     title={`${day.label}: ${money(day.total)}`}
                   >
@@ -392,17 +473,22 @@ export default function DashboardPage({
 
         {/* الأكثر مبيعًا */}
         <div className="min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-[var(--shadow-card)] sm:p-5">
-          <h3 className="font-extrabold text-[var(--foreground)]">
-            الأكثر مبيعًا
-          </h3>
+          <div>
+            <h3 className="font-extrabold text-[var(--foreground)]">
+              الأكثر مبيعًا
+            </h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              حسب الكميات المباعة خلال {selectedPeriodLabel}
+            </p>
+          </div>
 
-          {data.topProducts.length === 0 ? (
+          {periodData.topProducts.length === 0 ? (
             <div className="flex h-52 items-center justify-center text-center text-sm text-[var(--muted)]">
-              لا توجد مبيعات حتى الآن
+              لا توجد منتجات مباعة خلال الفترة المحددة
             </div>
           ) : (
             <div className="mt-5 space-y-4">
-              {data.topProducts.map((product, index) => (
+              {periodData.topProducts.map((product, index) => (
                 <div
                   key={`${product.name}-${index}`}
                   className="flex min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] pb-3 last:border-0 last:pb-0"
