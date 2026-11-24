@@ -2,6 +2,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import type { FormEvent } from 'react'
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -185,14 +186,14 @@ function getStatusLabel(status: Transfer['status']) {
 
 function getStatusStyle(status: Transfer['status']) {
   if (status === 'received') {
-    return 'bg-emerald-50 text-emerald-700'
+    return 'bg-[var(--success-soft)] text-[var(--success)]'
   }
 
   if (status === 'cancelled') {
-    return 'bg-red-50 text-red-700'
+    return 'bg-[var(--danger-soft)] text-[var(--danger)]'
   }
 
-  return 'bg-amber-50 text-amber-700'
+  return 'bg-[var(--warning-soft)] text-[var(--warning)]'
 }
 
 function getVariantLabel(variant: RelatedVariant) {
@@ -309,13 +310,26 @@ export default function InventoryTransfersPage({
     (transfer) => transfer.status === 'received'
   ).length
 
+  function canActOnTransfer(transfer: Transfer) {
+    if (role !== 'manager') return true
+
+    const hasSourceAccess = branches.some(
+      (branch) => branch.id === transfer.source_branch_id
+    )
+
+    const hasDestinationAccess = branches.some(
+      (branch) => branch.id === transfer.destination_branch_id
+    )
+
+    return hasSourceAccess && hasDestinationAccess
+  }
+
   function updateForm(patch: Partial<TransferForm>) {
     setForm((current) => ({
       ...current,
       ...patch,
     }))
 
-    // أي تغيير في بيانات الطلب ينشئ مفتاحًا جديدًا.
     setIdempotencyKey(createIdempotencyKey())
     setError('')
     setMessage('')
@@ -326,7 +340,7 @@ export default function InventoryTransfersPage({
     setIdempotencyKey(createIdempotencyKey())
   }
 
-  function submitRequest(event: React.FormEvent<HTMLFormElement>) {
+  function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setMessage('')
@@ -391,6 +405,11 @@ export default function InventoryTransfersPage({
   }
 
   function handleReceive(transfer: Transfer) {
+    if (!canActOnTransfer(transfer)) {
+      setError('ليس لديك صلاحية الوصول إلى فرعي هذا التحويل')
+      return
+    }
+
     const confirmed = window.confirm(
       'تأكيد استلام التحويل؟ سيتم خصم الكمية من فرع المصدر وإضافتها إلى فرع الاستلام.'
     )
@@ -414,6 +433,11 @@ export default function InventoryTransfersPage({
   }
 
   function handleCancel(transfer: Transfer) {
+    if (!canActOnTransfer(transfer)) {
+      setError('ليس لديك صلاحية الوصول إلى فرعي هذا التحويل')
+      return
+    }
+
     const confirmed = window.confirm(
       'هل تريد إلغاء طلب التحويل؟ الإلغاء لن يغير أرصدة المخزون.'
     )
@@ -440,13 +464,16 @@ export default function InventoryTransfersPage({
     return (
       <div
         dir="rtl"
-        className="rounded-2xl border border-slate-200 bg-white p-6 text-center"
+        className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 text-center"
       >
-        <Package className="mx-auto mb-3 text-slate-400" size={32} />
-        <h2 className="font-bold text-slate-800">
+        <Package
+          className="mx-auto mb-3 text-[var(--muted)]"
+          size={32}
+        />
+        <h2 className="font-bold text-[var(--foreground)]">
           غير مسموح بالوصول
         </h2>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-[var(--muted)]">
           ليس لديك صلاحية الوصول إلى إدارة تحويلات المخزون.
         </p>
       </div>
@@ -455,7 +482,7 @@ export default function InventoryTransfersPage({
 
   return (
     <div dir="rtl" className="space-y-5">
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-6">
+      <header className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand)] text-white">
@@ -466,7 +493,7 @@ export default function InventoryTransfersPage({
               <h2 className="text-xl font-extrabold text-[var(--foreground)] sm:text-2xl">
                 تحويلات المخزون
               </h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              <p className="mt-1 text-sm text-[var(--muted)]">
                 نقل المنتجات بين فروع المتجر ومتابعة الاستلام
               </p>
             </div>
@@ -476,7 +503,7 @@ export default function InventoryTransfersPage({
             type="button"
             onClick={() => window.location.reload()}
             disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)] disabled:opacity-50"
           >
             <RefreshCw size={17} />
             تحديث البيانات
@@ -485,8 +512,8 @@ export default function InventoryTransfersPage({
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <Clock3 size={17} />
             طلبات معلقة
           </div>
@@ -495,8 +522,8 @@ export default function InventoryTransfersPage({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <CheckCircle2 size={17} />
             تحويلات مستلمة
           </div>
@@ -505,8 +532,8 @@ export default function InventoryTransfersPage({
           </p>
         </div>
 
-        <div className="col-span-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:col-span-1">
-          <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+        <div className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:col-span-1">
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <Package size={17} />
             الفروع المتاحة
           </div>
@@ -516,22 +543,22 @@ export default function InventoryTransfersPage({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-6">
+      <section className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-6">
         <div className="mb-5">
           <h3 className="text-lg font-extrabold text-[var(--foreground)]">
             إنشاء طلب تحويل جديد
           </h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          <p className="mt-1 text-sm text-[var(--muted)]">
             إنشاء الطلب لا يخصم المخزون. يتم تحديث الرصيد عند تأكيد الاستلام.
           </p>
         </div>
 
         {branches.length < 2 ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-800">
+          <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
             يلزم توفر فرعين متاحين على الأقل لإنشاء طلب تحويل.
           </div>
         ) : activeProducts.length === 0 ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-800">
+          <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
             لا توجد متغيرات منتجات نشطة متاحة للتحويل حاليًا.
           </div>
         ) : (
@@ -547,7 +574,7 @@ export default function InventoryTransfersPage({
                     })
                   }
                   required
-                  className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-base outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
                 >
                   <option value="">اختر فرع المصدر</option>
                   {branches.map((branch) => (
@@ -568,7 +595,7 @@ export default function InventoryTransfersPage({
                     })
                   }
                   required
-                  className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-base outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
                 >
                   <option value="">اختر فرع الاستلام</option>
                   {branches
@@ -594,7 +621,7 @@ export default function InventoryTransfersPage({
                   })
                 }
                 required
-                className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-base outline-none focus:border-[var(--brand)]"
+                className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
               >
                 <option value="">اختر المنتج</option>
                 {activeProducts.map((variant) => (
@@ -609,7 +636,7 @@ export default function InventoryTransfersPage({
             </label>
 
             {selectedVariant && (
-              <div className="rounded-xl bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+              <div className="rounded-xl bg-[var(--card-muted)] p-3 text-sm text-[var(--muted)]">
                 <p>
                   المنتج: {selectedVariant.productName}
                 </p>
@@ -641,7 +668,7 @@ export default function InventoryTransfersPage({
                   }
                   placeholder="اكتب الكمية"
                   required
-                  className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-base outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
                 />
               </label>
 
@@ -655,7 +682,7 @@ export default function InventoryTransfersPage({
                     updateForm({ note: event.target.value })
                   }
                   placeholder="سبب التحويل أو أي تفاصيل"
-                  className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-base outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
                 />
               </label>
             </div>
@@ -674,7 +701,7 @@ export default function InventoryTransfersPage({
         {error && (
           <div
             role="alert"
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700"
+            className="mt-4 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
           >
             {error}
           </div>
@@ -683,7 +710,7 @@ export default function InventoryTransfersPage({
         {message && (
           <div
             role="status"
-            className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-700"
+            className="mt-4 rounded-xl border border-[var(--success)] bg-[var(--success-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
           >
             {message}
           </div>
@@ -696,12 +723,12 @@ export default function InventoryTransfersPage({
             <h3 className="text-lg font-extrabold text-[var(--foreground)]">
               سجل التحويلات
             </h3>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            <p className="mt-1 text-sm text-[var(--muted)]">
               متابعة جميع طلبات التحويل المتاحة حسب صلاحياتك
             </p>
           </div>
 
-          <span className="text-sm text-[var(--muted-foreground)]">
+          <span className="text-sm text-[var(--muted)]">
             {formatQuantity(filteredTransfers.length)} طلب
           </span>
         </div>
@@ -710,21 +737,21 @@ export default function InventoryTransfersPage({
           <div className="relative">
             <Search
               size={18}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
             />
             <input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="ابحث بالفرع أو المنتج أو رقم الطلب"
-              className="min-h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] pr-10 pl-3 text-sm outline-none focus:border-[var(--brand)]"
+              className="min-h-12 w-full rounded-xl border border-[var(--line)] bg-[var(--card)] pr-10 pl-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="min-h-12 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm outline-none focus:border-[var(--brand)]"
+            className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
           >
             <option value="all">كل الحالات</option>
             <option value="requested">في انتظار الاستلام</option>
@@ -734,15 +761,15 @@ export default function InventoryTransfersPage({
         </div>
 
         {filteredTransfers.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] p-8 text-center">
+          <div className="rounded-2xl border border-dashed border-[var(--line)] bg-[var(--card)] p-8 text-center">
             <Package
               size={34}
-              className="mx-auto mb-3 text-[var(--muted-foreground)]"
+              className="mx-auto mb-3 text-[var(--muted)]"
             />
             <p className="font-bold text-[var(--foreground)]">
               لا توجد تحويلات مطابقة
             </p>
-            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               ستظهر طلبات التحويل هنا بعد إنشائها.
             </p>
           </div>
@@ -751,7 +778,7 @@ export default function InventoryTransfersPage({
             {filteredTransfers.map((transfer) => (
               <article
                 key={transfer.id}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:p-5"
+                className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -769,7 +796,7 @@ export default function InventoryTransfersPage({
                       </span>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted-foreground)]">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
                       <span>
                         من: {transfer.source_branch?.name || 'فرع غير معروف'}
                       </span>
@@ -784,12 +811,12 @@ export default function InventoryTransfersPage({
                     </p>
 
                     {transfer.note && (
-                      <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
                         الملاحظة: {transfer.note}
                       </p>
                     )}
 
-                    <div className="mt-3 space-y-1 text-xs text-[var(--muted-foreground)]">
+                    <div className="mt-3 space-y-1 text-xs text-[var(--muted)]">
                       <p>تاريخ الطلب: {formatDate(transfer.created_at)}</p>
                       {transfer.received_at && (
                         <p>
@@ -800,39 +827,48 @@ export default function InventoryTransfersPage({
                   </div>
 
                   <div className="flex shrink-0 flex-col gap-2 sm:min-w-36">
-                    {transfer.status === 'requested' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleReceive(transfer)}
-                          disabled={busy}
-                          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          <CheckCircle2 size={17} />
-                          استلام التحويل
-                        </button>
+                    {transfer.status === 'requested' &&
+                      canActOnTransfer(transfer) && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleReceive(transfer)}
+                            disabled={busy}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--success)] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={17} />
+                            استلام التحويل
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleCancel(transfer)}
-                          disabled={busy}
-                          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <XCircle size={17} />
-                          إلغاء الطلب
-                        </button>
-                      </>
-                    )}
+                          <button
+                            type="button"
+                            onClick={() => handleCancel(transfer)}
+                            disabled={busy}
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50"
+                          >
+                            <XCircle size={17} />
+                            إلغاء الطلب
+                          </button>
+                        </>
+                      )}
+
+                    {transfer.status === 'requested' &&
+                      role === 'manager' &&
+                      !canActOnTransfer(transfer) && (
+                        <p className="rounded-xl bg-[var(--card-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+                          لا تملك صلاحية الوصول إلى الفرعين لإتمام هذا التحويل.
+                        </p>
+                      )}
 
                     {transfer.status === 'received' && (
-                      <div className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
+                      <div className="flex items-center justify-center gap-2 rounded-xl bg-[var(--success-soft)] px-3 py-3 text-sm font-bold text-[var(--success)]">
                         <CheckCircle2 size={17} />
                         تم الاستلام
                       </div>
                     )}
 
                     {transfer.status === 'cancelled' && (
-                      <div className="flex items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-3 text-sm font-bold text-red-700">
+                      <div className="flex items-center justify-center gap-2 rounded-xl bg-[var(--danger-soft)] px-3 py-3 text-sm font-bold text-[var(--danger)]">
                         <XCircle size={17} />
                         تم الإلغاء
                       </div>
