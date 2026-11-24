@@ -1,5 +1,6 @@
 
 import { PlanGrid, SubscriptionHero } from '@/components/subscription-plans'
+import { getPublicSubscriptionPlanCatalogAction } from '@/app/actions/platform-plan-settings'
 
 export const metadata = {
   title: 'الخطط والأسعار | DOKKAN',
@@ -7,14 +8,15 @@ export const metadata = {
     'قارن خطط اشتراك DOKKAN وأسعارها ومميزاتها واختر الأنسب لمتجرك.',
 }
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const catalog = await getPublicSubscriptionPlanCatalogAction()
+
   return (
     <main
       className="min-h-screen bg-[#f7f9fc] px-4 py-6 text-slate-950 md:px-8 md:py-10"
       dir="rtl"
     >
       <div className="mx-auto flex max-w-[1500px] flex-col gap-8">
-
         <header className="flex items-center justify-between">
           <div>
             <p className="text-sm font-extrabold tracking-wide text-blue-700">
@@ -47,12 +49,15 @@ export default function PricingPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-7 text-slate-500">
-              جميع الأسعار بالجنيه المصري. يمكنك الاختيار بين الاشتراك
-              الشهري والسنوي، مع توفير عند اختيار الاشتراك السنوي.
+              الأسعار والحدود والإضافات المعروضة هنا يتم تحميلها
+              مباشرة من إعدادات إدارة المنصة.
             </p>
           </div>
 
-          <PlanGrid currentPlan="" />
+          <PlanGrid
+            currentPlan=""
+            catalog={catalog}
+          />
         </section>
 
         <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
@@ -61,7 +66,7 @@ export default function PricingPage() {
           </h2>
 
           <p className="mt-2 text-sm leading-7 text-blue-900">
-            نظام الاشتراكات في Dokkan يعتمد حاليًا على مراجعة الإدارة
+            نظام الاشتراكات في Dokkan يعتمد على مراجعة الإدارة
             لإثبات الدفع قبل تفعيل أي خطة مدفوعة.
           </p>
 
@@ -100,47 +105,13 @@ export default function PricingPage() {
           </a>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="text-lg font-extrabold text-slate-900">
-            معلومات مهمة عن الخطة المجانية
-          </h2>
-
-          <ul className="mt-4 flex flex-col gap-3 text-sm leading-7 text-slate-600">
-            <li>
-              • الخطة المجانية متاحة مدى الحياة دون رسوم اشتراك.
-            </li>
-
-            <li>
-              • تشمل متجرًا واحدًا وفرعًا واحدًا ومستخدم دخول واحدًا.
-            </li>
-
-            <li>
-              • تسمح بإضافة حتى 50 منتجًا نشطًا.
-            </li>
-
-            <li>
-              • مساحة التخزين الأساسية 1GB.
-            </li>
-
-            <li>
-              • لا تشمل المميزات الإدارية المتقدمة.
-            </li>
-
-            <li>
-              • تجربة نقاط البيع والمميزات الاحترافية متاحة لمدة 7 أيام
-              وفق شروط التجربة.
-            </li>
-          </ul>
-        </section>
-
         <footer className="border-t border-slate-200 pt-6 text-center">
           <p className="text-xs leading-6 text-slate-400">
             DOKKAN - إدارة متجرك بذكاء.
-            جميع الأسعار بالجنيه المصري، وتخضع طلبات الاشتراك
-            المدفوعة لمراجعة الإدارة قبل التفعيل.
+            جميع الأسعار والحدود تخضع لإعدادات إدارة المنصة.
+            طلبات الاشتراك المدفوعة تخضع لمراجعة الإدارة قبل التفعيل.
           </p>
         </footer>
-
       </div>
     </main>
   )
