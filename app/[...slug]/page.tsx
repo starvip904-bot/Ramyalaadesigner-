@@ -95,7 +95,15 @@ export default async function Page({
   if (type === 'dashboard') {
     const data = await getDashboardData()
 
-      
+    return (
+      <DokkanApp
+        type={type}
+        user={user}
+        content={<DashboardPage data={data} />}
+      />
+    )
+  }
+
   // Returns
   if (type === 'returns') {
     const data = await getReturnsPageData()
@@ -115,7 +123,6 @@ export default async function Page({
       />
     )
   }
-
 
   // Stores
   if (type === 'stores') {
@@ -186,24 +193,6 @@ export default async function Page({
         type={type}
         user={user}
         content={<ReportsPage {...data} />}
-      />
-    )
-  }
-
-  // Returns
-  if (type === 'returns') {
-    const data = await getReturnsPageData()
-
-    return (
-      <DokkanApp
-        type={type}
-        user={user}
-        content={
-          <ReturnsManagementPage
-            sales={data.sales}
-            returns={data.returns}
-          />
-        }
       />
     )
   }
