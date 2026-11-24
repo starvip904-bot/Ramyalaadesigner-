@@ -95,11 +95,20 @@ export default async function Page({
   if (type === 'dashboard') {
     const data = await getDashboardData()
 
+      // Returns
+  if (type === 'returns') {
+    const data = await getReturnsPageData()
+
     return (
       <DokkanApp
         type={type}
         user={user}
-        content={<DashboardPage data={data} />}
+        content={
+          <ReturnsManagementPage
+            sales={data.sales}
+            returns={data.returns}
+          />
+        }
       />
     )
   }
