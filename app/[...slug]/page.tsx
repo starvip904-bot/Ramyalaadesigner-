@@ -8,6 +8,7 @@ import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
 import StoresPage from '@/components/stores-page'
 import ProductInventoryPage from '@/components/product-inventory-page'
+import InventoryThresholdsPanel from '@/components/inventory-thresholds-panel'
 import Phase1ManagementPage from '@/components/phase1-management-page'
 import PurchasesPage from '@/components/purchases-page'
 import PosPage from '@/components/pos-page'
@@ -21,6 +22,7 @@ import { getExpensesPageData } from '@/lib/expenses-repository'
 import { getReportsPageData } from '@/lib/reports-repository'
 import { getReturnsPageData } from '@/lib/returns-repository'
 import { getInventoryCountsPageData } from '@/lib/inventory-counts-repository'
+import { listInventoryAlertThresholds } from '@/lib/inventory-thresholds-repository'
 
 import {
   getDashboardData,
@@ -200,6 +202,39 @@ export default async function Page({
   // Products and Inventory
   if (type === 'products' || type === 'inventory') {
     const storeId = reda.storeId
+
+    if (type === 'inventory') {
+      const [data, thresholds] = await Promise.all([
+        listDokkanProductInventory(storeId),
+        listInventoryAlertThresholds(),
+      ])
+
+      return (
+        <DokkanApp
+          type={type}
+          user={user}
+          content={
+            <div className="space-y-5">
+              <InventoryThresholdsPanel
+                storeId={storeId}
+                role={reda.membership.role ?? null}
+                products={data.products}
+                branches={data.branches}
+                movements={data.movements}
+                thresholds={thresholds}
+              />
+
+              <ProductInventoryPage
+                mode={type}
+                initialData={data}
+                storeIds={[storeId]}
+              />
+            </div>
+          }
+        />
+      )
+    }
+
     const data = await listDokkanProductInventory(storeId)
 
     return (
