@@ -43,7 +43,6 @@ const navGroups = [
         label: 'التحويلات بين الفروع',
         href: '/transfers',
         icon: ArrowLeftRight,
-        comingSoon: true,
       },
     ],
   },
