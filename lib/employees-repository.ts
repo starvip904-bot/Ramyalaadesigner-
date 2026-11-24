@@ -183,13 +183,27 @@ export async function getEmployeesPageData() {
       branchIdsByEmployee.get(employee.id) ??
       (employee.branch_id ? [employee.branch_id] : [])
 
+    const visibleAssignedBranchIds = isManager
+      ? assignedBranchIds.filter((branchId) =>
+          managerBranchIds.has(branchId)
+        )
+      : assignedBranchIds
+
+    const visiblePrimaryBranchId =
+      isManager &&
+      employee.branch_id &&
+      !managerBranchIds.has(employee.branch_id)
+        ? null
+        : employee.branch_id
+
     return {
       ...employee,
+      branch_id: visiblePrimaryBranchId,
       email: employee.email ?? invitation?.email ?? null,
       invitation_status: invitationStatusAvailable
         ? invitation?.status ?? 'none'
         : 'unavailable',
-      branch_ids: assignedBranchIds,
+      branch_ids: visibleAssignedBranchIds,
     }
   })
 
