@@ -64,6 +64,7 @@ type Props = {
   storeId: string
   initialEmployees: Employee[]
   branches: Branch[]
+  isManager: boolean
 }
 
 const roleLabels: Record<EmployeeRole, string> = {
@@ -96,6 +97,7 @@ type ActiveTab = 'employees' | 'attendance' | 'schedule'
 export default function EmployeesManagementPage({
   initialEmployees,
   branches,
+  isManager,
 }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
   const [query, setQuery] = useState('')
@@ -130,16 +132,18 @@ export default function EmployeesManagementPage({
         .join(' ')
 
       return `${employee.name} ${employee.phone || ''} ${
-        employee.email || ''
+        isManager ? '' : employee.email || ''
       } ${branchNames} ${roleLabels[employee.role]} ${
-        invitationLabels[employee.invitation_status]
+        isManager ? '' : invitationLabels[employee.invitation_status]
       }`
         .toLowerCase()
         .includes(search)
     })
-  }, [employees, query, branches])
+  }, [employees, query, branches, isManager])
 
   function openAdd() {
+    if (isManager) return
+
     setEditingId(null)
     setForm(emptyForm)
     setError('')
@@ -185,6 +189,7 @@ export default function EmployeesManagementPage({
     }
 
     if (
+      !isManager &&
       form.email.trim() &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
     ) {
@@ -192,21 +197,37 @@ export default function EmployeesManagementPage({
       return
     }
 
+    if (!editingId && isManager) {
+      setError('ليس لديك صلاحية إضافة موظفين')
+      return
+    }
+
     setLoading(true)
 
     try {
-      const input = {
-        name: form.name.trim(),
-        phone: form.phone.trim() || undefined,
-        email: form.email.trim(),
-        role: form.role,
-        branchIds: form.branchIds,
-      }
-
       if (editingId) {
-        await updateEmployee(editingId, input)
+        if (isManager) {
+          await updateEmployee(editingId, {
+            name: form.name.trim(),
+            phone: form.phone.trim() || undefined,
+          })
+        } else {
+          await updateEmployee(editingId, {
+            name: form.name.trim(),
+            phone: form.phone.trim() || undefined,
+            email: form.email.trim(),
+            role: form.role,
+            branchIds: form.branchIds,
+          })
+        }
       } else {
-        await createEmployee(input)
+        await createEmployee({
+          name: form.name.trim(),
+          phone: form.phone.trim() || undefined,
+          email: form.email.trim(),
+          role: form.role,
+          branchIds: form.branchIds,
+        })
       }
 
       window.location.reload()
@@ -221,6 +242,8 @@ export default function EmployeesManagementPage({
   }
 
   async function toggleStatus(employee: Employee) {
+    if (isManager) return
+
     const nextStatus: EmployeeStatus =
       employee.status === 'active' ? 'inactive' : 'active'
 
@@ -286,12 +309,12 @@ export default function EmployeesManagementPage({
                 إدارة الموظفين
               </h2>
               <p className="mt-1 text-xs leading-6 text-slate-500 sm:text-sm">
-                إدارة بيانات فريق العمل والدعوات ومتابعة الحضور والانصراف والورديات
+                إدارة بيانات فريق العمل ومتابعة الحضور والانصراف والورديات
               </p>
             </div>
           </div>
 
-          {activeTab === 'employees' && (
+          {!isManager && activeTab === 'employees' && (
             <button
               type="button"
               onClick={openAdd}
@@ -395,15 +418,24 @@ export default function EmployeesManagementPage({
             </div>
           </section>
 
-          <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs leading-6 text-amber-800 sm:p-4 sm:text-sm">
-            <div className="mt-0.5 shrink-0">
-              <UserRound size={19} />
+          {!isManager && (
+            <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs leading-6 text-amber-800 sm:p-4 sm:text-sm">
+              <div className="mt-0.5 shrink-0">
+                <UserRound size={19} />
+              </div>
+              <p>
+                حفظ البريد الإلكتروني ينشئ مسودة دعوة فقط. لا يتم إرسال بريد
+                إلكتروني أو إنشاء حساب دخول للموظف في هذه المرحلة.
+              </p>
             </div>
-            <p>
-              حفظ البريد الإلكتروني ينشئ مسودة دعوة فقط. لا يتم إرسال بريد
-              إلكتروني أو إنشاء حساب دخول للموظف في هذه المرحلة.
-            </p>
-          </div>
+          )}
+
+          {isManager && (
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm leading-6 text-blue-800">
+              صلاحيتك في إدارة الموظفين تقتصر على تعديل الاسم ورقم الهاتف
+              للموظفين داخل الفروع المسموح لك بها.
+            </div>
+          )}
 
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
@@ -434,7 +466,7 @@ export default function EmployeesManagementPage({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="ابحث بالاسم أو الهاتف أو البريد أو الفرع..."
+                  placeholder="ابحث بالاسم أو الهاتف أو الفرع..."
                   className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
 
@@ -490,10 +522,12 @@ export default function EmployeesManagementPage({
                             {employee.phone || 'لا يوجد هاتف'}
                           </span>
 
-                          <span className="flex items-center gap-1.5 break-all">
-                            <Mail size={14} />
-                            {employee.email || 'لا يوجد بريد إلكتروني'}
-                          </span>
+                          {!isManager && (
+                            <span className="flex items-center gap-1.5 break-all">
+                              <Mail size={14} />
+                              {employee.email || 'لا يوجد بريد إلكتروني'}
+                            </span>
+                          )}
                         </div>
 
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -505,23 +539,25 @@ export default function EmployeesManagementPage({
                             : 'غير محدد'}
                         </div>
 
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                            {roleLabels[employee.role]}
-                          </span>
+                        {!isManager && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                              {roleLabels[employee.role]}
+                            </span>
 
-                          <span
-                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${getInvitationStyle(
-                              employee.invitation_status
-                            )}`}
-                          >
-                            {invitationLabels[employee.invitation_status]}
-                          </span>
-                        </div>
+                            <span
+                              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${getInvitationStyle(
+                                employee.invitation_status
+                              )}`}
+                            >
+                              {invitationLabels[employee.invitation_status]}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                    <div className={`mt-4 grid ${isManager ? 'grid-cols-1' : 'grid-cols-2'} gap-2 border-t border-slate-100 pt-3`}>
                       <button
                         type="button"
                         onClick={() => openEdit(employee)}
@@ -532,28 +568,30 @@ export default function EmployeesManagementPage({
                         تعديل البيانات
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(employee)}
-                        disabled={loading}
-                        className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 sm:text-sm ${
-                          employee.status === 'active'
-                            ? 'border-red-100 text-red-600 hover:bg-red-50'
-                            : 'border-green-100 text-green-700 hover:bg-green-50'
-                        }`}
-                      >
-                        {employee.status === 'active' ? (
-                          <>
-                            <UserX size={15} />
-                            إيقاف الموظف
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck size={15} />
-                            إعادة التفعيل
-                          </>
-                        )}
-                      </button>
+                      {!isManager && (
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(employee)}
+                          disabled={loading}
+                          className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 sm:text-sm ${
+                            employee.status === 'active'
+                              ? 'border-red-100 text-red-600 hover:bg-red-50'
+                              : 'border-green-100 text-green-700 hover:bg-green-50'
+                          }`}
+                        >
+                          {employee.status === 'active' ? (
+                            <>
+                              <UserX size={15} />
+                              إيقاف الموظف
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck size={15} />
+                              إعادة التفعيل
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </article>
                 )
@@ -570,7 +608,7 @@ export default function EmployeesManagementPage({
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    جرّب البحث باسم أو بريد أو رقم هاتف مختلف
+                    جرّب البحث باسم أو رقم هاتف مختلف
                   </p>
 
                   {query && (
@@ -621,7 +659,9 @@ export default function EmployeesManagementPage({
                       </h3>
 
                       <p className="mt-1 text-xs text-slate-500">
-                        أدخل بيانات الموظف وحدد فروع عمله
+                        {isManager
+                          ? 'يمكنك تعديل الاسم ورقم الهاتف فقط'
+                          : 'أدخل بيانات الموظف وحدد فروع عمله'}
                       </p>
                     </div>
                   </div>
@@ -653,25 +693,6 @@ export default function EmployeesManagementPage({
                 </label>
 
                 <label className="block space-y-2 text-sm font-bold text-slate-700">
-                  البريد الإلكتروني
-                  <input
-                    type="email"
-                    maxLength={320}
-                    value={form.email}
-                    onChange={(event) =>
-                      setForm({ ...form, email: event.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                    placeholder="employee@example.com"
-                    dir="ltr"
-                  />
-
-                  <span className="block text-xs font-normal text-slate-400">
-                    اختياري حاليًا، وسيتم حفظ الدعوة كمسودة فقط
-                  </span>
-                </label>
-
-                <label className="block space-y-2 text-sm font-bold text-slate-700">
                   رقم الهاتف
                   <span className="font-normal text-slate-400">
                     {' '}(اختياري)
@@ -689,63 +710,86 @@ export default function EmployeesManagementPage({
                   />
                 </label>
 
-                <label className="block space-y-2 text-sm font-bold text-slate-700">
-                  طبيعة العمل
-                  <select
-                    value={form.role}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        role: event.target.value as EmployeeRole,
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="cashier">كاشير</option>
-                    <option value="stock_manager">مسؤول مخزون</option>
-                    <option value="manager">مدير فرع</option>
-                    <option value="viewer">مشاهد</option>
-                  </select>
-                </label>
+                {!isManager && (
+                  <>
+                    <label className="block space-y-2 text-sm font-bold text-slate-700">
+                      البريد الإلكتروني
+                      <input
+                        type="email"
+                        maxLength={320}
+                        value={form.email}
+                        onChange={(event) =>
+                          setForm({ ...form, email: event.target.value })
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                        placeholder="employee@example.com"
+                        dir="ltr"
+                      />
 
-                <div className="space-y-2">
-                  <p className="text-sm font-bold text-slate-700">
-                    الفروع المسموح للموظف بالعمل بها
-                  </p>
+                      <span className="block text-xs font-normal text-slate-400">
+                        اختياري حاليًا، وسيتم حفظ الدعوة كمسودة فقط
+                      </span>
+                    </label>
 
-                  <p className="text-xs text-slate-400">
-                    يمكنك اختيار فرع واحد أو أكثر
-                  </p>
+                    <label className="block space-y-2 text-sm font-bold text-slate-700">
+                      طبيعة العمل
+                      <select
+                        value={form.role}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            role: event.target.value as EmployeeRole,
+                          })
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-normal outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="cashier">كاشير</option>
+                        <option value="stock_manager">مسؤول مخزون</option>
+                        <option value="manager">مدير فرع</option>
+                        <option value="viewer">مشاهد</option>
+                      </select>
+                    </label>
 
-                  {activeBranches.length === 0 ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-800">
-                      لا توجد فروع نشطة متاحة للاختيار حاليًا.
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-slate-700">
+                        الفروع المسموح للموظف بالعمل بها
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        يمكنك اختيار فرع واحد أو أكثر
+                      </p>
+
+                      {activeBranches.length === 0 ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-800">
+                          لا توجد فروع نشطة متاحة للاختيار حاليًا.
+                        </div>
+                      ) : (
+                        <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          {activeBranches.map((branch) => (
+                            <label
+                              key={branch.id}
+                              className="flex cursor-pointer items-center gap-3 rounded-lg bg-white p-3 text-sm font-medium text-slate-700"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={form.branchIds.includes(branch.id)}
+                                onChange={() => toggleBranch(branch.id)}
+                                className="h-4 w-4 accent-blue-600"
+                              />
+
+                              <Store size={16} className="text-slate-400" />
+                              {branch.name}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-slate-500">
+                        الفروع المختارة: {form.branchIds.length}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      {activeBranches.map((branch) => (
-                        <label
-                          key={branch.id}
-                          className="flex cursor-pointer items-center gap-3 rounded-lg bg-white p-3 text-sm font-medium text-slate-700"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={form.branchIds.includes(branch.id)}
-                            onChange={() => toggleBranch(branch.id)}
-                            className="h-4 w-4 accent-blue-600"
-                          />
-
-                          <Store size={16} className="text-slate-400" />
-                          {branch.name}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="text-xs text-slate-500">
-                    الفروع المختارة: {form.branchIds.length}
-                  </p>
-                </div>
+                  </>
+                )}
 
                 {error && (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold leading-6 text-red-700">
