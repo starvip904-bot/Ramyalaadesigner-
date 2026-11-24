@@ -442,7 +442,7 @@ export default function DashboardPage({
             </h3>
 
             <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-              حسب أرصدة الفروع الحالية
+              حسب حد التنبيه المحدد لكل منتج وفرع
             </p>
           </div>
 
