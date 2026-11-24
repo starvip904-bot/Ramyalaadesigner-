@@ -389,19 +389,20 @@ export async function setEmployeeStatus(
     throw new Error('بيانات الموظف غير صحيحة')
   }
 
-  const { data, error } = await context.supabase
-    .from('dokkan_employees')
-    .update({
-      status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .eq('store_id', context.storeId)
-    .select('id')
-    .maybeSingle()
+  const { data, error } = await context.supabase.rpc(
+    'dokkan_set_employee_status',
+    {
+      p_store_id: context.storeId,
+      p_employee_id: id,
+      p_next_status: status,
+    }
+  )
 
   if (error || !data) {
-    console.error('[Employees] Status update failed:', error?.code)
+    console.error(
+      '[Employees] Status RPC failed:',
+      error?.code
+    )
     throw new Error('تعذر تحديث حالة الموظف')
   }
 
