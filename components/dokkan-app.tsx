@@ -1,11 +1,10 @@
 
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import DokkanSidebar from '@/components/dokkan-sidebar'
 import ThemeToggle from '@/components/theme-toggle'
+import MobileBottomNav from '@/components/mobile-bottom-nav'
 import {
   LayoutDashboard,
   Store,
@@ -635,11 +634,12 @@ export default function DokkanApp({
   }
   content?: React.ReactNode
 }) {
-  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const meta = pageMeta[type] || pageMeta.dashboard
 
+  // إبقاء تعريف عناصر التنقل القديم دون تغيير بقية بيانات التطبيق.
   const mobileNav = [nav[0], nav[1], nav[3], nav[6]]
+  void mobileNav
 
   return (
     <div className="flex min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -690,25 +690,7 @@ export default function DokkanApp({
           )}
         </main>
 
-        <nav
-          aria-label="التنقل السريع"
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[var(--line)] bg-[var(--surface)]/95 px-2 py-2 backdrop-blur lg:hidden"
-        >
-          {mobileNav.map(({ label, href, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center gap-1 rounded-xl px-2 py-1 text-[10px] font-bold transition ${
-                pathname === href
-                  ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
-                  : 'text-[var(--muted)]'
-              }`}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
+        <MobileBottomNav />
       </div>
     </div>
   )
