@@ -30,6 +30,8 @@ export default async function ReturnsPage() {
           returns={data.returns}
           requests={data.requests}
           userRole={reda.membership.role}
+          exchangeProducts={data.exchangeProducts}
+          exchangeSettlements={data.exchangeSettlements}
         />
       }
     />
