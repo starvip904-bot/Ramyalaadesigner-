@@ -123,6 +123,43 @@ export async function getInventoryTransfersPageData() {
           allowedBranchIds?.includes(branch.id)
         )
 
+  // توحيد العلاقات الراجعة من Supabase إلى كائن واحد أو null.
+  const normalizedTransfers = (transfers ?? []).map((transfer) => {
+    const sourceBranch = Array.isArray(transfer.source_branch)
+      ? transfer.source_branch[0] ?? null
+      : transfer.source_branch ?? null
+
+    const destinationBranch = Array.isArray(
+      transfer.destination_branch
+    )
+      ? transfer.destination_branch[0] ?? null
+      : transfer.destination_branch ?? null
+
+    const relatedVariant = Array.isArray(transfer.variant)
+      ? transfer.variant[0] ?? null
+      : transfer.variant ?? null
+
+    const relatedProduct = relatedVariant
+      ? Array.isArray(relatedVariant.product)
+        ? relatedVariant.product[0] ?? null
+        : relatedVariant.product ?? null
+      : null
+
+    const variant = relatedVariant
+      ? {
+          ...relatedVariant,
+          product: relatedProduct,
+        }
+      : null
+
+    return {
+      ...transfer,
+      source_branch: sourceBranch,
+      destination_branch: destinationBranch,
+      variant,
+    }
+  })
+
   let movements: Array<{
     id: string
     store_id: string
@@ -182,6 +219,6 @@ export async function getInventoryTransfersPageData() {
     branches: visibleBranches,
     products: products ?? [],
     movements,
-    transfers: transfers ?? [],
+    transfers: normalizedTransfers,
   }
 }
