@@ -101,6 +101,7 @@ export async function listDokkanProductInventory(storeId: string) {
     { data: products, error: productsError },
     { data: branches, error: branchesError },
     { data: movements, error: movementsError },
+    { data: thresholds, error: thresholdsError },
   ] = await Promise.all([
     supabase
       .from('dokkan_products')
@@ -128,9 +129,19 @@ export async function listDokkanProductInventory(storeId: string) {
       .select('id, store_id, branch_id, product_variant_id, movement_type, quantity, created_at')
       .eq('store_id', scopedStoreId)
       .order('created_at', { ascending: true }),
+
+    supabase
+      .from('dokkan_inventory_alert_thresholds')
+      .select('id, store_id, branch_id, product_variant_id, minimum_quantity')
+      .eq('store_id', scopedStoreId),
   ])
 
-  if (productsError || branchesError || movementsError) {
+  if (
+    productsError ||
+    branchesError ||
+    movementsError ||
+    thresholdsError
+  ) {
     throw new Error('Unable to load product inventory')
   }
 
@@ -138,6 +149,7 @@ export async function listDokkanProductInventory(storeId: string) {
     products: products ?? [],
     branches: branches ?? [],
     movements: movements ?? [],
+    thresholds: thresholds ?? [],
   }
 }
 
@@ -411,6 +423,7 @@ export async function getDashboardData() {
     { data: sales, error: salesError },
     { data: expenses, error: expensesError },
     { data: movements, error: movementsError },
+    { data: thresholds, error: thresholdsError },
   ] = await Promise.all([
     supabase
       .from('dokkan_sales')
@@ -438,14 +451,31 @@ export async function getDashboardData() {
       .from('dokkan_inventory_movements')
       .select('movement_type, quantity, product_variant_id, branch_id, created_at')
       .eq('store_id', storeId),
+
+    supabase
+      .from('dokkan_inventory_alert_thresholds')
+      .select('branch_id, product_variant_id, minimum_quantity')
+      .eq('store_id', storeId),
   ])
 
-  if (salesError || expensesError || movementsError) {
+  if (
+    salesError ||
+    expensesError ||
+    movementsError ||
+    thresholdsError
+  ) {
     throw new Error('Unable to load dashboard data')
   }
 
   const saleRows = sales ?? []
   const movementRows = movements ?? []
+
+  const thresholdByInventoryKey = new Map(
+    (thresholds ?? []).map((item) => [
+      `${item.branch_id}:${item.product_variant_id}`,
+      Number(item.minimum_quantity),
+    ])
+  )
 
   const inventory = new Map<string, number>()
 
@@ -545,8 +575,16 @@ export async function getDashboardData() {
       0
     ),
 
-    lowStockCount: Array.from(inventory.values()).filter(
-      (quantity) => quantity > 0 && quantity < 5
+    lowStockCount: Array.from(inventory.entries()).filter(
+      ([key, quantity]) => {
+        const threshold = thresholdByInventoryKey.get(key) ?? 5
+
+        return (
+          quantity > 0 &&
+          threshold > 0 &&
+          quantity < threshold
+        )
+      }
     ).length,
 
     salesByDay,
