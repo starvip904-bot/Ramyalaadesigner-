@@ -5,11 +5,9 @@ import {
   PlanGrid,
   SubscriptionHero,
 } from '@/components/subscription-plans'
+import { getPublicSubscriptionPlanCatalogAction } from '@/app/actions/platform-plan-settings'
 import { requireRedaContext } from '@/lib/reda-scope'
-import {
-  getPlanDefinition,
-  isPermanentFreePlan,
-} from '@/lib/subscription-plans'
+import { isPermanentFreePlan } from '@/lib/subscription-plans'
 
 export const metadata = {
   title: 'اشتراكي | DOKKAN',
@@ -48,11 +46,17 @@ export default async function SubscriptionPage() {
     throw new Error('تعذر تحميل بيانات اشتراك المتجر')
   }
 
+  const catalog = await getPublicSubscriptionPlanCatalogAction()
+
   const planCode = store.plan_code?.toLowerCase() ?? ''
-  const planDefinition = getPlanDefinition(planCode)
+
+  const planDefinitions = catalog.plans as Record<
+    string,
+    { name?: string } | undefined
+  >
 
   const planName =
-    planDefinition?.name ??
+    planDefinitions[planCode]?.name ??
     (planCode ? 'خطة قديمة تحتاج إلى مراجعة' : 'خطة غير محددة')
 
   const statusLabels: Record<string, string> = {
@@ -162,7 +166,10 @@ export default async function SubscriptionPage() {
             </p>
           </div>
 
-          <PlanGrid currentPlan={planCode} />
+          <PlanGrid
+            currentPlan={planCode}
+            catalog={catalog}
+          />
         </section>
 
         <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
