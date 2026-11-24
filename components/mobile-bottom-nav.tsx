@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -26,27 +26,13 @@ import {
   ChevronLeft,
 } from 'lucide-react'
 
+const ORDER_STORAGE_KEY = 'dokkan-sidebar-group-order'
+
 const primaryItems = [
-  {
-    label: 'الرئيسية',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'المخزون',
-    href: '/inventory',
-    icon: Package,
-  },
-  {
-    label: 'نقطة البيع',
-    href: '/pos',
-    icon: ShoppingCart,
-  },
-  {
-    label: 'المبيعات',
-    href: '/sales',
-    icon: ReceiptText,
-  },
+  { label: 'الرئيسية', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'المخزون', href: '/inventory', icon: Package },
+  { label: 'نقطة البيع', href: '/pos', icon: ShoppingCart },
+  { label: 'المبيعات', href: '/sales', icon: ReceiptText },
 ]
 
 const menuGroups = [
@@ -67,11 +53,7 @@ const menuGroups = [
   {
     title: 'المبيعات والعملاء',
     items: [
-      {
-        label: 'المرتجعات والاستبدال',
-        href: '/returns',
-        icon: RotateCcw,
-      },
+      { label: 'المرتجعات والاستبدال', href: '/returns', icon: RotateCcw },
       { label: 'العملاء', href: '/customers', icon: Users },
     ],
   },
@@ -95,6 +77,33 @@ const menuGroups = [
   },
 ]
 
+type MenuGroup = (typeof menuGroups)[number]
+
+function getSavedGroupOrder(): MenuGroup[] {
+  try {
+    const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+
+    if (!saved) return menuGroups
+
+    const titles = JSON.parse(saved)
+
+    if (!Array.isArray(titles)) return menuGroups
+
+    const ordered = titles
+      .filter((title): title is string => typeof title === 'string')
+      .map((title) => menuGroups.find((group) => group.title === title))
+      .filter((group): group is MenuGroup => Boolean(group))
+
+    const missing = menuGroups.filter(
+      (group) => !ordered.some((item) => item.title === group.title)
+    )
+
+    return [...ordered, ...missing]
+  } catch {
+    return menuGroups
+  }
+}
+
 function isActivePath(pathname: string, href: string) {
   if (href === '/inventory') {
     return (
@@ -110,8 +119,13 @@ function isActivePath(pathname: string, href: string) {
 export default function MobileBottomNav() {
   const pathname = usePathname()
   const [showMore, setShowMore] = useState(false)
+  const [orderedGroups, setOrderedGroups] = useState<MenuGroup[]>(menuGroups)
 
-  const moreActive = menuGroups.some((group) =>
+  useEffect(() => {
+    setOrderedGroups(getSavedGroupOrder())
+  }, [])
+
+  const moreActive = orderedGroups.some((group) =>
     group.items.some((item) => isActivePath(pathname, item.href))
   )
 
@@ -154,7 +168,7 @@ export default function MobileBottomNav() {
             </div>
 
             <div className="space-y-5">
-              {menuGroups.map((group) => (
+              {orderedGroups.map((group) => (
                 <section key={group.title}>
                   <h3 className="mb-2 px-1 text-xs font-extrabold text-[var(--muted)]">
                     {group.title}
