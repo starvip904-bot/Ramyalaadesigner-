@@ -11,6 +11,7 @@ import ProductInventoryPage from '@/components/product-inventory-page'
 import InventoryThresholdsPanel from '@/components/inventory-thresholds-panel'
 import InventoryTransfersPage from '@/components/inventory-transfers-page'
 import Phase1ManagementPage from '@/components/phase1-management-page'
+import SettingsManagementPage from '@/components/settings-management-page'
 import PurchasesPage from '@/components/purchases-page'
 import PosPage from '@/components/pos-page'
 import EmployeesManagementPage from '@/components/employees-management-page'
@@ -366,14 +367,21 @@ export default async function Page({
         type={type}
         user={user}
         content={
-          <Phase1ManagementPage
-            type={type}
-            storeId={storeId}
-            initialCustomers={customers}
-            initialSuppliers={suppliers}
-            initialSettings={settings}
-            initialAudit={audit}
-          />
+          type === 'settings' ? (
+            <SettingsManagementPage
+              storeId={storeId}
+              initial={settings}
+            />
+          ) : (
+            <Phase1ManagementPage
+              type={type}
+              storeId={storeId}
+              initialCustomers={customers}
+              initialSuppliers={suppliers}
+              initialSettings={settings}
+              initialAudit={audit}
+            />
+          )
         }
       />
     )
