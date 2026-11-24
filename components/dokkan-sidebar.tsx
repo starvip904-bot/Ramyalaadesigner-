@@ -55,7 +55,6 @@ const navGroups = [
         label: 'المرتجعات والاستبدال',
         href: '/returns',
         icon: RotateCcw,
-        comingSoon: true,
       },
       { label: 'العملاء', href: '/customers', icon: Users },
     ],
@@ -115,7 +114,6 @@ export default function DokkanSidebar({
       } bg-[var(--sidebar)] text-[var(--foreground)]`}
     >
       <div className="flex h-full flex-col">
-        {/* Brand */}
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-5 sm:px-6">
           <Link
             href="/dashboard"
@@ -153,7 +151,6 @@ export default function DokkanSidebar({
           )}
         </div>
 
-        {/* Current store */}
         <div className="mx-4 mt-5 rounded-2xl border border-[var(--line)] bg-[var(--surface-secondary)] px-3 py-3">
           <p className="text-xs text-[var(--muted)]">
             المتجر الحالي
@@ -170,7 +167,6 @@ export default function DokkanSidebar({
           </div>
         </div>
 
-        {/* Navigation */}
         <nav
           aria-label="القائمة الرئيسية"
           className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-5 sm:px-4"
@@ -205,43 +201,35 @@ export default function DokkanSidebar({
 
                 {!isCollapsed && (
                   <div className="space-y-1">
-                    {group.items.map(
-                      ({ label, href, icon: Icon, comingSoon }) => {
-                        const active =
-                          pathname === href ||
-                          pathname.startsWith(`${href}/`)
+                    {group.items.map(({ label, href, icon: Icon }) => {
+                      const active =
+                        pathname === href ||
+                        pathname.startsWith(`${href}/`)
 
-                        return (
-                          <Link
-                            key={href}
-                            href={href}
-                            onClick={onClose}
-                            aria-current={active ? 'page' : undefined}
-                            className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
-                              active
-                                ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
-                                : 'text-[var(--muted-strong)] hover:bg-[var(--surface-secondary)] hover:text-[var(--brand)]'
-                            }`}
-                          >
-                            <Icon
-                              size={20}
-                              strokeWidth={active ? 2.4 : 2}
-                              className="shrink-0"
-                            />
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={onClose}
+                          aria-current={active ? 'page' : undefined}
+                          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
+                            active
+                              ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
+                              : 'text-[var(--muted-strong)] hover:bg-[var(--surface-secondary)] hover:text-[var(--brand)]'
+                          }`}
+                        >
+                          <Icon
+                            size={20}
+                            strokeWidth={active ? 2.4 : 2}
+                            className="shrink-0"
+                          />
 
-                            <span className="min-w-0 flex-1 leading-6">
-                              {label}
-                            </span>
-
-                            {comingSoon && (
-                              <span className="shrink-0 rounded-full bg-[var(--warning-soft)] px-2 py-1 text-[10px] font-bold text-[var(--warning)]">
-                                غير متاح
-                              </span>
-                            )}
-                          </Link>
-                        )
-                      }
-                    )}
+                          <span className="min-w-0 flex-1 leading-6">
+                            {label}
+                          </span>
+                        </Link>
+                      )
+                    })}
                   </div>
                 )}
               </section>
@@ -249,7 +237,6 @@ export default function DokkanSidebar({
           })}
         </nav>
 
-        {/* Subscription */}
         <div className="border-t border-[var(--line)] p-4">
           <Link
             href="/subscription"
