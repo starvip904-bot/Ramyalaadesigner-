@@ -139,6 +139,7 @@ export default async function Page({
             storeId={data.storeId}
             initialEmployees={data.employees}
             branches={data.branches}
+            isManager={reda.membership.role === 'manager'}
           />
         }
       />
