@@ -109,7 +109,7 @@ export default function SubscriptionUpgradeManager({
     setBusy(true)
 
     try {
-      let activeRequestId = requestId
+      let activeRequestId: string = requestId ?? ''
 
       if (!activeRequestId) {
         const draft = await createSubscriptionUpgradeDraftAction({
@@ -127,6 +127,10 @@ export default function SubscriptionUpgradeManager({
           billingCycle: draft.billingCycle,
           targetPlanCode: draft.targetPlanCode,
         })
+      }
+
+      if (!activeRequestId) {
+        throw new Error('تعذر الحصول على رقم طلب الترقية.')
       }
 
       await uploadSubscriptionProofAndSubmitAction(
