@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -22,6 +22,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronDown,
+  ChevronUp,
   X,
 } from 'lucide-react'
 
@@ -79,11 +80,40 @@ const navGroups = [
   },
 ]
 
+const ORDER_STORAGE_KEY = 'dokkan-sidebar-group-order'
+
+type NavGroup = (typeof navGroups)[number]
+
 type DokkanSidebarProps = {
   mobile?: boolean
   onClose?: () => void
   user: {
     storeName: string | null
+  }
+}
+
+function getSavedGroupOrder(): NavGroup[] {
+  try {
+    const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+
+    if (!saved) return navGroups
+
+    const titles = JSON.parse(saved)
+
+    if (!Array.isArray(titles)) return navGroups
+
+    const ordered = titles
+      .filter((title): title is string => typeof title === 'string')
+      .map((title) => navGroups.find((group) => group.title === title))
+      .filter((group): group is NavGroup => Boolean(group))
+
+    const missing = navGroups.filter(
+      (group) => !ordered.some((item) => item.title === group.title)
+    )
+
+    return [...ordered, ...missing]
+  } catch {
+    return navGroups
   }
 }
 
@@ -98,11 +128,40 @@ export default function DokkanSidebar({
     Record<string, boolean>
   >({})
 
+  const [orderedGroups, setOrderedGroups] = useState<NavGroup[]>(navGroups)
+
+  useEffect(() => {
+    setOrderedGroups(getSavedGroupOrder())
+  }, [])
+
   function toggleGroup(title: string) {
     setCollapsedGroups((current) => ({
       ...current,
       [title]: !current[title],
     }))
+  }
+
+  function moveGroup(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction
+
+    if (targetIndex < 0 || targetIndex >= orderedGroups.length) return
+
+    const next = [...orderedGroups]
+    const currentGroup = next[index]
+
+    next[index] = next[targetIndex]
+    next[targetIndex] = currentGroup
+
+    setOrderedGroups(next)
+
+    try {
+      localStorage.setItem(
+        ORDER_STORAGE_KEY,
+        JSON.stringify(next.map((group) => group.title))
+      )
+    } catch {
+      // يظل الترتيب فعالًا في الصفحة الحالية إذا تعذر حفظه.
+    }
   }
 
   return (
@@ -171,33 +230,59 @@ export default function DokkanSidebar({
           aria-label="القائمة الرئيسية"
           className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-5 sm:px-4"
         >
-          {navGroups.map((group) => {
+          {orderedGroups.map((group, index) => {
             const isCollapsed = Boolean(collapsedGroups[group.title])
 
             return (
               <section key={group.title}>
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.title)}
-                  aria-expanded={!isCollapsed}
-                  className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-right transition hover:bg-[var(--surface-secondary)]"
-                >
-                  <span className="text-xs font-extrabold tracking-wide text-[var(--muted)]">
-                    {group.title}
-                  </span>
+                <div className="mb-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.title)}
+                    aria-expanded={!isCollapsed}
+                    className="flex min-h-10 min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-right transition hover:bg-[var(--surface-secondary)]"
+                  >
+                    <span className="truncate text-xs font-extrabold tracking-wide text-[var(--muted)]">
+                      {group.title}
+                    </span>
 
-                  {isCollapsed ? (
-                    <ChevronLeft
-                      size={16}
-                      className="text-[var(--muted)]"
-                    />
-                  ) : (
-                    <ChevronDown
-                      size={16}
-                      className="text-[var(--muted)]"
-                    />
-                  )}
-                </button>
+                    {isCollapsed ? (
+                      <ChevronLeft
+                        size={16}
+                        className="shrink-0 text-[var(--muted)]"
+                      />
+                    ) : (
+                      <ChevronDown
+                        size={16}
+                        className="shrink-0 text-[var(--muted)]"
+                      />
+                    )}
+                  </button>
+
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveGroup(index, -1)}
+                      disabled={index === 0}
+                      aria-label={`نقل ${group.title} لأعلى`}
+                      title="تحريك لأعلى"
+                      className="flex size-8 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-25"
+                    >
+                      <ChevronUp size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => moveGroup(index, 1)}
+                      disabled={index === orderedGroups.length - 1}
+                      aria-label={`نقل ${group.title} لأسفل`}
+                      title="تحريك لأسفل"
+                      className="flex size-8 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-25"
+                    >
+                      <ChevronDown size={16} />
+                    </button>
+                  </div>
+                </div>
 
                 {!isCollapsed && (
                   <div className="space-y-1">
