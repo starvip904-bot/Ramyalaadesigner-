@@ -204,6 +204,7 @@ export default async function SubscriptionPage() {
 
           <SubscriptionRequestManager
             storeName={store.name}
+            catalog={catalog}
           />
         </section>
 
