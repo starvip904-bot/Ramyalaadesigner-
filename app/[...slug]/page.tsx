@@ -129,7 +129,7 @@ export default async function Page({
     )
   }
 
-  // Returns
+  // Returns and exchanges
   if (type === 'returns') {
     const data = await getReturnsPageData()
 
@@ -143,6 +143,8 @@ export default async function Page({
             returns={data.returns}
             requests={data.requests}
             userRole={reda.membership.role ?? null}
+            exchangeProducts={data.exchangeProducts}
+            exchangeSettlements={data.exchangeSettlements}
           />
         }
       />
