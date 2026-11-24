@@ -3,7 +3,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireRedaContext } from '@/lib/reda-scope'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 type EmployeeRole = 'manager' | 'cashier' | 'stock_manager' | 'viewer'
 
@@ -11,7 +10,7 @@ type EmployeeInput = {
   name: string
   phone?: string
   email?: string
-  role: EmployeeRole
+  role?: EmployeeRole
   branchId?: string | null
   branchIds?: string[]
 }
@@ -35,7 +34,7 @@ function normalizeEmail(value?: string) {
   return email
 }
 
-function validateEmployee(input: EmployeeInput) {
+function validateNameAndPhone(input: EmployeeInput) {
   const name = input.name?.trim()
 
   if (!name || name.length < 2 || name.length > 120) {
@@ -46,6 +45,10 @@ function validateEmployee(input: EmployeeInput) {
     throw new Error('رقم الهاتف أطول من المسموح')
   }
 
+  return name
+}
+
+function validateRole(role?: EmployeeRole) {
   const roles: EmployeeRole[] = [
     'manager',
     'cashier',
@@ -53,18 +56,14 @@ function validateEmployee(input: EmployeeInput) {
     'viewer',
   ]
 
-  if (!roles.includes(input.role)) {
+  if (!role || !roles.includes(role)) {
     throw new Error('نوع الموظف غير صحيح')
   }
 
-  return name
+  return role
 }
 
-async function validateBranches(
-  supabase: Awaited<ReturnType<typeof getEmployeeContext>>['supabase'],
-  storeId: string,
-  input: EmployeeInput
-) {
+function getRequestedBranchIds(input: EmployeeInput) {
   const requested = input.branchIds !== undefined
     ? input.branchIds
     : input.branchId
@@ -77,242 +76,40 @@ async function validateBranches(
     throw new Error('يوجد فرع مكرر في الاختيارات')
   }
 
-  if (branchIds.length === 0) return []
-
-  const { data, error } = await supabase
-    .from('dokkan_branches')
-    .select('id')
-    .eq('store_id', storeId)
-    .eq('status', 'active')
-    .in('id', branchIds)
-
-  if (error || !data || data.length !== branchIds.length) {
-    throw new Error('أحد الفروع المختارة غير صحيح أو غير نشط أو ليس لديك صلاحية عليه')
-  }
-
   return branchIds
-}
-
-/**
- * Synchronizes the employee's permanent branch assignments.
- * Uses a server-side RPC restricted to service_role.
- */
-async function saveEmployeeBranches(params: {
-  storeId: string
-  employeeId: string
-  branchIds: string[]
-}) {
-  const admin = createAdminClient()
-
-  const { error } = await admin.rpc('dokkan_set_employee_branches', {
-    target_store_id: params.storeId,
-    target_employee_id: params.employeeId,
-    target_branch_ids: params.branchIds,
-  })
-
-  if (error) {
-    console.error('[Employees] Branch assignments save failed:', error.code)
-    throw new Error('تعذر حفظ فروع الموظف')
-  }
-}
-
-/**
- * Saves invitation metadata only.
- * This function never creates an Auth user and never sends an email.
- */
-async function saveInvitationDraft(params: {
-  storeId: string
-  employeeId: string
-  email: string | null
-  invitedBy: string
-  branchIds: string[]
-}) {
-  const admin = createAdminClient()
-
-  const {
-    storeId,
-    employeeId,
-    email,
-    invitedBy,
-    branchIds,
-  } = params
-
-  const { data: existing, error: lookupError } = await admin
-    .from('dokkan_employee_invitations')
-    .select('id, status, email')
-    .eq('store_id', storeId)
-    .eq('employee_id', employeeId)
-    .in('status', ['draft', 'pending'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (lookupError) {
-    throw new Error('تعذر التحقق من حالة دعوة الموظف')
-  }
-
-  if (existing?.status === 'pending') {
-    throw new Error(
-      'هناك دعوة مرسلة بالفعل لهذا الموظف. لا يمكن تغيير بيانات دعوتها الآن'
-    )
-  }
-
-  if (!email) {
-    if (existing?.status === 'draft') {
-      const { error } = await admin
-        .from('dokkan_employee_invitations')
-        .update({
-          status: 'cancelled',
-          token_hash: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-        .eq('store_id', storeId)
-
-      if (error) {
-        throw new Error('تعذر إلغاء مسودة الدعوة')
-      }
-    }
-
-    return
-  }
-
-  const expiresAt = new Date(
-    Date.now() + 30 * 24 * 60 * 60 * 1000
-  ).toISOString()
-
-  let invitationId: string
-
-  if (existing?.status === 'draft') {
-    const { data, error } = await admin
-      .from('dokkan_employee_invitations')
-      .update({
-        email,
-        invited_by: invitedBy,
-        expires_at: expiresAt,
-        token_hash: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existing.id)
-      .eq('store_id', storeId)
-      .select('id')
-      .single()
-
-    if (error || !data) {
-      throw new Error('تعذر تحديث مسودة دعوة الموظف')
-    }
-
-    invitationId = data.id
-  } else {
-    const { data, error } = await admin
-      .from('dokkan_employee_invitations')
-      .insert({
-        store_id: storeId,
-        employee_id: employeeId,
-        email,
-        status: 'draft',
-        invited_by: invitedBy,
-        expires_at: expiresAt,
-        token_hash: null,
-      })
-      .select('id')
-      .single()
-
-    if (error || !data) {
-      console.error('[Employees] Draft creation failed:', error?.code)
-      throw new Error('تعذر إنشاء مسودة دعوة الموظف')
-    }
-
-    invitationId = data.id
-  }
-
-  const { error: deleteBranchesError } = await admin
-    .from('dokkan_employee_invitation_branches')
-    .delete()
-    .eq('invitation_id', invitationId)
-    .eq('store_id', storeId)
-
-  if (deleteBranchesError) {
-    throw new Error('تعذر تحديث فروع الدعوة')
-  }
-
-  if (branchIds.length > 0) {
-    const { error } = await admin
-      .from('dokkan_employee_invitation_branches')
-      .insert(
-        branchIds.map((branchId) => ({
-          invitation_id: invitationId,
-          store_id: storeId,
-          branch_id: branchId,
-        }))
-      )
-
-    if (error) {
-      console.error('[Employees] Draft branches failed:', error.code)
-      throw new Error('تعذر حفظ فروع الدعوة')
-    }
-  }
 }
 
 export async function createEmployee(input: EmployeeInput) {
   const context = await getEmployeeContext()
-  const name = validateEmployee(input)
+  const name = validateNameAndPhone(input)
+  const role = validateRole(input.role)
   const email = normalizeEmail(input.email)
+  const branchIds = getRequestedBranchIds(input)
 
-  const branchIds = await validateBranches(
-    context.supabase,
-    context.storeId,
-    input
+  if (!['owner', 'admin'].includes(context.membership.role)) {
+    throw new Error('ليس لديك صلاحية إضافة موظفين')
+  }
+
+  const { data, error } = await context.supabase.rpc(
+    'dokkan_create_employee',
+    {
+      p_store_id: context.storeId,
+      p_name: name,
+      p_phone: input.phone?.trim() || null,
+      p_email: email,
+      p_role: role,
+      p_branch_ids: branchIds,
+      p_create_invitation: input.email !== undefined,
+    }
   )
 
-  const { data, error } = await context.supabase
-    .from('dokkan_employees')
-    .insert({
-      store_id: context.storeId,
-      branch_id: branchIds[0] || null,
-      name,
-      phone: input.phone?.trim() || null,
-      ...(input.email !== undefined ? { email } : {}),
-      role: input.role,
-      status: 'active',
-      created_by: context.user.id,
-    })
-    .select('id')
-    .single()
-
   if (error || !data) {
-    console.error('[Employees] Create failed:', error?.code)
+    console.error('[Employees] Create RPC failed:', error?.code)
     throw new Error('تعذر إضافة الموظف')
   }
 
-  try {
-    await saveEmployeeBranches({
-      storeId: context.storeId,
-      employeeId: data.id,
-      branchIds,
-    })
-
-    if (input.email !== undefined) {
-      await saveInvitationDraft({
-        storeId: context.storeId,
-        employeeId: data.id,
-        email,
-        invitedBy: context.user.id,
-        branchIds,
-      })
-    }
-  } catch (err) {
-    await context.supabase
-      .from('dokkan_employees')
-      .delete()
-      .eq('id', data.id)
-      .eq('store_id', context.storeId)
-
-    throw err
-  }
-
   revalidatePath('/employees')
-  return data.id as string
+  return data as string
 }
 
 export async function updateEmployee(
@@ -320,63 +117,74 @@ export async function updateEmployee(
   input: EmployeeInput
 ) {
   const context = await getEmployeeContext()
-  const name = validateEmployee(input)
 
-  if (!id) throw new Error('معرف الموظف غير صحيح')
+  if (!id) {
+    throw new Error('معرف الموظف غير صحيح')
+  }
 
-  const email = input.email !== undefined
-    ? normalizeEmail(input.email)
-    : undefined
+  const name = validateNameAndPhone(input)
+  const callerRole = context.membership.role
+  const isManager = callerRole === 'manager'
+  const isOwnerOrAdmin = ['owner', 'admin'].includes(callerRole)
 
-  const branchIds = await validateBranches(
-    context.supabase,
-    context.storeId,
-    input
+  if (!isManager && !isOwnerOrAdmin) {
+    throw new Error('ليس لديك صلاحية تعديل الموظفين')
+  }
+
+  // المدير مسموح له بالاسم والهاتف فقط.
+  // نرفض أي حقول إضافية حتى لو تم إرسالها يدويًا من المتصفح.
+  if (
+    isManager &&
+    (
+      input.email !== undefined ||
+      input.role !== undefined ||
+      input.branchIds !== undefined ||
+      input.branchId !== undefined
+    )
+  ) {
+    throw new Error('المدير يستطيع تعديل الاسم ورقم الهاتف فقط')
+  }
+
+  const emailProvided = isOwnerOrAdmin && input.email !== undefined
+  const branchesProvided = isOwnerOrAdmin && (
+    input.branchIds !== undefined ||
+    input.branchId !== undefined
   )
 
-  const updateData: Record<string, unknown> = {
-    branch_id: branchIds[0] || null,
-    name,
-    phone: input.phone?.trim() || null,
-    role: input.role,
-    updated_at: new Date().toISOString(),
-  }
+  const email = emailProvided
+    ? normalizeEmail(input.email)
+    : null
 
-  if (input.email !== undefined) {
-    updateData.email = email
-  }
+  const branchIds = branchesProvided
+    ? getRequestedBranchIds(input)
+    : []
 
-  const { data, error } = await context.supabase
-    .from('dokkan_employees')
-    .update(updateData)
-    .eq('id', id)
-    .eq('store_id', context.storeId)
-    .select('id')
-    .maybeSingle()
+  const role = isOwnerOrAdmin && input.role !== undefined
+    ? validateRole(input.role)
+    : null
+
+  const { data, error } = await context.supabase.rpc(
+    'dokkan_update_employee',
+    {
+      p_store_id: context.storeId,
+      p_employee_id: id,
+      p_name: name,
+      p_phone: input.phone?.trim() || null,
+      p_email: email,
+      p_email_provided: emailProvided,
+      p_role: role,
+      p_branch_ids: branchIds,
+      p_branches_provided: branchesProvided,
+    }
+  )
 
   if (error || !data) {
-    console.error('[Employees] Update failed:', error?.code)
+    console.error('[Employees] Update RPC failed:', error?.code)
     throw new Error('تعذر تعديل بيانات الموظف')
   }
 
-  await saveEmployeeBranches({
-    storeId: context.storeId,
-    employeeId: id,
-    branchIds,
-  })
-
-  if (input.email !== undefined) {
-    await saveInvitationDraft({
-      storeId: context.storeId,
-      employeeId: id,
-      email: email ?? null,
-      invitedBy: context.user.id,
-      branchIds,
-    })
-  }
-
   revalidatePath('/employees')
-  return data.id as string
+  return data as string
 }
 
 export async function setEmployeeStatus(
@@ -389,6 +197,10 @@ export async function setEmployeeStatus(
     throw new Error('بيانات الموظف غير صحيحة')
   }
 
+  if (!['owner', 'admin'].includes(context.membership.role)) {
+    throw new Error('ليس لديك صلاحية تغيير حالة الموظف')
+  }
+
   const { data, error } = await context.supabase.rpc(
     'dokkan_set_employee_status',
     {
@@ -399,10 +211,7 @@ export async function setEmployeeStatus(
   )
 
   if (error || !data) {
-    console.error(
-      '[Employees] Status RPC failed:',
-      error?.code
-    )
+    console.error('[Employees] Status RPC failed:', error?.code)
     throw new Error('تعذر تحديث حالة الموظف')
   }
 
