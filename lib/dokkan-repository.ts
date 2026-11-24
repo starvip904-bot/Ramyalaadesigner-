@@ -547,15 +547,21 @@ export async function getDashboardData() {
   const inventory = new Map<string, number>()
 
   for (const movement of movementRows) {
-    const sign = [
+    const positiveTypes = [
       'opening',
       'purchase',
       'return',
       'adjustment',
       'transfer_in',
-    ].includes(movement.movement_type)
+    ]
+
+    const negativeTypes = ['sale', 'transfer_out', 'damage']
+
+    const sign = positiveTypes.includes(movement.movement_type)
       ? 1
-      : -1
+      : negativeTypes.includes(movement.movement_type)
+        ? -1
+        : 0
 
     const key = `${movement.branch_id}:${movement.product_variant_id}`
 
