@@ -243,8 +243,7 @@ export async function getPlatformPlanSettingsAction() {
 
 /**
  * قراءة كتالوج الخطط العام للتاجر.
- * هذه الدالة لا تستخدم صلاحيات مدير المنصة
- * ولا تكشف بيانات سجل التدقيق.
+ * لا تكشف بيانات سجل التدقيق.
  */
 export async function getPublicSubscriptionPlanCatalogAction() {
   const { supabase } = await requireRedaContext()
@@ -273,6 +272,20 @@ export async function getPublicSubscriptionPlanCatalogAction() {
     )
   }
 
+  const rawCycles = isObject(data.billingCycles)
+    ? data.billingCycles
+    : {}
+
+  const billingCycles: Record<string, string> = {}
+
+  for (const key of ['monthly', 'annual', 'lifetime']) {
+    const value = rawCycles[key]
+
+    if (typeof value === 'string') {
+      billingCycles[key] = value
+    }
+  }
+
   return {
     currency:
       typeof data.currency === 'string'
@@ -284,9 +297,7 @@ export async function getPublicSubscriptionPlanCatalogAction() {
         ? data.currencyLabel
         : 'جنيه',
 
-    billingCycles: isObject(data.billingCycles)
-      ? data.billingCycles
-      : {},
+    billingCycles,
 
     annualDiscountPercent:
       typeof data.annualDiscountPercent === 'number'
@@ -300,7 +311,6 @@ export async function getPublicSubscriptionPlanCatalogAction() {
 
 /**
  * حفظ إعدادات الخطط والإضافات من لوحة مدير المنصة.
- * جميع عمليات الكتابة تتم عبر RPC محمية داخل Supabase.
  */
 export async function updatePlatformPlanSettingsAction(input: {
   settings: unknown
