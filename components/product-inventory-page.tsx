@@ -176,7 +176,8 @@ function createBarcodeSvg(value: string) {
         index >= 92
 
       return `<rect x="${quiet + index}" y="0" width="1" height="${guard ? 48 : 42}" />`
-    })    .join('')
+    })
+    .join('')
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg"
@@ -354,7 +355,9 @@ export default function ProductInventoryPage({
   const [editing, setEditing] = useState<Product | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [busy, startTransition] = useTransition()  const [form, setForm] = useState({
+  const [busy, startTransition] = useTransition()
+
+  const [form, setForm] = useState({
     storeId:
       storeIds[0] ||
       initialData.products[0]?.store_id ||
@@ -533,7 +536,9 @@ export default function ProductInventoryPage({
 
           if (!selectedBranch) {
             throw new Error('الفرع المختار غير متاح أو غير نشط.')
-          }          const preparedVariants = variants.map((variant) => {
+          }
+
+          const preparedVariants = variants.map((variant) => {
             const initialQuantity = Number(
               variant.initialQuantity
             )
@@ -641,8 +646,7 @@ export default function ProductInventoryPage({
           </p>
 
           <h2 className="mt-2 break-words text-xl font-extrabold text-[#0f172a] sm:text-2xl">
-            {mode === 'products'
-              ? 'المنتجات والمتغيرات'
+            {mode === 'products'              ? 'المنتجات والمتغيرات'
               : 'المخزون والحركات'}
           </h2>
 
@@ -704,7 +708,8 @@ export default function ProductInventoryPage({
               <Package
                 size={34}
                 className="mx-auto text-[#94a3b8]"
-              />              <p className="mt-3 font-bold text-[#334155]">
+              />
+              <p className="mt-3 font-bold text-[#334155]">
                 لا توجد منتجات مطابقة
               </p>
               <p className="mt-1 text-sm text-[#94a3b8]">
@@ -869,7 +874,8 @@ export default function ProductInventoryPage({
                       .filter(
                         (branch) => branch.store_id === product.store_id
                       )
-                      .map((branch) => {                        const quantity = balance(
+                      .map((branch) => {
+                        const quantity = balance(
                           data.movements,
                           branch.id,
                           variant.id
@@ -1069,7 +1075,9 @@ export default function ProductInventoryPage({
                         sku: event.target.value,
                       })
                     }
-                  />                  <Field
+                  />
+
+                  <Field
                     label="الباركود"
                     value={variant.barcode || ''}
                     onChange={(event) =>
@@ -1245,7 +1253,8 @@ export default function ProductInventoryPage({
                 className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
               >
                 {movementTypes.map((item) => (
-                  <option key={item.value} value={item.value}>                    {item.label}
+                  <option key={item.value} value={item.value}>
+                    {item.label}
                   </option>
                 ))}
               </select>
