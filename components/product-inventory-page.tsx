@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
@@ -46,12 +47,21 @@ type Movement = {
   quantity: number
 }
 
+type InventoryThreshold = {
+  id?: string
+  store_id?: string
+  branch_id: string
+  product_variant_id: string
+  minimum_quantity: number
+}
+
 type Props = {
   mode: 'products' | 'inventory'
   initialData: {
     products: Product[]
     branches: Branch[]
     movements: Movement[]
+    thresholds: InventoryThreshold[]
   }
   storeIds: string[]
 }
@@ -646,7 +656,8 @@ export default function ProductInventoryPage({
           </p>
 
           <h2 className="mt-2 break-words text-xl font-extrabold text-[#0f172a] sm:text-2xl">
-            {mode === 'products'              ? 'المنتجات والمتغيرات'
+            {mode === 'products'
+              ? 'المنتجات والمتغيرات'
               : 'المخزون والحركات'}
           </h2>
 
@@ -881,13 +892,25 @@ export default function ProductInventoryPage({
                           variant.id
                         )
 
+                        const threshold =
+                          data.thresholds.find(
+                            (item) =>
+                              item.branch_id === branch.id &&
+                              item.product_variant_id === variant.id
+                          )?.minimum_quantity ?? 5
+
+                        const isLowStock =
+                          quantity > 0 &&
+                          threshold > 0 &&
+                          quantity < threshold
+
                         return (
                           <div
                             key={branch.id}
                             className={`min-w-0 rounded-xl border p-3 ${
                               quantity <= 0
                                 ? 'border-[#fed7aa] bg-[#fff7ed]'
-                                : quantity < 5
+                                : isLowStock
                                   ? 'border-[#fde68a] bg-[#fffbeb]'
                                   : 'border-[#bbf7d0] bg-[#f0fdf4]'
                             }`}
@@ -905,9 +928,16 @@ export default function ProductInventoryPage({
                             <p className="mt-2 text-xs font-semibold text-[#64748b]">
                               {quantity <= 0
                                 ? 'نفد المخزون'
-                                : quantity < 5
+                                : isLowStock
                                   ? 'مخزون منخفض'
                                   : 'متوفر'}
+                            </p>
+
+                            <p className="mt-1 text-[11px] text-[#94a3b8]">
+                              حد التنبيه:{' '}
+                              {threshold === 0
+                                ? 'متوقف'
+                                : `${threshold.toLocaleString('ar-EG')} قطعة`}
                             </p>
                           </div>
                         )
