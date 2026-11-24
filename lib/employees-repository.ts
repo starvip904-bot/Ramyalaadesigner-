@@ -20,41 +20,79 @@ export async function getEmployeesPageData() {
     'manager',
   ])
 
-  const [employeesResult, branchesResult] = await Promise.all([
-    context.supabase
-      .from('dokkan_employees')
-      .select(`
-        id,
-        name,
-        phone,
-        email,
-        role,
-        status,
-        branch_id,
-        created_at,
-        updated_at
-      `)
-      .eq('store_id', context.storeId)
-      .order('created_at', { ascending: false }),
+  const isManager = context.membership.role === 'manager'
 
-    context.supabase
-      .from('dokkan_branches')
-      .select('id, name, status')
-      .eq('store_id', context.storeId)
-      .order('created_at', { ascending: true }),
-  ])
+  const [employeesResult, branchesResult, managerBranchesResult] =
+    await Promise.all([
+      context.supabase
+        .from('dokkan_employees')
+        .select(`
+          id,
+          name,
+          phone,
+          email,
+          role,
+          status,
+          branch_id,
+          created_at,
+          updated_at
+        `)
+        .eq('store_id', context.storeId)
+        .order('created_at', { ascending: false }),
+
+      context.supabase
+        .from('dokkan_branches')
+        .select('id, name, status')
+        .eq('store_id', context.storeId)
+        .order('created_at', { ascending: true }),
+
+      isManager
+        ? context.supabase
+            .from('dokkan_member_branches')
+            .select('branch_id')
+            .eq('store_id', context.storeId)
+            .eq('member_id', context.membership.id)
+        : Promise.resolve({ data: [], error: null }),
+    ])
 
   if (employeesResult.error) {
-    console.error('[Employees] Load failed:', employeesResult.error.code)
+    console.error(
+      '[Employees] Load failed:',
+      employeesResult.error.code
+    )
     throw new Error('تعذر تحميل الموظفين')
   }
 
   if (branchesResult.error) {
-    console.error('[Employees] Branches load failed:', branchesResult.error.code)
+    console.error(
+      '[Employees] Branches load failed:',
+      branchesResult.error.code
+    )
     throw new Error('تعذر تحميل الفروع')
   }
 
+  if (managerBranchesResult.error) {
+    console.error(
+      '[Employees] Manager branches load failed:',
+      managerBranchesResult.error.code
+    )
+    throw new Error('تعذر التحقق من فروع المدير')
+  }
+
   const employees = employeesResult.data ?? []
+
+  const managerBranchIds = new Set(
+    (managerBranchesResult.data ?? []).map(
+      (assignment) => assignment.branch_id
+    )
+  )
+
+  const visibleBranches = isManager
+    ? (branchesResult.data ?? []).filter(
+        (branch) => managerBranchIds.has(branch.id)
+      )
+    : branchesResult.data ?? []
+
   const branchIdsByEmployee = new Map<string, string[]>()
 
   const invitationByEmployee = new Map<
@@ -64,13 +102,17 @@ export async function getEmployeesPageData() {
 
   let invitationStatusAvailable = false
 
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.SUPABASE_SECRET_KEY) {
+  if (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY
+  ) {
     try {
       const admin = createAdminClient()
 
       if (employees.length > 0) {
-        const employeeIds = employees.map((employee) => employee.id)
+        const employeeIds = employees.map(
+          (employee) => employee.id
+        )
 
         const { data: assignments, error: assignmentsError } =
           await admin
@@ -92,7 +134,10 @@ export async function getEmployeesPageData() {
             branchIdsByEmployee.get(assignment.employee_id) ?? []
 
           current.push(assignment.branch_id)
-          branchIdsByEmployee.set(assignment.employee_id, current)
+          branchIdsByEmployee.set(
+            assignment.employee_id,
+            current
+          )
         }
 
         const { data: invitations, error: invitationsError } =
@@ -112,10 +157,13 @@ export async function getEmployeesPageData() {
 
         for (const invitation of invitations ?? []) {
           if (!invitationByEmployee.has(invitation.employee_id)) {
-            invitationByEmployee.set(invitation.employee_id, {
-              email: invitation.email,
-              status: invitation.status as InvitationStatus,
-            })
+            invitationByEmployee.set(
+              invitation.employee_id,
+              {
+                email: invitation.email,
+                status: invitation.status as InvitationStatus,
+              }
+            )
           }
         }
       }
@@ -148,6 +196,6 @@ export async function getEmployeesPageData() {
   return {
     storeId: context.storeId,
     employees: employeesWithAssignments,
-    branches: branchesResult.data ?? [],
+    branches: visibleBranches,
   }
 }
