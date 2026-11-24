@@ -22,6 +22,28 @@ async function getScopedStore(storeId?: string) {
   }
 }
 
+function getCairoDateKey(value: string | Date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
+}
+
+function shiftDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function getDateLabel(dateKey: string) {
+  return new Intl.DateTimeFormat('ar-EG', {
+    timeZone: 'UTC',
+    weekday: 'short',
+  }).format(new Date(`${dateKey}T12:00:00.000Z`))
+}
+
 export async function getCurrentUser() {
   const supabase = await createClient()
   const { data, error } = await supabase.auth.getUser()
@@ -419,9 +441,25 @@ export async function listDokkanAuditEvents(storeId: string) {
 export async function getDashboardData() {
   const { context, supabase, storeId } = await getScopedStore()
 
+  const now = new Date()
+  const todayKey = getCairoDateKey(now)
+  const monthStartKey = `${todayKey.slice(0, 7)}-01`
+  const last30StartKey = shiftDateKey(todayKey, -29)
+
+  const queryStartKey =
+    monthStartKey < last30StartKey
+      ? monthStartKey
+      : last30StartKey
+
+  // هامش زمني إضافي حتى لا نفقد سجلات بداية اليوم بسبب اختلاف التوقيت.
+  const queryStart = new Date(
+    `${shiftDateKey(queryStartKey, -1)}T00:00:00.000Z`
+  ).toISOString()
+
   const [
     { data: sales, error: salesError },
     { data: expenses, error: expensesError },
+    { data: returns, error: returnsError },
     { data: movements, error: movementsError },
     { data: thresholds, error: thresholdsError },
   ] = await Promise.all([
@@ -430,6 +468,7 @@ export async function getDashboardData() {
       .select(`
         id,
         total,
+        status,
         created_at,
         dokkan_sale_items(
           quantity,
@@ -440,12 +479,33 @@ export async function getDashboardData() {
           )
         )
       `)
-      .eq('store_id', storeId),
+      .eq('store_id', storeId)
+      .gte('created_at', queryStart)
+      .order('created_at', { ascending: true }),
 
     supabase
       .from('dokkan_expenses')
-      .select('amount')
-      .eq('store_id', storeId),
+      .select('amount, created_at')
+      .eq('store_id', storeId)
+      .gte('created_at', queryStart)
+      .order('created_at', { ascending: true }),
+
+    supabase
+      .from('dokkan_sale_returns')
+      .select(`
+        refund_amount,
+        applied_to_balance,
+        created_at,
+        dokkan_sale_return_items(
+          quantity,
+          dokkan_product_variants(
+            dokkan_products(name)
+          )
+        )
+      `)
+      .eq('store_id', storeId)
+      .gte('created_at', queryStart)
+      .order('created_at', { ascending: true }),
 
     supabase
       .from('dokkan_inventory_movements')
@@ -461,6 +521,7 @@ export async function getDashboardData() {
   if (
     salesError ||
     expensesError ||
+    returnsError ||
     movementsError ||
     thresholdsError
   ) {
@@ -468,6 +529,8 @@ export async function getDashboardData() {
   }
 
   const saleRows = sales ?? []
+  const expenseRows = expenses ?? []
+  const returnRows = returns ?? []
   const movementRows = movements ?? []
 
   const thresholdByInventoryKey = new Map(
@@ -494,59 +557,197 @@ export async function getDashboardData() {
 
     inventory.set(
       key,
-      (inventory.get(key) ?? 0) + sign * movement.quantity
+      (inventory.get(key) ?? 0) + sign * Number(movement.quantity)
     )
   }
 
-  const productUnits = new Map<
-    string,
-    { name: string; quantity: number; total: number }
-  >()
+  const periodStartKeys = {
+    '7': shiftDateKey(todayKey, -6),
+    '30': last30StartKey,
+    month: monthStartKey,
+  }
 
-  for (const sale of saleRows) {
-    for (const item of sale.dokkan_sale_items ?? []) {
-      const variant = Array.isArray(item.dokkan_product_variants)
-        ? item.dokkan_product_variants[0]
-        : item.dokkan_product_variants
+  function buildPeriod(startKey: string) {
+    const periodSales = saleRows.filter((sale) => {
+      const key = getCairoDateKey(sale.created_at)
+      return key >= startKey && key <= todayKey
+    })
 
-      const product = Array.isArray(variant?.dokkan_products)
-        ? variant.dokkan_products[0]
-        : variant?.dokkan_products
+    const periodExpenses = expenseRows.filter((expense) => {
+      const key = getCairoDateKey(expense.created_at)
+      return key >= startKey && key <= todayKey
+    })
 
-      const name = product?.name ?? 'منتج'
+    const periodReturns = returnRows.filter((record) => {
+      const key = getCairoDateKey(record.created_at)
+      return key >= startKey && key <= todayKey
+    })
 
-      const current = productUnits.get(name) ?? {
-        name,
-        quantity: 0,
-        total: 0,
+    const returnedByProduct = new Map<
+      string,
+      { name: string; quantity: number }
+    >()
+
+    for (const record of periodReturns) {
+      for (const item of record.dokkan_sale_return_items ?? []) {
+        const variant = Array.isArray(item.dokkan_product_variants)
+          ? item.dokkan_product_variants[0]
+          : item.dokkan_product_variants
+
+        const product = Array.isArray(variant?.dokkan_products)
+          ? variant.dokkan_products[0]
+          : variant?.dokkan_products
+
+        const name = product?.name ?? 'منتج'
+        const current = returnedByProduct.get(name) ?? {
+          name,
+          quantity: 0,
+        }
+
+        current.quantity += Number(item.quantity ?? 0)
+        returnedByProduct.set(name, current)
       }
-
-      current.quantity += item.quantity
-      current.total +=
-        item.quantity * Number(item.unit_price) -
-        Number(item.discount)
-
-      productUnits.set(name, current)
     }
-  }
 
-  const salesByDay = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(
-      Date.now() - (6 - index) * 24 * 60 * 60 * 1000
+    const productUnits = new Map<
+      string,
+      { name: string; quantity: number; total: number }
+    >()
+
+    for (const sale of periodSales) {
+      for (const item of sale.dokkan_sale_items ?? []) {
+        const variant = Array.isArray(item.dokkan_product_variants)
+          ? item.dokkan_product_variants[0]
+          : item.dokkan_product_variants
+
+        const product = Array.isArray(variant?.dokkan_products)
+          ? variant.dokkan_products[0]
+          : variant?.dokkan_products
+
+        const name = product?.name ?? 'منتج'
+        const current = productUnits.get(name) ?? {
+          name,
+          quantity: 0,
+          total: 0,
+        }
+
+        current.quantity += Number(item.quantity ?? 0)
+        current.total +=
+          Number(item.quantity ?? 0) * Number(item.unit_price ?? 0) -
+          Number(item.discount ?? 0)
+
+        productUnits.set(name, current)
+      }
+    }
+
+    const topProducts = Array.from(productUnits.values())
+      .map((product) => ({
+        ...product,
+        quantity: Math.max(
+          0,
+          product.quantity -
+            (returnedByProduct.get(product.name)?.quantity ?? 0)
+        ),
+      }))
+      .filter((product) => product.quantity > 0)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5)
+
+    const dailySales = new Map<string, number>()
+    const dailyReturns = new Map<string, number>()
+    const dailyExpenses = new Map<string, number>()
+
+    for (const sale of periodSales) {
+      const key = getCairoDateKey(sale.created_at)
+      dailySales.set(
+        key,
+        (dailySales.get(key) ?? 0) + Number(sale.total ?? 0)
+      )
+    }
+
+    for (const record of periodReturns) {
+      const key = getCairoDateKey(record.created_at)
+      const returnValue =
+        Number(record.refund_amount ?? 0) +
+        Number(record.applied_to_balance ?? 0)
+
+      dailyReturns.set(
+        key,
+        (dailyReturns.get(key) ?? 0) + returnValue
+      )
+    }
+
+    for (const expense of periodExpenses) {
+      const key = getCairoDateKey(expense.created_at)
+      dailyExpenses.set(
+        key,
+        (dailyExpenses.get(key) ?? 0) + Number(expense.amount ?? 0)
+      )
+    }
+
+    const salesByDay = []
+    const chartDays = 7
+    const chartStart = shiftDateKey(todayKey, -(chartDays - 1))
+
+    for (let index = 0; index < chartDays; index++) {
+      const key = shiftDateKey(chartStart, index)
+      const gross = dailySales.get(key) ?? 0
+      const returned = dailyReturns.get(key) ?? 0
+
+      salesByDay.push({
+        date: key,
+        label: getDateLabel(key),
+        total: gross - returned,
+      })
+    }
+
+    const grossSales = periodSales.reduce(
+      (sum, sale) => sum + Number(sale.total ?? 0),
+      0
     )
 
-    const key = date.toISOString().slice(0, 10)
+    const totalReturns = periodReturns.reduce(
+      (sum, record) =>
+        sum +
+        Number(record.refund_amount ?? 0) +
+        Number(record.applied_to_balance ?? 0),
+      0
+    )
 
     return {
-      label: date.toLocaleDateString('ar-EG', {
-        weekday: 'short',
-        timeZone: 'Africa/Cairo',
-      }),
-      total: saleRows
-        .filter((sale) => sale.created_at.slice(0, 10) === key)
-        .reduce((sum, sale) => sum + Number(sale.total), 0),
+      salesTotal: grossSales - totalReturns,
+      salesCount: periodSales.length,
+      expensesTotal: periodExpenses.reduce(
+        (sum, expense) => sum + Number(expense.amount ?? 0),
+        0
+      ),
+      salesByDay,
+      topProducts,
     }
-  })
+  }
+
+  const periods = {
+    '7': buildPeriod(periodStartKeys['7']),
+    '30': buildPeriod(periodStartKeys['30']),
+    month: buildPeriod(periodStartKeys.month),
+  }
+
+  const inventoryUnits = Array.from(inventory.values()).reduce(
+    (sum, quantity) => sum + Math.max(quantity, 0),
+    0
+  )
+
+  const lowStockCount = Array.from(inventory.entries()).filter(
+    ([key, quantity]) => {
+      const threshold = thresholdByInventoryKey.get(key) ?? 5
+
+      return (
+        quantity > 0 &&
+        threshold > 0 &&
+        quantity < threshold
+      )
+    }
+  ).length
 
   return {
     displayName:
@@ -558,39 +759,8 @@ export async function getDashboardData() {
     role: context.membership?.role ?? null,
     storeName: context.storeName,
 
-    salesTotal: saleRows.reduce(
-      (sum, sale) => sum + Number(sale.total),
-      0
-    ),
-
-    salesCount: saleRows.length,
-
-    expensesTotal: (expenses ?? []).reduce(
-      (sum, expense) => sum + Number(expense.amount),
-      0
-    ),
-
-    inventoryUnits: Array.from(inventory.values()).reduce(
-      (sum, quantity) => sum + Math.max(quantity, 0),
-      0
-    ),
-
-    lowStockCount: Array.from(inventory.entries()).filter(
-      ([key, quantity]) => {
-        const threshold = thresholdByInventoryKey.get(key) ?? 5
-
-        return (
-          quantity > 0 &&
-          threshold > 0 &&
-          quantity < threshold
-        )
-      }
-    ).length,
-
-    salesByDay,
-
-    topProducts: Array.from(productUnits.values())
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5),
+    inventoryUnits,
+    lowStockCount,
+    periods,
   }
 }
