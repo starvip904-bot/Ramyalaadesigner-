@@ -71,7 +71,6 @@ const menuGroups = [
         label: 'المرتجعات والاستبدال',
         href: '/returns',
         icon: RotateCcw,
-        comingSoon: true,
       },
       { label: 'العملاء', href: '/customers', icon: Users },
     ],
@@ -162,7 +161,7 @@ export default function MobileBottomNav() {
                   </h3>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {group.items.map(({ label, href, icon: Icon, comingSoon }) => {
+                    {group.items.map(({ label, href, icon: Icon }) => {
                       const active = isActivePath(pathname, href)
 
                       return (
@@ -185,12 +184,6 @@ export default function MobileBottomNav() {
                             <span className="block text-xs font-bold leading-5">
                               {label}
                             </span>
-
-                            {comingSoon && (
-                              <span className="mt-1 inline-block rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--warning)]">
-                                غير متاح
-                              </span>
-                            )}
                           </span>
 
                           <ChevronLeft
