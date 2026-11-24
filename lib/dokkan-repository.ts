@@ -760,7 +760,6 @@ export async function getDashboardData() {
       const threshold = thresholdByInventoryKey.get(key) ?? 5
 
       return (
-        quantity > 0 &&
         threshold > 0 &&
         quantity < threshold
       )
