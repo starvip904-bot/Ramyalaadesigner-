@@ -95,7 +95,8 @@ export default async function Page({
   if (type === 'dashboard') {
     const data = await getDashboardData()
 
-      // Returns
+      
+  // Returns
   if (type === 'returns') {
     const data = await getReturnsPageData()
 
@@ -107,11 +108,14 @@ export default async function Page({
           <ReturnsManagementPage
             sales={data.sales}
             returns={data.returns}
+            requests={data.requests}
+            userRole={reda.membership.role ?? null}
           />
         }
       />
     )
   }
+
 
   // Stores
   if (type === 'stores') {
