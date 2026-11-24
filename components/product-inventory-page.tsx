@@ -176,8 +176,7 @@ function createBarcodeSvg(value: string) {
         index >= 92
 
       return `<rect x="${quiet + index}" y="0" width="1" height="${guard ? 48 : 42}" />`
-    })
-    .join('')
+    })    .join('')
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg"
@@ -237,7 +236,6 @@ function printVariantBarcode(
     variant.size ? `المقاس: ${variant.size}` : '',
     variant.color ? `اللون: ${variant.color}` : '',
   ]
-
     .filter(Boolean)
     .join(' · ')
 
@@ -356,9 +354,7 @@ export default function ProductInventoryPage({
   const [editing, setEditing] = useState<Product | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [busy, startTransition] = useTransition()
-
-  const [form, setForm] = useState({
+  const [busy, startTransition] = useTransition()  const [form, setForm] = useState({
     storeId:
       storeIds[0] ||
       initialData.products[0]?.store_id ||
@@ -436,7 +432,228 @@ export default function ProductInventoryPage({
       brand: '',
     })
 
-    setInitialStockBranchId(firstBranch?.id || '')        <button
+    setInitialStockBranchId(firstBranch?.id || '')
+    setVariants([emptyVariant()])
+    setError('')
+    setNotice('')
+    setModal(true)
+  }
+
+  const openEdit = (product: Product) => {
+    setEditing(product)
+
+    setForm({
+      storeId: product.store_id,
+      name: product.name,
+      category: product.category || categories[0],
+      brand: product.brand || '',
+    })
+
+    setInitialStockBranchId('')
+
+    setVariants(
+      product.dokkan_product_variants.map((variant) => ({
+        ...variant,
+        barcode: variant.barcode || '',
+        size: variant.size || '',
+        color: variant.color || '',
+        initialQuantity: 0,
+      }))
+    )
+
+    setError('')
+    setNotice('')
+    setModal(true)
+  }
+
+  const updateVariant = (
+    index: number,
+    patch: Partial<VariantDraft>
+  ) =>
+    setVariants((items) =>
+      items.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, ...patch }
+          : item
+      )
+    )
+
+  const saveProduct = (event: React.FormEvent) => {
+    event.preventDefault()
+    setError('')
+    setNotice('')
+
+    startTransition(async () => {
+      try {
+        if (editing) {
+          await updateProductAction({
+            id: editing.id,
+            name: form.name,
+            category: form.category,
+            brand: form.brand,
+            status: editing.status,
+          })
+
+          for (const variant of variants) {
+            if (variant.id) {
+              await updateProductVariantAction({
+                id: variant.id,
+                sku: variant.sku,
+                barcode: variant.barcode,
+                size: variant.size,
+                color: variant.color,
+                price: Number(variant.price),
+                cost: Number(variant.cost),
+              })
+            } else {
+              await addProductVariantAction({
+                storeId: editing.store_id,
+                productId: editing.id,
+                sku: variant.sku,
+                barcode: variant.barcode,
+                size: variant.size,
+                color: variant.color,
+                price: Number(variant.price),
+                cost: Number(variant.cost),
+              })
+            }
+          }
+        } else {
+          if (!form.storeId) {
+            throw new Error('لا يوجد متجر متاح.')
+          }
+
+          if (!initialStockBranchId) {
+            throw new Error('اختر الفرع الذي ستُسجل فيه الكميات.')
+          }
+
+          const selectedBranch = availableBranches.find(
+            (branch) => branch.id === initialStockBranchId
+          )
+
+          if (!selectedBranch) {
+            throw new Error('الفرع المختار غير متاح أو غير نشط.')
+          }          const preparedVariants = variants.map((variant) => {
+            const initialQuantity = Number(
+              variant.initialQuantity
+            )
+
+            if (
+              !Number.isFinite(initialQuantity) ||
+              initialQuantity < 0
+            ) {
+              throw new Error(
+                'تأكد من إدخال كمية صحيحة وغير سالبة لكل متغير.'
+              )
+            }
+
+            return {
+              sku: variant.sku,
+              barcode: variant.barcode,
+              size: variant.size,
+              color: variant.color,
+              price: Number(variant.price),
+              cost: Number(variant.cost),
+              initialQuantity,
+            }
+          })
+
+          await createProductWithInitialStockAction({
+            storeId: form.storeId,
+            branchId: initialStockBranchId,
+            name: form.name,
+            category: form.category,
+            brand: form.brand,
+            variants: preparedVariants,
+          })
+        }
+
+        setNotice('تم حفظ المنتج والمتغيرات بنجاح.')
+        setModal(false)
+        reload()
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'تعذر حفظ المنتج. تحقق من الصلاحيات والبيانات.'
+        )
+      }
+    })
+  }
+
+  const saveMovement = () => {
+    if (!movement) return
+
+    setError('')
+    setNotice('')
+
+    startTransition(async () => {
+      try {
+        const product = data.products.find((item) =>
+          item.dokkan_product_variants.some(
+            (variant) => variant.id === movement.variantId
+          )
+        )
+
+        const quantity = Number(movement.quantity)
+
+        if (
+          !product ||
+          !movement.branchId ||
+          !Number.isFinite(quantity) ||
+          quantity === 0 ||
+          (movement.type === 'opening' && quantity < 0)
+        ) {
+          throw new Error('أدخل فرعًا وكمية صحيحة.')
+        }
+
+        await recordInventoryMovementAction({
+          storeId: product.store_id,
+          branchId: movement.branchId,
+          variantId: movement.variantId,
+          type: movement.type,
+          quantity,
+        })
+
+        setNotice('تم تسجيل حركة المخزون بنجاح.')
+        setMovement(null)
+        reload()
+      } catch (reason) {
+        setError(
+          reason instanceof Error &&
+            reason.message === 'Insufficient stock'
+            ? 'لا يمكن أن يصبح رصيد المخزون بالسالب.'
+            : reason instanceof Error
+              ? reason.message
+              : 'تعذر تسجيل حركة المخزون.'
+        )
+      }
+    })
+  }
+
+  return (
+    <section className="w-full min-w-0 space-y-5 sm:space-y-6">
+      {/* رأس الصفحة */}
+      <div className="flex min-w-0 flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#64748b] sm:text-sm">
+            Supabase · بيانات حقيقية
+          </p>
+
+          <h2 className="mt-2 break-words text-xl font-extrabold text-[#0f172a] sm:text-2xl">
+            {mode === 'products'
+              ? 'المنتجات والمتغيرات'
+              : 'المخزون والحركات'}
+          </h2>
+
+          <p className="mt-2 text-xs leading-6 text-[#94a3b8] sm:text-sm">
+            {mode === 'products'
+              ? 'المنتجات، التصنيفات، المقاسات، الألوان والباركود'
+              : 'الأرصدة حسب الفرع مع سجل الحركات والتنبيهات'}
+          </p>
+        </div>
+
+        <button
           type="button"
           onClick={openCreate}
           disabled={busy}
@@ -487,8 +704,7 @@ export default function ProductInventoryPage({
               <Package
                 size={34}
                 className="mx-auto text-[#94a3b8]"
-              />
-              <p className="mt-3 font-bold text-[#334155]">
+              />              <p className="mt-3 font-bold text-[#334155]">
                 لا توجد منتجات مطابقة
               </p>
               <p className="mt-1 text-sm text-[#94a3b8]">
@@ -837,7 +1053,9 @@ export default function ProductInventoryPage({
                   <Plus size={15} />
                   إضافة متغير
                 </button>
-              </div>              {variants.map((variant, index) => (
+              </div>
+
+              {variants.map((variant, index) => (
                 <div
                   key={variant.id || index}
                   className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-[#e2e8f0] bg-[#fafcff] p-3 sm:grid-cols-2 sm:p-4 md:grid-cols-3"
@@ -851,9 +1069,7 @@ export default function ProductInventoryPage({
                         sku: event.target.value,
                       })
                     }
-                  />
-
-                  <Field
+                  />                  <Field
                     label="الباركود"
                     value={variant.barcode || ''}
                     onChange={(event) =>
@@ -1029,12 +1245,13 @@ export default function ProductInventoryPage({
                 className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
               >
                 {movementTypes.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
+                  <option key={item.value} value={item.value}>                    {item.label}
                   </option>
                 ))}
               </select>
-            </label>            <Field
+            </label>
+
+            <Field
               label={
                 movement.type === 'adjustment'
                   ? 'كمية التسوية (موجب للزيادة وسالب للعجز)'
