@@ -3,6 +3,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requirePlatformOwner } from '@/lib/tenant-context'
+import { requireRedaContext } from '@/lib/reda-scope'
 
 type JsonObject = Record<string, unknown>
 
@@ -237,6 +238,63 @@ export async function getPlatformPlanSettingsAction() {
       typeof data.updatedAt === 'string'
         ? data.updatedAt
         : null,
+  }
+}
+
+/**
+ * قراءة كتالوج الخطط العام للتاجر.
+ * هذه الدالة لا تستخدم صلاحيات مدير المنصة
+ * ولا تكشف بيانات سجل التدقيق.
+ */
+export async function getPublicSubscriptionPlanCatalogAction() {
+  const { supabase } = await requireRedaContext()
+
+  const { data, error } = await supabase.rpc(
+    'dokkan_get_public_subscription_plan_catalog'
+  )
+
+  if (error) {
+    console.error('[public-subscription-plan-catalog]', {
+      code: error.code,
+    })
+
+    throw new Error(
+      'تعذر تحميل الخطط والأسعار الحالية.'
+    )
+  }
+
+  if (
+    !isObject(data) ||
+    !isObject(data.plans) ||
+    !isObject(data.addons)
+  ) {
+    throw new Error(
+      'بيانات الخطط والأسعار غير مكتملة.'
+    )
+  }
+
+  return {
+    currency:
+      typeof data.currency === 'string'
+        ? data.currency
+        : 'EGP',
+
+    currencyLabel:
+      typeof data.currencyLabel === 'string'
+        ? data.currencyLabel
+        : 'جنيه',
+
+    billingCycles: isObject(data.billingCycles)
+      ? data.billingCycles
+      : {},
+
+    annualDiscountPercent:
+      typeof data.annualDiscountPercent === 'number'
+        ? data.annualDiscountPercent
+        : 0,
+
+    plans: data.plans,
+    addons: data.addons,
   }
 }
 
