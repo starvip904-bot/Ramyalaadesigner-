@@ -19,29 +19,55 @@ import {
 const WHATSAPP_NUMBER = '201146570929'
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
-const plans = [
-  {
-    code: 'basic',
-    name: 'Basic',
-    description: 'للمتاجر التي تحتاج إلى إمكانيات إضافية.',
-  },
-  {
-    code: 'professional',
-    name: 'Professional',
-    description: 'للمتاجر التي تحتاج إلى إدارة أكثر تقدمًا.',
-  },
-  {
-    code: 'enterprise',
-    name: 'Enterprise',
-    description: 'للاحتياجات الكبيرة والحلول المخصصة.',
-  },
-] as const
+type PlanCode = 'basic' | 'professional' | 'enterprise'
+type BillingCycle = 'monthly' | 'annual'
 
-type PlanCode = (typeof plans)[number]['code']
+type CatalogPlan = {
+  name?: unknown
+  monthlyPriceEgp?: unknown
+  annualPriceEgp?: unknown
+}
+
+type SubscriptionCatalog = {
+  currencyLabel?: string
+  billingCycles?: Record<string, string>
+  plans: Record<string, unknown>
+}
+
+const planDescriptions: Record<PlanCode, string> = {
+  basic: 'للمتاجر التي تحتاج إلى إمكانيات إضافية.',
+  professional: 'للمتاجر التي تحتاج إلى إدارة أكثر تقدمًا.',
+  enterprise: 'للاحتياجات الكبيرة والحلول المخصصة.',
+}
+
+function isCatalogPlan(value: unknown): value is CatalogPlan {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getCatalogPlans(catalog: SubscriptionCatalog) {
+  return (['basic', 'professional', 'enterprise'] as const)
+    .map((code) => {
+      const value = catalog.plans[code]
+      if (!isCatalogPlan(value) || typeof value.name !== 'string') return null
+
+      return {
+        code,
+        name: value.name,
+        description: planDescriptions[code],
+        monthlyPriceEgp:
+          typeof value.monthlyPriceEgp === 'number' ? value.monthlyPriceEgp : null,
+        annualPriceEgp:
+          typeof value.annualPriceEgp === 'number' ? value.annualPriceEgp : null,
+      }
+    })
+    .filter((plan): plan is NonNullable<typeof plan> => plan !== null)
+}
 
 type RequestRow = Awaited<
   ReturnType<typeof getMySubscriptionRequestsAction>
->[number]
+>[number] & {
+  billing_cycle?: string
+}
 
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
@@ -68,25 +94,37 @@ function formatDate(value: string | null) {
   })
 }
 
-function getPlanName(code: string) {
-  return plans.find((plan) => plan.code === code)?.name ?? code
+function getPlanName(code: string, catalog: SubscriptionCatalog) {
+  const plan = catalog.plans[code]
+
+  return isCatalogPlan(plan) && typeof plan.name === 'string'
+    ? plan.name
+    : code
 }
 
 function isPlanCode(value: string): value is PlanCode {
-  return plans.some((plan) => plan.code === value)
+  return value === 'basic' || value === 'professional' || value === 'enterprise'
+}
+
+function formatCatalogPrice(value: number | null, currencyLabel: string) {
+  if (value === null) return 'حسب الاتفاق'
+  if (value === 0) return 'مجانًا'
+
+  return `${value.toLocaleString('ar-EG')} ${currencyLabel}`
 }
 
 function getWhatsAppUrl(
   requestId: string,
   storeName: string,
   planCode: string,
+  catalog: SubscriptionCatalog,
   amount?: number | null
 ) {
   const message = [
     'مرحبًا، أرسلت طلب اشتراك جديد في Dokkan.',
     `رقم الطلب: ${requestId}`,
     `اسم المتجر: ${storeName}`,
-    `الخطة المطلوبة: ${getPlanName(planCode)}`,
+    `الخطة المطلوبة: ${getPlanName(planCode, catalog)}`,
     amount != null ? `المبلغ المحوّل: ${amount} جنيه` : null,
     'تم رفع إثبات الدفع داخل Dokkan، برجاء مراجعة الطلب.',
   ]
@@ -98,10 +136,13 @@ function getWhatsAppUrl(
 
 export default function SubscriptionRequestManager({
   storeName,
+  catalog,
 }: {
   storeName: string
+  catalog: SubscriptionCatalog
 }) {
   const [selectedPlan, setSelectedPlan] = useState<PlanCode | ''>('')
+  const [selectedCycle, setSelectedCycle] = useState<BillingCycle>('monthly')
   const [amount, setAmount] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [requests, setRequests] = useState<RequestRow[]>([])
@@ -110,6 +151,18 @@ export default function SubscriptionRequestManager({
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  const catalogPlans = getCatalogPlans(catalog)
+  const currencyLabel = catalog.currencyLabel ?? 'جنيه'
+
+  const selectedPlanData = catalogPlans.find(
+    (plan) => plan.code === selectedPlan
+  )
+
+  const selectedPrice =
+    selectedCycle === 'annual'
+      ? selectedPlanData?.annualPriceEgp
+      : selectedPlanData?.monthlyPriceEgp
 
   const loadRequests = useCallback(async () => {
     try {
@@ -126,8 +179,23 @@ export default function SubscriptionRequestManager({
     void loadRequests()
   }, [loadRequests])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const plan = params.get('plan')
+    const cycle = params.get('cycle')
+
+    if (plan && isPlanCode(plan) && catalog.plans[plan]) {
+      setSelectedPlan(plan)
+    }
+
+    if (cycle === 'monthly' || cycle === 'annual') {
+      setSelectedCycle(cycle)
+    }
+  }, [catalog])
+
   function resetForm() {
     setSelectedPlan('')
+    setSelectedCycle('monthly')
     setAmount('')
     setFile(null)
     setDraftRequestId(null)
@@ -187,6 +255,9 @@ export default function SubscriptionRequestManager({
 
     setDraftRequestId(request.id)
     setSelectedPlan(request.requested_plan_code)
+    setSelectedCycle(
+      request.billing_cycle === 'annual' ? 'annual' : 'monthly'
+    )
     setAmount(
       request.claimed_amount_egp != null
         ? String(request.claimed_amount_egp)
@@ -238,6 +309,7 @@ export default function SubscriptionRequestManager({
       } else {
         const draft = await createSubscriptionRequestDraftAction({
           planCode: selectedPlan,
+          billingCycle: selectedCycle,
           proofMimeType: file.type,
           claimedAmountEgp: numericAmount,
         })
@@ -315,9 +387,7 @@ export default function SubscriptionRequestManager({
           </h2>
 
           <p className="mt-2 text-sm leading-7 text-slate-500">
-            اختر الخطة المطلوبة، ثم اكتب المبلغ الذي قمت بتحويله
-            وارفع إثبات الدفع. ستراجع الإدارة الطلب قبل تفعيل
-            الاشتراك.
+            اختر الخطة المطلوبة ودورة الاشتراك، ثم اكتب المبلغ الذي قمت بتحويله وارفع إثبات الدفع. ستراجع الإدارة الطلب قبل تفعيل الاشتراك.
           </p>
         </div>
 
@@ -331,7 +401,7 @@ export default function SubscriptionRequestManager({
             </p>
 
             <div className="grid gap-3 md:grid-cols-3">
-              {plans.map((plan) => {
+              {catalogPlans.map((plan) => {
                 const active = selectedPlan === plan.code
 
                 return (
@@ -370,12 +440,50 @@ export default function SubscriptionRequestManager({
                     </span>
 
                     <span className="mt-3 block text-xs font-bold text-slate-600">
-                      السعر والتفاصيل يحددهما اعتماد الإدارة
+                      السعر والتفاصيل حسب إعدادات الخطط الحالية
                     </span>
                   </button>
                 )
               })}
             </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-sm font-bold text-slate-800">
+              دورة الاشتراك
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {(['monthly', 'annual'] as const).map((cycle) => {
+                const active = selectedCycle === cycle
+
+                return (
+                  <button
+                    key={cycle}
+                    type="button"
+                    disabled={busy || Boolean(draftRequestId)}
+                    onClick={() => setSelectedCycle(cycle)}
+                    className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                      active
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-100'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {catalog.billingCycles?.[cycle] ?? (cycle === 'annual' ? 'سنوي' : 'شهري')}
+                  </button>
+                )
+              })}
+            </div>
+
+            {selectedPlanData && (
+              <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                السعر حسب الكتالوج:{' '}
+                <strong>
+                  {formatCatalogPrice(selectedPrice ?? null, currencyLabel)}
+                </strong>
+                {selectedCycle === 'annual' ? ' للسنة كاملة' : ' لكل شهر'}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -425,16 +533,12 @@ export default function SubscriptionRequestManager({
 
           {draftRequestId && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800">
-              <p>
-                أنت تستكمل مسودة طلب موجودة برقم:
-              </p>
+              <p>أنت تستكمل مسودة طلب موجودة برقم:</p>
               <p className="mt-1 break-all font-bold">
                 {draftRequestId}
               </p>
               <p className="mt-2">
-                اختر ملف الإثبات لإكمال الإرسال. إذا كان الملف قد
-                رُفع في محاولة سابقة، فلن يتم استبداله؛ ستتم محاولة
-                إرسال الطلب بالملف الموجود.
+                اختر ملف الإثبات لإكمال الإرسال. إذا كان الملف قد رُفع في محاولة سابقة، فلن يتم استبداله؛ ستتم محاولة إرسال الطلب بالملف الموجود.
               </p>
             </div>
           )}
@@ -481,8 +585,7 @@ export default function SubscriptionRequestManager({
           )}
 
           <p className="text-xs leading-6 text-slate-500">
-            لن يتم تفعيل الخطة بمجرد إرسال الطلب. التفعيل يتم بعد
-            مراجعة الإدارة واعتماد المبلغ والاشتراك.
+            لن يتم تفعيل الخطة بمجرد إرسال الطلب. التفعيل يتم بعد مراجعة الإدارة واعتماد المبلغ والاشتراك.
           </p>
         </form>
       </section>
@@ -524,6 +627,7 @@ export default function SubscriptionRequestManager({
                 request.id,
                 storeName,
                 request.requested_plan_code,
+                catalog,
                 request.claimed_amount_egp
               )
 
@@ -535,7 +639,7 @@ export default function SubscriptionRequestManager({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-extrabold text-slate-950">
-                        خطة {getPlanName(request.requested_plan_code)}
+                        خطة {getPlanName(request.requested_plan_code, catalog)}
                       </p>
 
                       <p className="mt-1 break-all text-xs text-slate-500">
