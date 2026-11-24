@@ -238,6 +238,7 @@ function printVariantBarcode(
     variant.size ? `المقاس: ${variant.size}` : '',
     variant.color ? `اللون: ${variant.color}` : '',
   ]
+
     .filter(Boolean)
     .join(' · ')
 
@@ -659,17 +660,15 @@ export default function ProductInventoryPage({
           </p>
         </div>
 
-        {mode === 'products' && (
-          <button
-            type="button"
-            onClick={openCreate}
-            disabled={busy}
-            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] disabled:opacity-50 sm:w-auto"
-          >
-            <Plus size={19} />
-            إضافة منتج
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openCreate}
+          disabled={busy}
+          className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] disabled:opacity-50 sm:w-auto"
+        >
+          <Plus size={19} />
+          إضافة منتج
+        </button>
       </div>
 
       {/* رسائل الحالة */}
@@ -898,6 +897,40 @@ export default function ProductInventoryPage({
                           >
                             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                               <span className="break-words text-sm font-bold text-[#334155]">
+                                {branch.name}
+                              </span>
+
+                              <span className="shrink-0 text-sm font-extrabold text-[#0f172a]">
+                                {quantity.toLocaleString('ar-EG')} قطعة
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-xs font-semibold text-[#64748b]">
+                              {quantity <= 0
+                                ? 'نفد المخزون'
+                                : quantity < 5
+                                  ? 'مخزون منخفض'
+                                  : 'متوفر'}
+                            </p>
+                          </div>
+                        )
+                      })}
+
+                    {data.branches.filter(
+                      (branch) => branch.store_id === product.store_id
+                    ).length === 0 && (
+                      <p className="col-span-full rounded-xl bg-[#f8fafc] p-3 text-center text-xs text-[#94a3b8]">
+                        لا توجد فروع لهذا المتجر.
+                      </p>
+                    )}
+                  </div>
+                </article>
+              ))
+            )
+          )}
+        </div>
+      )}
+
                                 {branch.name}
                               </span>
 
