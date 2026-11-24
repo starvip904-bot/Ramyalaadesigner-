@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requirePlatformOwner } from '@/lib/tenant-context'
-import { requireRedaContext } from '@/lib/reda-scope'
+import { createClient } from '@/lib/supabase/server'
 
 type JsonObject = Record<string, unknown>
 
@@ -242,11 +242,12 @@ export async function getPlatformPlanSettingsAction() {
 }
 
 /**
- * قراءة كتالوج الخطط العام للتاجر.
- * لا تكشف بيانات سجل التدقيق.
+ * قراءة كتالوج الخطط العام.
+ * متاح للزائر دون تسجيل دخول وللمستخدم المسجل.
+ * لا يكشف بيانات سجل التدقيق أو إعدادات الإدارة الداخلية.
  */
 export async function getPublicSubscriptionPlanCatalogAction() {
-  const { supabase } = await requireRedaContext()
+  const supabase = await createClient()
 
   const { data, error } = await supabase.rpc(
     'dokkan_get_public_subscription_plan_catalog'
