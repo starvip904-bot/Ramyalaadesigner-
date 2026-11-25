@@ -20,6 +20,16 @@ function getSafeNextUrl(next: string | null, origin: string) {
   }
 }
 
+function isValidEmployeeInvitation(url: URL) {
+  if (url.pathname !== '/employee-invite/accept') {
+    return false
+  }
+
+  const token = url.searchParams.get('token') || ''
+
+  return /^[a-f0-9]{64}$/.test(token)
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
@@ -27,6 +37,39 @@ export async function GET(request: Request) {
   const safeNext = getSafeNextUrl(next, url.origin)
 
   const supabase = await createClient()
+
+  // Employee invitation flow:
+  // Do not inspect or route using an existing owner session here.
+  // The invitation page will verify the employee identity before
+  // allowing any password change or invitation acceptance.
+  if (safeNext && isValidEmployeeInvitation(safeNext)) {
+    if (code) {
+      const { error } =
+        await supabase.auth.exchangeCodeForSession(code)
+
+      if (error) {
+        console.error(
+          'Employee invitation code exchange failed:',
+          error
+        )
+
+        const errorUrl = new URL(safeNext)
+        errorUrl.searchParams.set('auth_error', 'callback')
+
+        return NextResponse.redirect(errorUrl)
+      }
+    }
+
+    // If Supabase returned tokens in the URL fragment instead of
+    // an authorization code, the browser carries that fragment
+    // through this redirect. The acceptance page must process it.
+    return NextResponse.redirect(safeNext)
+  }
+
+  // Keep the existing password recovery flow unchanged.
+  if (safeNext?.pathname === '/reset-password') {
+    return NextResponse.redirect(safeNext)
+  }
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -49,17 +92,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       new URL('/login?error=authentication', url.origin)
     )
-  }
-
-  // Password recovery must keep its existing flow.
-  if (safeNext?.pathname === '/reset-password') {
-    return NextResponse.redirect(safeNext)
-  }
-
-  // Employee invitations must reach their acceptance page
-  // before normal platform-owner or store-membership routing.
-  if (safeNext?.pathname === '/employee-invite/accept') {
-    return NextResponse.redirect(safeNext)
   }
 
   const { data: owner, error: ownerError } = await supabase.rpc(
