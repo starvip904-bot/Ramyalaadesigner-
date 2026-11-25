@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Mail,
   CalendarDays,
+  Send,
 } from 'lucide-react'
 
 import EmployeeMonthlyAttendancePanel from '@/components/employee-monthly-attendance-panel'
@@ -26,6 +27,7 @@ import {
   createEmployee,
   updateEmployee,
   setEmployeeStatus,
+  sendEmployeeInvitation,
 } from '@/app/actions/employees'
 
 type EmployeeRole = 'manager' | 'cashier' | 'stock_manager' | 'viewer'
@@ -105,9 +107,10 @@ export default function EmployeesManagementPage({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] =
-    useState<ActiveTab>('employees')
+  const [invitationBusyId, setInvitationBusyId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('employees')
 
   const activeBranches = branches.filter(
     (branch) => branch.status === 'active'
@@ -147,6 +150,7 @@ export default function EmployeesManagementPage({
     setEditingId(null)
     setForm(emptyForm)
     setError('')
+    setNotice('')
     setModal(true)
   }
 
@@ -165,6 +169,7 @@ export default function EmployeesManagementPage({
             : [],
     })
     setError('')
+    setNotice('')
     setModal(true)
   }
 
@@ -182,6 +187,7 @@ export default function EmployeesManagementPage({
   ) {
     event.preventDefault()
     setError('')
+    setNotice('')
 
     if (form.name.trim().length < 2) {
       setError('اكتب اسم الموظف بشكل صحيح')
@@ -256,6 +262,7 @@ export default function EmployeesManagementPage({
     if (!confirmed) return
 
     setError('')
+    setNotice('')
     setLoading(true)
 
     try {
@@ -268,6 +275,12 @@ export default function EmployeesManagementPage({
             : item
         )
       )
+
+      setNotice(
+        nextStatus === 'inactive'
+          ? 'تم إيقاف الموظف.'
+          : 'تمت إعادة تفعيل الموظف.'
+      )
     } catch (err) {
       setError(
         err instanceof Error
@@ -276,6 +289,60 @@ export default function EmployeesManagementPage({
       )
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSendInvitation(employee: Employee) {
+    if (isManager) return
+
+    if (employee.status !== 'active') {
+      setError('لا يمكن إرسال دعوة لموظف متوقف.')
+      return
+    }
+
+    if (!employee.email?.trim()) {
+      setError('أضف البريد الإلكتروني للموظف أولًا من تعديل البيانات.')
+      return
+    }
+
+    if (employee.invitation_status === 'accepted') {
+      setError('هذا الموظف قبل الدعوة بالفعل.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `سيتم إرسال رسالة دعوة فعلية إلى:\n${employee.email}\n\nهل تريد المتابعة؟`
+    )
+
+    if (!confirmed) return
+
+    setError('')
+    setNotice('')
+    setInvitationBusyId(employee.id)
+
+    try {
+      const result = await sendEmployeeInvitation(employee.id)
+
+      setEmployees((current) =>
+        current.map((item) =>
+          item.id === employee.id
+            ? { ...item, invitation_status: 'pending' }
+            : item
+        )
+      )
+
+      setNotice(
+        result.message ||
+          `تم إرسال الدعوة إلى ${employee.email} بنجاح.`
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'تعذر إرسال دعوة الموظف.'
+      )
+    } finally {
+      setInvitationBusyId(null)
     }
   }
 
@@ -419,13 +486,14 @@ export default function EmployeesManagementPage({
           </section>
 
           {!isManager && (
-            <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs leading-6 text-amber-800 sm:p-4 sm:text-sm">
+            <div className="flex gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-3.5 text-xs leading-6 text-teal-800 sm:p-4 sm:text-sm">
               <div className="mt-0.5 shrink-0">
-                <UserRound size={19} />
+                <Mail size={19} />
               </div>
               <p>
-                حفظ البريد الإلكتروني ينشئ مسودة دعوة فقط. لا يتم إرسال بريد
-                إلكتروني أو إنشاء حساب دخول للموظف في هذه المرحلة.
+                بعد حفظ بيانات الموظف وبريده الإلكتروني، يمكنك إرسال دعوة
+                آمنة لإنشاء حسابه وتعيين كلمة المرور. لن يتم إرسال أي بريد
+                إلا عند الضغط على زر إرسال الدعوة وتأكيد العملية.
               </p>
             </div>
           )}
@@ -438,8 +506,20 @@ export default function EmployeesManagementPage({
           )}
 
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+            >
               {error}
+            </div>
+          )}
+
+          {notice && (
+            <div
+              role="status"
+              className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm font-semibold leading-6 text-teal-800"
+            >
+              {notice}
             </div>
           )}
 
@@ -488,6 +568,14 @@ export default function EmployeesManagementPage({
                 const assignedBranches = employee.branch_ids
                   .map((id) => branches.find((item) => item.id === id))
                   .filter(Boolean)
+
+                const invitationIsAccepted =
+                  employee.invitation_status === 'accepted'
+
+                const canSendInvitation =
+                  employee.status === 'active' &&
+                  Boolean(employee.email?.trim()) &&
+                  !invitationIsAccepted
 
                 return (
                   <article
@@ -557,11 +645,15 @@ export default function EmployeesManagementPage({
                       </div>
                     </div>
 
-                    <div className={`mt-4 grid ${isManager ? 'grid-cols-1' : 'grid-cols-2'} gap-2 border-t border-slate-100 pt-3`}>
+                    <div
+                      className={`mt-4 grid ${
+                        isManager ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-3'
+                      } gap-2 border-t border-slate-100 pt-3`}
+                    >
                       <button
                         type="button"
                         onClick={() => openEdit(employee)}
-                        disabled={loading}
+                        disabled={loading || invitationBusyId !== null}
                         className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 sm:text-sm"
                       >
                         <Pencil size={15} />
@@ -569,28 +661,69 @@ export default function EmployeesManagementPage({
                       </button>
 
                       {!isManager && (
-                        <button
-                          type="button"
-                          onClick={() => toggleStatus(employee)}
-                          disabled={loading}
-                          className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 sm:text-sm ${
-                            employee.status === 'active'
-                              ? 'border-red-100 text-red-600 hover:bg-red-50'
-                              : 'border-green-100 text-green-700 hover:bg-green-50'
-                          }`}
-                        >
-                          {employee.status === 'active' ? (
-                            <>
-                              <UserX size={15} />
-                              إيقاف الموظف
-                            </>
-                          ) : (
-                            <>
-                              <UserCheck size={15} />
-                              إعادة التفعيل
-                            </>
-                          )}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSendInvitation(employee)}
+                            disabled={
+                              loading ||
+                              invitationBusyId !== null ||
+                              !canSendInvitation
+                            }
+                            title={
+                              !employee.email
+                                ? 'أضف البريد الإلكتروني أولًا'
+                                : invitationIsAccepted
+                                  ? 'تم قبول الدعوة بالفعل'
+                                  : employee.status !== 'active'
+                                    ? 'الموظف متوقف'
+                                    : 'إرسال دعوة إلى البريد الإلكتروني'
+                            }
+                            className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                          >
+                            {invitationBusyId === employee.id ? (
+                              <>
+                                <RefreshCw size={15} className="animate-spin" />
+                                جارٍ الإرسال...
+                              </>
+                            ) : invitationIsAccepted ? (
+                              <>
+                                <UserCheck size={15} />
+                                تم قبول الدعوة
+                              </>
+                            ) : (
+                              <>
+                                <Send size={15} />
+                                {employee.invitation_status === 'pending'
+                                  ? 'إعادة إرسال الدعوة'
+                                  : 'إرسال دعوة'}
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(employee)}
+                            disabled={loading || invitationBusyId !== null}
+                            className={`flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 sm:text-sm ${
+                              employee.status === 'active'
+                                ? 'border-red-100 text-red-600 hover:bg-red-50'
+                                : 'border-green-100 text-green-700 hover:bg-green-50'
+                            }`}
+                          >
+                            {employee.status === 'active' ? (
+                              <>
+                                <UserX size={15} />
+                                إيقاف الموظف
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck size={15} />
+                                إعادة التفعيل
+                              </>
+                            )}
+                          </button>
+                        </>
                       )}
                     </div>
                   </article>
@@ -727,7 +860,7 @@ export default function EmployeesManagementPage({
                       />
 
                       <span className="block text-xs font-normal text-slate-400">
-                        اختياري حاليًا، وسيتم حفظ الدعوة كمسودة فقط
+                        أدخل بريد الموظف الذي سيستقبل دعوة إنشاء الحساب.
                       </span>
                     </label>
 
