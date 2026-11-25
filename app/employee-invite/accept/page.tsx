@@ -8,10 +8,14 @@ import {
   Mail,
   ShieldCheck,
   UserCheck,
+  AlertTriangle,
 } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
-import { acceptEmployeeInvitation } from '@/app/actions/employee-invitations'
+import {
+  acceptEmployeeInvitation,
+  getEmployeeInvitationDetails,
+} from '@/app/actions/employee-invitations'
 
 type AuthClient = ReturnType<typeof createClient>
 
@@ -21,12 +25,14 @@ export default function AcceptEmployeeInvitationPage() {
   const [supabase, setSupabase] = useState<AuthClient | null>(null)
   const [token, setToken] = useState('')
   const [email, setEmail] = useState('')
+  const [invitationEmail, setInvitationEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(true)
   const [hasSession, setHasSession] = useState(false)
+  const [emailMatches, setEmailMatches] = useState(false)
   const [accepted, setAccepted] = useState(false)
 
   useEffect(() => {
@@ -38,44 +44,65 @@ export default function AcceptEmployeeInvitationPage() {
     const params = new URLSearchParams(window.location.search)
     const invitationToken = params.get('token') || ''
 
-    if (/^[a-f0-9]{64}$/.test(invitationToken)) {
-      setToken(invitationToken)
-    } else {
+    if (!/^[a-f0-9]{64}$/.test(invitationToken)) {
       setError('رابط الدعوة غير صحيح أو غير مكتمل.')
+      setChecking(false)
+      return
     }
 
-    const {
-      data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
-      if (!active) return
+    setToken(invitationToken)
 
-      setHasSession(Boolean(session))
-      setEmail(session?.user?.email || '')
-      setChecking(false)
-    })
+    async function verifyInvitationAndSession() {
+      try {
+        const [invitation, authResult] = await Promise.all([
+          getEmployeeInvitationDetails(invitationToken),
+          client.auth.getUser(),
+        ])
 
-    async function checkSession() {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await client.auth.getSession()
+        if (!active) return
 
-      if (!active) return
+        const user = authResult.data.user
+        const sessionEmail = user?.email?.trim().toLowerCase() || ''
+        const invitedEmail = invitation.email.trim().toLowerCase()
 
-      if (sessionError) {
-        setError('تعذر التحقق من جلسة الدعوة. أعد فتح الرابط من بريدك.')
+        setInvitationEmail(invitedEmail)
+        setEmail(sessionEmail)
+        setHasSession(Boolean(user))
+
+        const matches = Boolean(
+          user &&
+          user.email_confirmed_at &&
+          sessionEmail === invitedEmail
+        )
+
+        setEmailMatches(matches)
+
+        if (user && !user.email_confirmed_at) {
+          setError('يجب تأكيد بريد الموظف الإلكتروني أولًا.')
+        } else if (user && !matches) {
+          setError(
+            'الحساب المفتوح حاليًا لا يطابق بريد الموظف صاحب الدعوة. لم يتم تغيير كلمة المرور.'
+          )
+        } else if (authResult.error) {
+          setError('تعذر التحقق من جلسة الحساب.')
+        }
+      } catch (err) {
+        if (!active) return
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'تعذر التحقق من رابط الدعوة.'
+        )
+      } finally {
+        if (active) setChecking(false)
       }
-
-      setHasSession(Boolean(session))
-      setEmail(session?.user?.email || '')
-      setChecking(false)
     }
 
-    checkSession()
+    verifyInvitationAndSession()
 
     return () => {
       active = false
-      subscription.unsubscribe()
     }
   }, [])
 
@@ -84,12 +111,14 @@ export default function AcceptEmployeeInvitationPage() {
     setError('')
 
     if (!supabase || !token) {
-      setError('رابط الدعوة غير صالح. اطلب إرسال دعوة جديدة.')
+      setError('رابط الدعوة غير صالح.')
       return
     }
 
-    if (!hasSession) {
-      setError('جلسة الدعوة غير موجودة. افتح الرابط من بريدك الإلكتروني.')
+    if (!hasSession || !emailMatches) {
+      setError(
+        'لا يمكن المتابعة قبل تسجيل الدخول بالبريد الصحيح الخاص بالموظف.'
+      )
       return
     }
 
@@ -106,19 +135,40 @@ export default function AcceptEmployeeInvitationPage() {
     setBusy(true)
 
     try {
+      // Re-check the invitation email immediately before changing
+      // the password. Never trust only the email shown in the UI.
+      const invitation = await getEmployeeInvitationDetails(token)
+
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        throw new Error('انتهت جلسة الدعوة. افتح رابط الدعوة مرة أخرى.')
+        throw new Error(
+          'انتهت جلسة الدعوة. افتح رابط الدعوة من بريد الموظف مرة أخرى.'
+        )
       }
 
-      if (!user.email_confirmed_at) {
-        throw new Error('يجب تأكيد بريدك الإلكتروني من رسالة الدعوة أولًا.')
+      const currentEmail = user.email?.trim().toLowerCase() || ''
+      const expectedEmail = invitation.email.trim().toLowerCase()
+
+      if (
+        !user.email_confirmed_at ||
+        !currentEmail ||
+        currentEmail !== expectedEmail
+      ) {
+        setEmailMatches(false)
+        setHasSession(Boolean(user))
+        setEmail(currentEmail)
+
+        throw new Error(
+          'الحساب المفتوح لا يطابق بريد الدعوة. لم يتم تغيير كلمة المرور.'
+        )
       }
 
+      // Password update is allowed only after the server-side
+      // invitation email and authenticated account match.
       const { error: passwordError } = await supabase.auth.updateUser({
         password,
       })
@@ -167,15 +217,15 @@ export default function AcceptEmployeeInvitationPage() {
           </h1>
 
           <p className="mt-3 text-sm leading-7 text-white/75">
-            أهلًا بك في فريق المتجر. عيّن كلمة المرور الخاصة بك لإكمال
-            قبول الدعوة والدخول إلى حسابك.
+            أهلًا بك في فريق المتجر. تحقق من بريدك أولًا، ثم عيّن كلمة
+            المرور لإكمال قبول الدعوة.
           </p>
         </div>
 
         <div className="p-7 sm:p-10">
           {checking ? (
             <div className="py-10 text-center text-sm text-slate-500">
-              جارٍ التحقق من رابط الدعوة...
+              جارٍ التحقق من رابط الدعوة والبريد الإلكتروني...
             </div>
           ) : accepted ? (
             <div className="py-8 text-center">
@@ -208,12 +258,12 @@ export default function AcceptEmployeeInvitationPage() {
               </div>
 
               <h2 className="text-lg font-extrabold">
-                يلزم فتح رابط الدعوة من البريد
+                يلزم تسجيل الدخول بحساب الموظف
               </h2>
 
               <p className="text-sm leading-7 text-slate-600">
-                لم نعثر على جلسة موثقة للدعوة. افتح رسالة دكان التي وصلتك
-                على بريد الموظف واضغط رابط قبول الدعوة مرة أخرى.
+                لم نعثر على جلسة موثقة لحساب الموظف. افتح رسالة الدعوة
+                التي وصلت إلى بريده الإلكتروني واتبع رابطها.
               </p>
 
               {error && (
@@ -225,23 +275,75 @@ export default function AcceptEmployeeInvitationPage() {
                 </p>
               )}
             </div>
+          ) : !emailMatches ? (
+            <div className="space-y-4">
+              <div className="flex size-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <AlertTriangle size={24} />
+              </div>
+
+              <h2 className="text-lg font-extrabold">
+                الحساب المفتوح ليس حساب الموظف
+              </h2>
+
+              <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                <p className="text-sm font-bold text-red-700">
+                  لم يتم تغيير كلمة المرور أو قبول الدعوة.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-red-700">
+                  يجب أن تكون جلسة الدخول بالبريد المخصص للموظف نفسه.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-2xl border border-[#E2E8F0] p-4">
+                <div>
+                  <p className="text-xs text-slate-500">
+                    البريد المسجل في الدعوة
+                  </p>
+                  <p dir="ltr" className="mt-1 break-all text-sm font-bold">
+                    {invitationEmail}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">
+                    البريد المفتوح حاليًا
+                  </p>
+                  <p dir="ltr" className="mt-1 break-all text-sm font-bold">
+                    {email || 'غير متاح'}
+                  </p>
+                </div>
+              </div>
+
+              {error && (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-red-50 p-3 text-sm text-red-700"
+                >
+                  {error}
+                </p>
+              )}
+
+              <p className="text-xs leading-6 text-slate-500">
+                لا تكمل من هذه الجلسة. يجب تصحيح جلسة الموظف أولًا.
+              </p>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="rounded-2xl border border-[#DCEDEA] bg-[#F3FAF9] p-4">
                 <div className="flex items-center gap-2 text-sm font-bold text-[#117F80]">
                   <UserCheck size={18} />
-                  البريد المرتبط بالدعوة
+                  تم التحقق من بريد الموظف
                 </div>
 
                 <p
                   dir="ltr"
                   className="mt-2 break-all text-sm font-semibold text-[#142B45]"
                 >
-                  {email || 'جارٍ التحقق من البريد...'}
+                  {invitationEmail}
                 </p>
 
                 <p className="mt-2 text-xs leading-6 text-slate-500">
-                  لا يمكن تغيير البريد من هذه الصفحة.
+                  البريد مطابق للدعوة، ويمكنك الآن تعيين كلمة المرور.
                 </p>
               </div>
 
@@ -300,7 +402,7 @@ export default function AcceptEmployeeInvitationPage() {
 
               <button
                 type="submit"
-                disabled={busy || !email}
+                disabled={busy || !emailMatches}
                 className="w-full rounded-xl bg-[#159B9B] px-5 py-3.5 font-bold text-white transition hover:bg-[#117F80] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busy ? 'جارٍ إنشاء الحساب...' : 'تعيين كلمة المرور وقبول الدعوة'}
