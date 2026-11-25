@@ -2,10 +2,29 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+function getSafeNextUrl(next: string | null, origin: string) {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) {
+    return null
+  }
+
+  try {
+    const destination = new URL(next, origin)
+
+    if (destination.origin !== origin) {
+      return null
+    }
+
+    return destination
+  } catch {
+    return null
+  }
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const next = url.searchParams.get('next')
+  const safeNext = getSafeNextUrl(next, url.origin)
 
   const supabase = await createClient()
 
@@ -32,11 +51,15 @@ export async function GET(request: Request) {
     )
   }
 
-  // Handle password recovery before normal owner/store routing.
-  if (next === '/reset-password') {
-    return NextResponse.redirect(
-      new URL('/reset-password', url.origin)
-    )
+  // Password recovery must keep its existing flow.
+  if (safeNext?.pathname === '/reset-password') {
+    return NextResponse.redirect(safeNext)
+  }
+
+  // Employee invitations must reach their acceptance page
+  // before normal platform-owner or store-membership routing.
+  if (safeNext?.pathname === '/employee-invite/accept') {
+    return NextResponse.redirect(safeNext)
   }
 
   const { data: owner, error: ownerError } = await supabase.rpc(
