@@ -38,10 +38,8 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
 
-  // Employee invitation flow:
-  // Do not inspect or route using an existing owner session here.
-  // The invitation page will verify the employee identity before
-  // allowing any password change or invitation acceptance.
+  // Employee invitation flow.
+  // Preserve the invitation-specific handling.
   if (safeNext && isValidEmployeeInvitation(safeNext)) {
     if (code) {
       const { error } =
@@ -60,27 +58,34 @@ export async function GET(request: Request) {
       }
     }
 
-    // If Supabase returned tokens in the URL fragment instead of
-    // an authorization code, the browser carries that fragment
-    // through this redirect. The acceptance page must process it.
     return NextResponse.redirect(safeNext)
   }
 
-  // Keep the existing password recovery flow unchanged.
-  if (safeNext?.pathname === '/reset-password') {
-    return NextResponse.redirect(safeNext)
-  }
-
+  // Exchange the recovery code BEFORE redirecting to the
+  // password reset page. Otherwise the reset page has no session.
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error } =
+      await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('Auth callback exchange failed:', error)
+      console.error('Auth callback code exchange failed:', error)
+
+      if (safeNext?.pathname === '/reset-password') {
+        return NextResponse.redirect(
+          new URL('/forgot-password?error=callback', url.origin)
+        )
+      }
 
       return NextResponse.redirect(
         new URL('/login?error=callback', url.origin)
       )
     }
+  }
+
+  // Password recovery must reach this point only AFTER
+  // the authorization code has been exchanged successfully.
+  if (safeNext?.pathname === '/reset-password') {
+    return NextResponse.redirect(safeNext)
   }
 
   const {
