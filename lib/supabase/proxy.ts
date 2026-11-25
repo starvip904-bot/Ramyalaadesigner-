@@ -44,17 +44,30 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  const publicExactPaths = [
+    '/',
+    '/login',
+    '/register',
+    '/sign-up',
+    '/forgot-password',
+    '/pricing',
+    '/reset-password',
+    '/employee-invite/accept',
+  ]
+
   const isPublic =
-    pathname === '/' ||
-    ['/login', '/register', '/sign-up', '/forgot-password', '/pricing'].includes(pathname) ||
+    publicExactPaths.includes(pathname) ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/_next/')
 
-  if (!user && !isPublic && pathname !== '/reset-password') {
+  if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && ['/login', '/register', '/sign-up'].includes(pathname)) {
+  if (
+    user &&
+    ['/login', '/register', '/sign-up'].includes(pathname)
+  ) {
     return NextResponse.redirect(new URL('/auth/callback', request.url))
   }
 
