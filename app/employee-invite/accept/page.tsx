@@ -54,6 +54,46 @@ export default function AcceptEmployeeInvitationPage() {
 
     async function verifyInvitationAndSession() {
       try {
+        // Supabase may return invitation session tokens in the URL hash.
+        // The hash is available only in the browser, not in the server callback.
+        const hashParams = new URLSearchParams(
+          window.location.hash.replace(/^#/, '')
+        )
+
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const authType = hashParams.get('type')
+
+        if (accessToken || refreshToken) {
+          if (
+            !accessToken ||
+            !refreshToken ||
+            authType !== 'invite'
+          ) {
+            throw new Error(
+              'بيانات التحقق في رابط الدعوة غير مكتملة أو غير صحيحة.'
+            )
+          }
+
+          const { error: sessionError } = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (sessionError) {
+            throw new Error(
+              'تعذر إنشاء جلسة الموظف من رابط الدعوة. اطلب إرسال دعوة جديدة.'
+            )
+          }
+
+          // Remove sensitive tokens from the visible browser URL.
+          window.history.replaceState(
+            window.history.state,
+            '',
+            `${window.location.pathname}${window.location.search}`
+          )
+        }
+
         const [invitation, authResult] = await Promise.all([
           getEmployeeInvitationDetails(invitationToken),
           client.auth.getUser(),
@@ -135,8 +175,8 @@ export default function AcceptEmployeeInvitationPage() {
     setBusy(true)
 
     try {
-      // Re-check the invitation email immediately before changing
-      // the password. Never trust only the email shown in the UI.
+      // Re-check the invitation and authenticated user immediately
+      // before changing the password.
       const invitation = await getEmployeeInvitationDetails(token)
 
       const {
@@ -167,8 +207,6 @@ export default function AcceptEmployeeInvitationPage() {
         )
       }
 
-      // Password update is allowed only after the server-side
-      // invitation email and authenticated account match.
       const { error: passwordError } = await supabase.auth.updateUser({
         password,
       })
@@ -258,7 +296,7 @@ export default function AcceptEmployeeInvitationPage() {
               </div>
 
               <h2 className="text-lg font-extrabold">
-                يلزم تسجيل الدخول بحساب الموظف
+                يلزم التحقق من حساب الموظف
               </h2>
 
               <p className="text-sm leading-7 text-slate-600">
