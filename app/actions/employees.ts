@@ -4,7 +4,6 @@
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { createHash, randomBytes } from 'node:crypto'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 import { requireRedaContext } from '@/lib/reda-scope'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -104,11 +103,8 @@ function getApplicationOrigin(requestHeaders: Headers) {
     throw new Error('تعذر تحديد عنوان الموقع لإرسال الدعوة')
   }
 
-  const forwardedProtocol =
-    requestHeaders.get('x-forwarded-proto')
-
   const protocol =
-    forwardedProtocol ||
+    requestHeaders.get('x-forwarded-proto') ||
     (host.startsWith('localhost') ? 'http' : 'https')
 
   return `${protocol}://${host}`
@@ -119,21 +115,12 @@ function createInvitationRedirectUrl(origin: string, token: string) {
 
   callbackUrl.searchParams.set(
     'next',
-    `/employee-invite/accept?token=${token}`
+    `/employee-invite/accept?token=${encodeURIComponent(token)}`
   )
 
   return callbackUrl.toString()
 }
 
-/**
- * Sends a secure employee invitation.
- *
- * - Only the store owner/admin can send invitations.
- * - The employee must be active and have an email.
- * - The invitation token is stored as a SHA-256 hash only.
- * - The email is sent through Supabase Auth.
- * - The invitation expires after seven days.
- */
 export async function sendEmployeeInvitation(employeeId: string) {
   const context = await getEmployeeContext()
 
@@ -213,7 +200,7 @@ export async function sendEmployeeInvitation(employeeId: string) {
   const { data: existingInvitations, error: invitationsError } =
     await admin
       .from('dokkan_employee_invitations')
-      .select('id, status, token_hash, expires_at')
+      .select('id, status, token_hash, expires_at, email')
       .eq('store_id', context.storeId)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false })
@@ -243,10 +230,26 @@ export async function sendEmployeeInvitation(employeeId: string) {
     Date.now() + 7 * 24 * 60 * 60 * 1000
   ).toISOString()
 
+  const requestHeaders = await headers()
+  const origin = getApplicationOrigin(requestHeaders)
+  const redirectUrl = createInvitationRedirectUrl(origin, rawToken)
+
+  const oldInvitationBranches = previousInvitation
+    ? await admin
+        .from('dokkan_employee_invitation_branches')
+        .select('branch_id')
+        .eq('invitation_id', previousInvitation.id)
+        .eq('store_id', context.storeId)
+    : { data: [], error: null }
+
+  if (oldInvitationBranches.error) {
+    throw new Error('تعذر قراءة فروع الدعوة السابقة')
+  }
+
   let invitationId = previousInvitation?.id
 
   if (previousInvitation) {
-    const { error: updateError } = await admin
+    const { error } = await admin
       .from('dokkan_employee_invitations')
       .update({
         email,
@@ -260,37 +263,31 @@ export async function sendEmployeeInvitation(employeeId: string) {
       .eq('id', previousInvitation.id)
       .eq('store_id', context.storeId)
 
-    if (updateError) {
-      console.error(
-        '[Employees] Invitation update failed:',
-        updateError.code
-      )
+    if (error) {
+      console.error('[Employees] Invitation update failed:', error.code)
       throw new Error('تعذر تجهيز دعوة الموظف')
     }
   } else {
-    const { data: newInvitation, error: insertError } = await admin
+    const { data, error } = await admin
       .from('dokkan_employee_invitations')
       .insert({
         store_id: context.storeId,
         employee_id: employeeId,
         email,
         status: 'pending',
-        invited_by: context.userId,
+        invited_by: context.user.id,
         expires_at: expiresAt,
         token_hash: tokenHash,
       })
       .select('id')
       .single()
 
-    if (insertError || !newInvitation) {
-      console.error(
-        '[Employees] Invitation insert failed:',
-        insertError?.code
-      )
+    if (error || !data) {
+      console.error('[Employees] Invitation insert failed:', error?.code)
       throw new Error('تعذر إنشاء دعوة الموظف')
     }
 
-    invitationId = newInvitation.id
+    invitationId = data.id
   }
 
   if (!invitationId) {
@@ -304,85 +301,71 @@ export async function sendEmployeeInvitation(employeeId: string) {
     .eq('store_id', context.storeId)
 
   if (deleteBranchesError) {
-    console.error(
-      '[Employees] Invitation branch cleanup failed:',
-      deleteBranchesError.code
-    )
-    throw new Error('تعذر تجهيز فروع الدعوة')
+    throw new Error('تعذر تحديث فروع الدعوة')
   }
-
-  const invitationBranchRows = branchIds.map((branchId) => ({
-    invitation_id: invitationId,
-    store_id: context.storeId,
-    branch_id: branchId,
-  }))
 
   const { error: insertBranchesError } = await admin
     .from('dokkan_employee_invitation_branches')
-    .insert(invitationBranchRows)
+    .insert(
+      branchIds.map((branchId) => ({
+        invitation_id: invitationId,
+        store_id: context.storeId,
+        branch_id: branchId,
+      }))
+    )
 
   if (insertBranchesError) {
-    console.error(
-      '[Employees] Invitation branch insert failed:',
-      insertBranchesError.code
-    )
     throw new Error('تعذر حفظ فروع الدعوة')
   }
 
-  const requestHeaders = await headers()
-  const origin = getApplicationOrigin(requestHeaders)
-  const redirectUrl = createInvitationRedirectUrl(origin, rawToken)
-
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_STORAGE_SUPABASE_URL
-
-  const publishableKey =
-    process.env.NEXT_PUBLIC_STORAGE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_STORAGE_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !publishableKey) {
-    throw new Error('إعدادات Supabase غير مكتملة لإرسال الدعوة')
-  }
-
-  const publicAuthClient = createSupabaseClient(
-    supabaseUrl,
-    publishableKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    }
-  )
-
-  const { error: sendError } =
-    await publicAuthClient.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: redirectUrl,
+  // Send a real Supabase Auth invitation.
+  // The custom token is passed only in the post-verification redirect.
+  const { error: inviteError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: redirectUrl,
+      data: {
+        dokkan_employee_invitation: invitationId,
       },
     })
 
-  if (sendError) {
+  if (inviteError) {
     console.error(
-      '[Employees] Invitation email failed:',
-      sendError.message
+      '[Employees] Auth invitation failed:',
+      inviteError.message
     )
 
-    // Restore the previous invitation state when email delivery fails.
     if (previousInvitation) {
       await admin
         .from('dokkan_employee_invitations')
         .update({
+          email: previousInvitation.email,
           status: previousInvitation.status,
           token_hash: previousInvitation.token_hash,
           expires_at: previousInvitation.expires_at,
+          accepted_user_id: null,
+          accepted_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', previousInvitation.id)
         .eq('store_id', context.storeId)
+
+      await admin
+        .from('dokkan_employee_invitation_branches')
+        .delete()
+        .eq('invitation_id', previousInvitation.id)
+        .eq('store_id', context.storeId)
+
+      if (oldInvitationBranches.data?.length) {
+        await admin
+          .from('dokkan_employee_invitation_branches')
+          .insert(
+            oldInvitationBranches.data.map((row) => ({
+              invitation_id: previousInvitation.id,
+              store_id: context.storeId,
+              branch_id: row.branch_id,
+            }))
+          )
+      }
     } else {
       await admin
         .from('dokkan_employee_invitations')
@@ -396,7 +379,7 @@ export async function sendEmployeeInvitation(employeeId: string) {
     }
 
     throw new Error(
-      'تعذر إرسال رسالة الدعوة. تحقق من إعدادات البريد الإلكتروني في Supabase ثم حاول مرة أخرى'
+      'تعذر إرسال الدعوة. قد يكون البريد مرتبطًا بحساب موجود بالفعل، أو توجد مشكلة في إعدادات البريد في Supabase'
     )
   }
 
@@ -405,7 +388,7 @@ export async function sendEmployeeInvitation(employeeId: string) {
   return {
     success: true,
     expiresAt,
-    message: 'تم إرسال رابط الدعوة إلى البريد الإلكتروني',
+    message: 'تم إرسال دعوة إنشاء الحساب إلى البريد الإلكتروني',
   }
 }
 
@@ -461,7 +444,6 @@ export async function updateEmployee(
     throw new Error('ليس لديك صلاحية تعديل الموظفين')
   }
 
-  // Managers may update the name and phone only.
   if (
     isManager &&
     (
