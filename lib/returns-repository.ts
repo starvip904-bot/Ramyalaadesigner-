@@ -2,6 +2,7 @@
 import 'server-only'
 
 import { requireRedaContext } from '@/lib/reda-scope'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 function normalizeOne<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null
@@ -9,8 +10,188 @@ function normalizeOne<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export async function getReturnsPageData() {
+  // التحقق من المستخدم وعضويته قبل استخدام اتصال الخادم الإداري.
   const context = await requireRedaContext()
-  const { supabase, storeId } = context
+  const { storeId } = context
+
+  const admin = createAdminClient()
+
+  // مدير الفرع لا يرى إلا الفروع المسندة إليه.
+  let allowedBranchIds: string[] | null = null
+
+  if (context.membership.role === 'manager') {
+    const { data: assignments, error: assignmentsError } =
+      await context.supabase
+        .from('dokkan_member_branches')
+        .select('branch_id')
+        .eq('store_id', storeId)
+        .eq('member_id', context.membership.id)
+
+    if (assignmentsError) {
+      console.error(
+        '[Returns] Branch assignments lookup failed:',
+        assignmentsError
+      )
+      throw new Error('تعذر التحقق من الفروع المسموح بها')
+    }
+
+    allowedBranchIds = Array.from(
+      new Set((assignments ?? []).map((item) => item.branch_id))
+    )
+
+    // لا نستخدم اتصال الخادم الإداري إذا لم تكن هناك فروع مسندة.
+    if (allowedBranchIds.length === 0) {
+      return {
+        sales: [],
+        returns: [],
+        requests: [],
+        exchangeProducts: [],
+        exchangeSettlements: [],
+      }
+    }
+  }
+
+  let salesQuery = admin
+    .from('dokkan_sales')
+    .select(`
+      id,
+      store_id,
+      branch_id,
+      subtotal,
+      discount,
+      tax_enabled,
+      tax_rate,
+      tax_amount,
+      total,
+      amount_paid,
+      remaining,
+      payment_method,
+      status,
+      notes,
+      created_at,
+      dokkan_branches(name),
+      dokkan_customers(name, phone),
+      dokkan_sale_items(
+        id,
+        product_variant_id,
+        quantity,
+        unit_price,
+        discount,
+        dokkan_product_variants(
+          sku,
+          size,
+          color,
+          dokkan_products(name)
+        )
+      )
+    `)
+    .eq('store_id', storeId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  let returnsQuery = admin
+    .from('dokkan_sale_returns')
+    .select(`
+      id,
+      sale_id,
+      branch_id,
+      return_type,
+      refund_amount,
+      applied_to_balance,
+      refund_method,
+      exchange_difference,
+      exchange_payment_method,
+      exchange_difference_direction,
+      notes,
+      created_at,
+      dokkan_sale_return_items(
+        product_variant_id,
+        quantity,
+        amount,
+        dokkan_product_variants(
+          sku,
+          size,
+          color,
+          dokkan_products(name)
+        )
+      ),
+      dokkan_sale_return_exchange_items(
+        id,
+        product_variant_id,
+        quantity,
+        unit_price,
+        amount,
+        dokkan_product_variants(
+          sku,
+          size,
+          color,
+          dokkan_products(name)
+        )
+      )
+    `)
+    .eq('store_id', storeId)
+    .order('created_at', { ascending: false })
+    .limit(1000)
+
+  let requestsQuery = admin
+    .from('dokkan_sale_return_requests')
+    .select(`
+      id,
+      store_id,
+      sale_id,
+      branch_id,
+      return_type,
+      status,
+      requested_refund_method,
+      exchange_difference,
+      exchange_payment_method,
+      exchange_difference_direction,
+      notes,
+      created_by,
+      created_at,
+      decided_by,
+      decided_at,
+      decision_notes,
+      processed_return_id
+    `)
+    .eq('store_id', storeId)
+    .order('created_at', { ascending: false })
+    .limit(1000)
+
+  let variantsQuery = admin
+    .from('dokkan_product_variants')
+    .select(`
+      id,
+      product_id,
+      sku,
+      barcode,
+      size,
+      color,
+      price,
+      dokkan_products!inner(name, status)
+    `)
+    .eq('store_id', storeId)
+    .eq('dokkan_products.status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(2000)
+
+  let movementsQuery = admin
+    .from('dokkan_inventory_movements')
+    .select(`
+      branch_id,
+      product_variant_id,
+      movement_type,
+      quantity
+    `)
+    .eq('store_id', storeId)
+    .limit(10000)
+
+  if (allowedBranchIds) {
+    salesQuery = salesQuery.in('branch_id', allowedBranchIds)
+    returnsQuery = returnsQuery.in('branch_id', allowedBranchIds)
+    requestsQuery = requestsQuery.in('branch_id', allowedBranchIds)
+    movementsQuery = movementsQuery.in('branch_id', allowedBranchIds)
+  }
 
   const [
     salesResult,
@@ -19,140 +200,11 @@ export async function getReturnsPageData() {
     variantsResult,
     movementsResult,
   ] = await Promise.all([
-    supabase
-      .from('dokkan_sales')
-      .select(`
-        id,
-        store_id,
-        branch_id,
-        subtotal,
-        discount,
-        tax_enabled,
-        tax_rate,
-        tax_amount,
-        total,
-        amount_paid,
-        remaining,
-        payment_method,
-        status,
-        notes,
-        created_at,
-        dokkan_branches(name),
-        dokkan_customers(name, phone),
-        dokkan_sale_items(
-          id,
-          product_variant_id,
-          quantity,
-          unit_price,
-          discount,
-          dokkan_product_variants(
-            sku,
-            size,
-            color,
-            dokkan_products(name)
-          )
-        )
-      `)
-      .eq('store_id', storeId)
-      .order('created_at', { ascending: false })
-      .limit(500),
-
-    supabase
-      .from('dokkan_sale_returns')
-      .select(`
-        id,
-        sale_id,
-        branch_id,
-        return_type,
-        refund_amount,
-        applied_to_balance,
-        refund_method,
-        exchange_difference,
-        exchange_payment_method,
-        exchange_difference_direction,
-        notes,
-        created_at,
-        dokkan_sale_return_items(
-          product_variant_id,
-          quantity,
-          amount,
-          dokkan_product_variants(
-            sku,
-            size,
-            color,
-            dokkan_products(name)
-          )
-        ),
-        dokkan_sale_return_exchange_items(
-          id,
-          product_variant_id,
-          quantity,
-          unit_price,
-          amount,
-          dokkan_product_variants(
-            sku,
-            size,
-            color,
-            dokkan_products(name)
-          )
-        )
-      `)
-      .eq('store_id', storeId)
-      .order('created_at', { ascending: false })
-      .limit(1000),
-
-    supabase
-      .from('dokkan_sale_return_requests')
-      .select(`
-        id,
-        store_id,
-        sale_id,
-        branch_id,
-        return_type,
-        status,
-        requested_refund_method,
-        exchange_difference,
-        exchange_payment_method,
-        exchange_difference_direction,
-        notes,
-        created_by,
-        created_at,
-        decided_by,
-        decided_at,
-        decision_notes,
-        processed_return_id
-      `)
-      .eq('store_id', storeId)
-      .order('created_at', { ascending: false })
-      .limit(1000),
-
-    supabase
-      .from('dokkan_product_variants')
-      .select(`
-        id,
-        product_id,
-        sku,
-        barcode,
-        size,
-        color,
-        price,
-        dokkan_products!inner(name, status)
-      `)
-      .eq('store_id', storeId)
-      .eq('dokkan_products.status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(2000),
-
-    supabase
-      .from('dokkan_inventory_movements')
-      .select(`
-        branch_id,
-        product_variant_id,
-        movement_type,
-        quantity
-      `)
-      .eq('store_id', storeId)
-      .limit(10000),
+    salesQuery,
+    returnsQuery,
+    requestsQuery,
+    variantsQuery,
+    movementsQuery,
   ])
 
   if (salesResult.error) {
@@ -171,12 +223,18 @@ export async function getReturnsPageData() {
   }
 
   if (variantsResult.error) {
-    console.error('[Returns] Product variants query failed:', variantsResult.error)
+    console.error(
+      '[Returns] Product variants query failed:',
+      variantsResult.error
+    )
     throw new Error('تعذر تحميل أصناف الاستبدال')
   }
 
   if (movementsResult.error) {
-    console.error('[Returns] Inventory movements query failed:', movementsResult.error)
+    console.error(
+      '[Returns] Inventory movements query failed:',
+      movementsResult.error
+    )
     throw new Error('تعذر تحميل كميات المخزون للاستبدال')
   }
 
@@ -268,7 +326,7 @@ export async function getReturnsPageData() {
     settlementsResult,
   ] = await Promise.all([
     requestIds.length > 0
-      ? supabase
+      ? admin
           .from('dokkan_sale_return_request_items')
           .select(`
             id,
@@ -286,7 +344,7 @@ export async function getReturnsPageData() {
       : Promise.resolve({ data: [], error: null }),
 
     requestIds.length > 0
-      ? supabase
+      ? admin
           .from('dokkan_sale_return_exchange_request_items')
           .select(`
             id,
@@ -306,7 +364,7 @@ export async function getReturnsPageData() {
       : Promise.resolve({ data: [], error: null }),
 
     requestIds.length > 0
-      ? supabase
+      ? admin
           .from('dokkan_sale_exchange_settlements')
           .select(`
             id,
@@ -349,7 +407,11 @@ export async function getReturnsPageData() {
     throw new Error('تعذر تحميل تسويات فروق أسعار الاستبدال')
   }
 
-  const requestItemsById = new Map<string, typeof requestItemsResult.data>()
+  const requestItemsById = new Map<
+    string,
+    typeof requestItemsResult.data
+  >()
+
   const exchangeItemsById = new Map<
     string,
     typeof exchangeRequestItemsResult.data
@@ -412,7 +474,7 @@ export async function getReturnsPageData() {
     }
   })
 
-  // حساب الرصيد الفعلي لكل صنف داخل كل فرع من سجل الحركات.
+  // حساب الرصيد الفعلي لكل صنف داخل الفروع المسموح بها.
   const stockByBranchAndVariant = new Map<string, number>()
 
   const positiveMovementTypes = [
@@ -445,7 +507,16 @@ export async function getReturnsPageData() {
     )
   }
 
-  const exchangeProducts = (variantsResult.data ?? []).map((variant) => {
+  const variants = (variantsResult.data ?? []).filter((variant) => {
+    if (!allowedBranchIds) return true
+
+    return Array.from(stockByBranchAndVariant.keys()).some((key) => {
+      const variantId = key.slice(key.indexOf(':') + 1)
+      return variantId === variant.id
+    })
+  })
+
+  const exchangeProducts = variants.map((variant) => {
     const product = normalizeOne(variant.dokkan_products)
 
     const stockByBranch: Record<string, number> = {}
@@ -473,11 +544,17 @@ export async function getReturnsPageData() {
     }
   })
 
+  const exchangeSettlements = (settlementsResult.data ?? []).filter(
+    (settlement) =>
+      !allowedBranchIds ||
+      allowedBranchIds.includes(settlement.branch_id)
+  )
+
   return {
     sales,
     returns,
     requests,
     exchangeProducts,
-    exchangeSettlements: settlementsResult.data ?? [],
+    exchangeSettlements,
   }
 }
