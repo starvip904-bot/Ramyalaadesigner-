@@ -1,3 +1,4 @@
+
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -5,6 +6,7 @@ import {
   requireRedaBranch,
   requireRedaContext,
 } from '@/lib/reda-scope'
+import { requireStoreSectionPin } from '@/lib/store-section-pin'
 
 const COUNT_ROLES = [
   'owner',
@@ -35,6 +37,7 @@ export async function createInventoryCountAction(input: {
   originalCountId?: string
 }) {
   const context = await requireRedaContext(COUNT_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.branchId, 'يجب اختيار الفرع.')
   validateId(input.countNumber, 'يجب إدخال رقم الجرد.')
@@ -88,6 +91,7 @@ export async function addInventoryCountItemAction(input: {
   variantId: string
 }) {
   const context = await requireRedaContext(COUNT_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.countId, 'الجرد غير محدد.')
   validateId(input.branchId, 'الفرع غير محدد.')
@@ -122,6 +126,7 @@ export async function startInventoryCountAction(input: {
   branchId: string
 }) {
   const context = await requireRedaContext(COUNT_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.countId, 'الجرد غير محدد.')
   validateId(input.branchId, 'الفرع غير محدد.')
@@ -153,6 +158,7 @@ export async function recordInventoryCountItemAction(input: {
   actualQuantity: number
 }) {
   const context = await requireRedaContext(COUNT_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.countId, 'الجرد غير محدد.')
   validateId(input.branchId, 'الفرع غير محدد.')
@@ -200,6 +206,7 @@ export async function submitInventoryCountForReviewAction(input: {
   branchId: string
 }) {
   const context = await requireRedaContext(COUNT_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.countId, 'الجرد غير محدد.')
   validateId(input.branchId, 'الفرع غير محدد.')
@@ -230,6 +237,7 @@ export async function approveInventoryCountAction(input: {
   branchId: string
 }) {
   const context = await requireRedaContext(APPROVE_ROLES)
+  await requireStoreSectionPin(context)
 
   validateId(input.countId, 'الجرد غير محدد.')
   validateId(input.branchId, 'الفرع غير محدد.')
