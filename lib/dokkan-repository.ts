@@ -2,6 +2,7 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   requireRedaBranch,
   requireRedaContext,
@@ -174,6 +175,108 @@ export async function listDokkanProductInventory(storeId: string) {
     branches: branches ?? [],
     movements: movements ?? [],
     thresholds: thresholds ?? [],
+  }
+}
+
+/**
+ * تحميل كتالوج نقطة البيع بشكل مستقل عن بيانات إدارة المخزون.
+ *
+ * تعمل هذه الدالة على الخادم بعد التحقق من جلسة المستخدم وعضويته
+ * في المتجر. لا تطلب PIN لأن نقطة البيع مستثناة من حماية PIN.
+ *
+ * استخدام عميل الإدارة هنا مقصود حتى يمكن لاحقًا إغلاق القراءة
+ * المباشرة من جداول المنتجات والحركات دون تعطيل نقطة البيع.
+ */
+export async function listDokkanPosCatalog(storeId: string) {
+  const { context, storeId: scopedStoreId } =
+    await getScopedStore(storeId)
+
+  const admin = createAdminClient()
+
+  const {
+    data: allBranches,
+    error: branchesError,
+  } = await admin
+    .from('dokkan_branches')
+    .select('id, store_id, name, status')
+    .eq('store_id', scopedStoreId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+
+  if (branchesError) {
+    throw new Error('Unable to load POS branches')
+  }
+
+  let branches = allBranches ?? []
+
+  // مدير الفرع لا يرى إلا الفروع المسندة إليه.
+  if (context.membership.role === 'manager') {
+    const {
+      data: assignments,
+      error: assignmentsError,
+    } = await admin
+      .from('dokkan_member_branches')
+      .select('branch_id')
+      .eq('store_id', scopedStoreId)
+      .eq('member_id', context.membership.id)
+
+    if (assignmentsError) {
+      throw new Error('Unable to load POS branch assignments')
+    }
+
+    const allowedBranchIds = new Set(
+      (assignments ?? []).map(
+        (assignment) => assignment.branch_id
+      )
+    )
+
+    branches = branches.filter((branch) =>
+      allowedBranchIds.has(branch.id)
+    )
+  }
+
+  const branchIds = branches.map((branch) => branch.id)
+
+  const [
+    { data: products, error: productsError },
+    movementsResult,
+  ] = await Promise.all([
+    admin
+      .from('dokkan_products')
+      .select(`
+        id,
+        store_id,
+        name,
+        category,
+        brand,
+        status,
+        created_at,
+        dokkan_product_variants(id, sku, barcode, size, color, price, cost)
+      `)
+      .eq('store_id', scopedStoreId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: true }),
+
+    branchIds.length > 0
+      ? admin
+          .from('dokkan_inventory_movements')
+          .select('branch_id, product_variant_id, movement_type, quantity')
+          .eq('store_id', scopedStoreId)
+          .in('branch_id', branchIds)
+      : Promise.resolve({
+          data: [],
+          error: null,
+        }),
+  ])
+
+  if (productsError || movementsResult.error) {
+    throw new Error('Unable to load POS catalog')
+  }
+
+  return {
+    products: products ?? [],
+    branches,
+    movements: movementsResult.data ?? [],
   }
 }
 
