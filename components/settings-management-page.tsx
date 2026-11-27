@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   saveStoreSettings,
 } from '@/app/actions/phase1'
+import {
+  setStoreSectionPinAction,
+} from '@/app/actions/store-section-pin'
 import ThemeToggle from '@/components/theme-toggle'
 import {
   Store,
@@ -21,6 +24,8 @@ import {
   Palette,
   Bell,
   Building2,
+  LockKeyhole,
+  ShieldCheck,
 } from 'lucide-react'
 
 type Settings = {
@@ -41,6 +46,7 @@ type SettingsTab =
   | 'invoices'
   | 'tax'
   | 'appearance'
+  | 'security'
 
 const tabs: {
   id: SettingsTab
@@ -72,6 +78,12 @@ const tabs: {
     description: 'شكل التطبيق والتنبيهات',
     icon: Palette,
   },
+  {
+    id: 'security',
+    label: 'الأمان وPIN',
+    description: 'رمز حماية أقسام المتجر',
+    icon: LockKeyhole,
+  },
 ]
 
 export default function SettingsManagementPage({
@@ -95,6 +107,48 @@ export default function SettingsManagementPage({
     if (busy) return
 
     const form = new FormData(event.currentTarget)
+
+    // Save the store PIN separately from ordinary store settings.
+    if (activeTab === 'security') {
+      const pin = String(form.get('storePin') ?? '').trim()
+      const confirmPin = String(
+        form.get('confirmStorePin') ?? ''
+      ).trim()
+
+      setError('')
+      setSuccess('')
+
+      if (!/^\d{4,8}$/.test(pin)) {
+        setError('يجب أن يتكون PIN من 4 إلى 8 أرقام.')
+        return
+      }
+
+      if (pin !== confirmPin) {
+        setError('رمز PIN وتأكيد الرمز غير متطابقين.')
+        return
+      }
+
+      setBusy(true)
+
+      try {
+        const result = await setStoreSectionPinAction(pin)
+
+        if (!result.success) {
+          setError(result.message || 'تعذر حفظ رمز PIN.')
+          return
+        }
+
+        event.currentTarget.reset()
+        setSuccess(result.message)
+        router.refresh()
+      } catch {
+        setError('حدث خطأ أثناء حفظ PIN. حاول مرة أخرى.')
+      } finally {
+        setBusy(false)
+      }
+
+      return
+    }
 
     const invoicePrefix = String(
       form.get('invoicePrefix') ?? ''
@@ -244,7 +298,7 @@ export default function SettingsManagementPage({
               إعدادات المتجر
             </h2>
             <p className="mt-1 text-xs leading-6 text-slate-500 sm:text-sm">
-              إدارة إعدادات المتجر والفواتير والمظهر من مكان واحد
+              إدارة إعدادات المتجر والفواتير والمظهر والأمان من مكان واحد
             </p>
           </div>
         </div>
@@ -264,7 +318,7 @@ export default function SettingsManagementPage({
 
       <nav
         aria-label="أقسام إعدادات المتجر"
-        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5"
       >
         {tabs.map((tab) => {
           const Icon = tab.icon
@@ -345,7 +399,7 @@ export default function SettingsManagementPage({
         onSubmit={submit}
         className="space-y-4"
       >
-        {/* الصفحة الأولى: بيانات المتجر */}
+        {/* بيانات المتجر */}
         <section
           hidden={activeTab !== 'store'}
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -378,9 +432,7 @@ export default function SettingsManagementPage({
             </label>
 
             <label className="min-w-0">
-              <span
-                className={`${labelClass} flex items-center gap-2`}
-              >
+              <span className={`${labelClass} flex items-center gap-2`}>
                 <ImageIcon size={16} />
                 رابط شعار المتجر
               </span>
@@ -399,7 +451,7 @@ export default function SettingsManagementPage({
           </div>
         </section>
 
-        {/* الصفحة الثانية: الفواتير والطباعة */}
+        {/* الفواتير والطباعة */}
         <section
           hidden={activeTab !== 'invoices'}
           className="space-y-4"
@@ -484,12 +536,8 @@ export default function SettingsManagementPage({
                   defaultValue={saved?.print_format ?? 'thermal'}
                   className={inputClass}
                 >
-                  <option value="thermal">
-                    طباعة حرارية
-                  </option>
-                  <option value="a4">
-                    طباعة A4
-                  </option>
+                  <option value="thermal">طباعة حرارية</option>
+                  <option value="a4">طباعة A4</option>
                 </select>
               </label>
 
@@ -511,7 +559,7 @@ export default function SettingsManagementPage({
           </section>
         </section>
 
-        {/* الصفحة الثالثة: الضرائب */}
+        {/* الضرائب */}
         <section
           hidden={activeTab !== 'tax'}
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -587,7 +635,7 @@ export default function SettingsManagementPage({
           </div>
         </section>
 
-        {/* الصفحة الرابعة: المظهر والإشعارات */}
+        {/* المظهر والإشعارات */}
         <section
           hidden={activeTab !== 'appearance'}
           className="space-y-4"
@@ -649,6 +697,92 @@ export default function SettingsManagementPage({
           </section>
         </section>
 
+        {/* أمان PIN */}
+        <section
+          hidden={activeTab !== 'security'}
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/70 p-4 sm:p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+              <ShieldCheck size={21} />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900">
+                رمز حماية أقسام المتجر
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                تعيين رمز PIN أو تغييره للمتجر الحالي
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-5">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm leading-7 text-blue-800">
+              <p className="font-extrabold">
+                كيف تعمل حماية PIN؟
+              </p>
+              <p className="mt-1">
+                الرمز خاص بهذا المتجر فقط، ويحمي التقارير
+                والمنتجات والمخزون والجرد والتحويلات بين الفروع.
+                لا يؤثر على نقطة البيع.
+              </p>
+              <p className="mt-1">
+                بعد إدخال الرمز بنجاح تستمر جلسة الحماية لمدة
+                8 ساعات، أو حتى تسجيل الخروج.
+              </p>
+            </div>
+
+            <label className="block max-w-md">
+              <span className={labelClass}>
+                رمز PIN الجديد
+              </span>
+              <input
+                name="storePin"
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                pattern="[0-9]{4,8}"
+                minLength={4}
+                maxLength={8}
+                required={activeTab === 'security'}
+                placeholder="أدخل من 4 إلى 8 أرقام"
+                className={inputClass}
+                dir="ltr"
+              />
+            </label>
+
+            <label className="block max-w-md">
+              <span className={labelClass}>
+                تأكيد رمز PIN
+              </span>
+              <input
+                name="confirmStorePin"
+                type="password"
+                inputMode="numeric"
+                autoComplete="new-password"
+                pattern="[0-9]{4,8}"
+                minLength={4}
+                maxLength={8}
+                required={activeTab === 'security'}
+                placeholder="أعد إدخال رمز PIN"
+                className={inputClass}
+                dir="ltr"
+              />
+            </label>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-800">
+              <p className="font-extrabold">
+                تنبيه أمني
+              </p>
+              <p className="mt-1">
+                احفظ الرمز في مكان آمن ولا تشاركه إلا مع الأشخاص
+                المصرح لهم باستخدام الأقسام المحمية. عند تغيير
+                الرمز ستحتاج إلى إدخاله مرة أخرى لفتح الأقسام.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <div className="sticky bottom-2 z-10 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
           <button
             type="submit"
@@ -661,12 +795,18 @@ export default function SettingsManagementPage({
                   size={18}
                   className="animate-spin"
                 />
-                جارٍ حفظ الإعدادات...
+                جارٍ الحفظ...
               </>
             ) : (
               <>
-                <Save size={18} />
-                حفظ إعدادات المتجر
+                {activeTab === 'security' ? (
+                  <ShieldCheck size={18} />
+                ) : (
+                  <Save size={18} />
+                )}
+                {activeTab === 'security'
+                  ? 'حفظ رمز PIN'
+                  : 'حفظ إعدادات المتجر'}
               </>
             )}
           </button>
