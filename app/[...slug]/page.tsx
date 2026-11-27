@@ -36,6 +36,7 @@ import {
   listDokkanAuditEvents,
   listDokkanCustomers,
   listDokkanProductInventory,
+  listDokkanPosCatalog,
   listDokkanStores,
   listDokkanSuppliers,
   listDokkanPurchases,
@@ -348,7 +349,7 @@ export default async function Page({
     const storeId = reda.storeId
 
     const [data, customers, settings] = await Promise.all([
-      listDokkanProductInventory(storeId),
+      listDokkanPosCatalog(storeId),
       listDokkanCustomers(storeId),
       getDokkanStoreSettings(storeId),
     ])
