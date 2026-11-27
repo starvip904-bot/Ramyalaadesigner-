@@ -77,11 +77,13 @@ export async function verifyStoreSectionPin(
 
 /**
  * التحقق من صلاحية جلسة PIN قبل تنفيذ أي عملية محمية.
- * يجب استدعاؤها من الخادم قبل قراءة البيانات أو تعديلها.
+ *
+ * تعيد بصمة SHA-256 فقط لاستخدامها داخل استدعاءات قاعدة البيانات
+ * المحمية. لا تعيد رمز الجلسة الأصلي مطلقًا.
  */
 export async function requireStoreSectionPin(
   context: StorePinContext
-): Promise<void> {
+): Promise<string> {
   const cookieStore = await cookies()
   const token = cookieStore.get(PIN_COOKIE_NAME)?.value
 
@@ -103,6 +105,8 @@ export async function requireStoreSectionPin(
     cookieStore.delete(PIN_COOKIE_NAME)
     throw new Error('STORE_SECTION_PIN_REQUIRED')
   }
+
+  return tokenHash
 }
 
 /**
