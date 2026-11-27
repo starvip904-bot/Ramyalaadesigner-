@@ -7,6 +7,7 @@ import {
   requireRedaBranch,
   requireRedaContext,
 } from '@/lib/reda-scope'
+import { requireStoreSectionPin } from '@/lib/store-section-pin'
 
 async function getAuthorizedStore(storeId: string) {
   const context = await requireRedaContext()
@@ -14,6 +15,8 @@ async function getAuthorizedStore(storeId: string) {
   if (!storeId || storeId !== context.storeId) {
     throw new Error('STORE_ACCESS_DENIED')
   }
+
+  await requireStoreSectionPin(context)
 
   return context
 }
@@ -294,6 +297,7 @@ export async function updateProductVariantAction(
   input: { id: string } & ProductVariantInput
 ) {
   const context = await requireRedaContext()
+  await requireStoreSectionPin(context)
 
   const { error } = await context.supabase.rpc(
     'dokkan_update_product_variant',
@@ -327,6 +331,7 @@ export async function updateProductAction(input: {
   status: 'active' | 'inactive'
 }) {
   const context = await requireRedaContext()
+  await requireStoreSectionPin(context)
 
   const { error } = await context.supabase.rpc(
     'dokkan_update_product',
