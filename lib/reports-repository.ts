@@ -2,9 +2,14 @@
 import 'server-only'
 
 import { requireRedaContext } from '@/lib/reda-scope'
+import { requireStoreSectionPin } from '@/lib/store-section-pin'
 
 export async function getReportsPageData() {
   const context = await requireRedaContext()
+
+  // Require a valid store PIN session before loading report data.
+  await requireStoreSectionPin(context)
+
   const supabase = context.supabase
   const storeId = context.storeId
 
