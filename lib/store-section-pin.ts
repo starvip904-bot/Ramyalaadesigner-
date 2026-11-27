@@ -78,8 +78,11 @@ export async function verifyStoreSectionPin(
 /**
  * التحقق من صلاحية جلسة PIN قبل تنفيذ أي عملية محمية.
  *
- * تعيد بصمة SHA-256 فقط لاستخدامها داخل استدعاءات قاعدة البيانات
- * المحمية. لا تعيد رمز الجلسة الأصلي مطلقًا.
+ * هذه الوظيفة للقراءة والتحقق فقط.
+ * لا تعدّل أو تحذف Cookie أثناء تحميل صفحات Server Components.
+ *
+ * تعيد بصمة SHA-256 فقط لاستخدامها داخل استدعاءات قاعدة البيانات.
+ * لا تعيد رمز الجلسة الأصلي مطلقًا.
  */
 export async function requireStoreSectionPin(
   context: StorePinContext
@@ -102,7 +105,8 @@ export async function requireStoreSectionPin(
   )
 
   if (error || data !== true) {
-    cookieStore.delete(PIN_COOKIE_NAME)
+    // لا نحذف Cookie هنا لأن هذه الوظيفة قد تعمل
+    // داخل Server Component أثناء تحميل الصفحة.
     throw new Error('STORE_SECTION_PIN_REQUIRED')
   }
 
@@ -112,6 +116,7 @@ export async function requireStoreSectionPin(
 /**
  * تعيين أو تغيير PIN المتجر.
  * هذه الوظيفة مخصصة لمالك المتجر فقط.
+ * يتم استدعاؤها من Server Action.
  */
 export async function setStoreSectionPin(
   pin: string
@@ -138,7 +143,7 @@ export async function setStoreSectionPin(
   }
 
   // تغيير PIN يبطل الجلسات السابقة.
-  // نحذف أيضًا جلسة المتصفح الحالية لإعادة طلب PIN.
+  // هذه الوظيفة تعمل من Server Action.
   const cookieStore = await cookies()
   cookieStore.delete(PIN_COOKIE_NAME)
 
@@ -147,7 +152,8 @@ export async function setStoreSectionPin(
 
 /**
  * إلغاء جلسة PIN الحالية عند تسجيل الخروج.
- * حذف الكوكي يتم حتى إذا فشل إلغاء الجلسة في قاعدة البيانات.
+ * حذف Cookie يتم حتى إذا فشل إلغاء الجلسة في قاعدة البيانات.
+ * يجب استدعاؤها من Server Action أو Route Handler.
  */
 export async function clearStoreSectionPinSession(): Promise<void> {
   const cookieStore = await cookies()
