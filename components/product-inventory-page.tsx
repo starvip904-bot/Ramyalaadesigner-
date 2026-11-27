@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
@@ -22,9 +21,16 @@ type Variant = {
   cost: number
 }
 
+type Supplier = {
+  id: string
+  name: string
+  phone: string | null
+}
+
 type Product = {
   id: string
   store_id: string
+  supplier_id: string | null
   name: string
   category: string | null
   brand: string | null
@@ -59,6 +65,7 @@ type Props = {
   mode: 'products' | 'inventory'
   initialData: {
     products: Product[]
+    suppliers: Supplier[]
     branches: Branch[]
     movements: Movement[]
     thresholds: InventoryThreshold[]
@@ -119,7 +126,6 @@ const emptyVariant = (): VariantDraft => ({
   cost: 0,
   initialQuantity: 0,
 })
-
 const EAN_L = [
   '0001101', '0011001', '0010011', '0111101', '0100011',
   '0110001', '0101111', '0111011', '0110111', '0001011',
@@ -376,6 +382,7 @@ export default function ProductInventoryPage({
     name: '',
     category: categories[0],
     brand: '',
+    supplierId: '',
   })
 
   const [initialStockBranchId, setInitialStockBranchId] =
@@ -407,6 +414,10 @@ export default function ProductInventoryPage({
       data.products.filter((item) =>
         `${item.name} ${item.category || ''} ${
           item.brand || ''
+        } ${
+          data.suppliers.find(
+            (supplier) => supplier.id === item.supplier_id
+          )?.name || ''
         } ${item.dokkan_product_variants
           .map(
             (v) =>
@@ -418,7 +429,7 @@ export default function ProductInventoryPage({
           .toLowerCase()
           .includes(query.toLowerCase())
       ),
-    [data.products, query]
+    [data.products, data.suppliers, query]
   )
 
   const reload = () => window.location.reload()
@@ -443,6 +454,7 @@ export default function ProductInventoryPage({
       name: '',
       category: categories[0],
       brand: '',
+      supplierId: '',
     })
 
     setInitialStockBranchId(firstBranch?.id || '')
@@ -460,6 +472,7 @@ export default function ProductInventoryPage({
       name: product.name,
       category: product.category || categories[0],
       brand: product.brand || '',
+      supplierId: product.supplier_id || '',
     })
 
     setInitialStockBranchId('')
@@ -536,6 +549,18 @@ export default function ProductInventoryPage({
             throw new Error('لا يوجد متجر متاح.')
           }
 
+          if (!form.supplierId) {
+            throw new Error('اختر المورد الخاص بهذا المنتج.')
+          }
+
+          const selectedSupplier = data.suppliers.find(
+            (supplier) => supplier.id === form.supplierId
+          )
+
+          if (!selectedSupplier) {
+            throw new Error('المورد المختار غير متاح.')
+          }
+
           if (!initialStockBranchId) {
             throw new Error('اختر الفرع الذي ستُسجل فيه الكميات.')
           }
@@ -576,6 +601,7 @@ export default function ProductInventoryPage({
           await createProductWithInitialStockAction({
             storeId: form.storeId,
             branchId: initialStockBranchId,
+            supplierId: form.supplierId,
             name: form.name,
             category: form.category,
             brand: form.brand,
@@ -742,6 +768,17 @@ export default function ProductInventoryPage({
                     <p className="mt-2 break-words text-xs leading-6 text-[#64748b] sm:text-sm">
                       {product.category || 'بدون تصنيف'} ·{' '}
                       {product.brand || 'بدون علامة'}
+                    </p>
+
+                    <p className="mt-1 break-words text-xs leading-6 text-[#475569]">
+                      المورد:{' '}
+                      <span className="font-bold">
+                        {data.suppliers.find(
+                          (supplier) =>
+                            supplier.id === product.supplier_id
+                        )?.name ||
+                          'لم يتم تحديد مورد لهذا المنتج القديم'}
+                      </span>
                     </p>
                   </div>
 
@@ -1027,6 +1064,52 @@ export default function ProductInventoryPage({
             {!editing && (
               <div className="space-y-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
                 <h4 className="font-extrabold text-[#1e40af]">
+                  المورد الخاص بالمنتج
+                </h4>
+
+                <p className="text-xs leading-6 text-[#475569]">
+                  اختر المورد الذي تتعامل معه في هذا المنتج. يمكن للمورد
+                  الواحد توريد منتجات متعددة، ولكل منتج متغيراته وباركوده
+                  المستقل.
+                </p>
+
+                {data.suppliers.length > 0 ? (
+                  <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-[#465260]">
+                    <span>المورد</span>
+
+                    <select
+                      required
+                      value={form.supplierId}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          supplierId: event.target.value,
+                        })
+                      }
+                      className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-3 text-base"
+                    >
+                      <option value="">اختر المورد</option>
+
+                      {data.suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                          {supplier.phone ? ` - ${supplier.phone}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="rounded-lg bg-white p-3 text-sm font-bold leading-6 text-[#b45309]">
+                    لا يوجد مورد نشط. أضف موردًا من قسم الموردين أولًا،
+                    ثم ارجع لإضافة المنتج.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!editing && (
+              <div className="space-y-2 rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+                <h4 className="font-extrabold text-[#1e40af]">
                   الفرع والرصيد الافتتاحي
                 </h4>
 
@@ -1061,6 +1144,20 @@ export default function ProductInventoryPage({
                     لا يوجد فرع نشط متاح لهذا المتجر.
                   </p>
                 )}
+              </div>
+            )}
+
+            {editing && (
+              <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                <p className="text-sm font-bold text-[#334155]">
+                  المورد الحالي:{' '}
+                  {data.suppliers.find(
+                    (supplier) => supplier.id === editing.supplier_id
+                  )?.name || 'لم يتم تحديد مورد لهذا المنتج القديم'}
+                </p>
+                <p className="mt-1 text-xs text-[#64748b]">
+                  لا يتم تغيير المورد عند تعديل المنتج.
+                </p>
               </div>
             )}
 
@@ -1214,7 +1311,12 @@ export default function ProductInventoryPage({
 
               <button
                 type="submit"
-                disabled={busy || (!editing && availableBranches.length === 0)}
+                disabled={
+                  busy ||
+                  (!editing &&
+                    (availableBranches.length === 0 ||
+                      data.suppliers.length === 0))
+                }
                 className="rounded-xl bg-[#2563eb] px-6 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
                 {busy ? 'جارٍ الحفظ...' : 'حفظ المنتج'}
