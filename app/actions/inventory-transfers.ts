@@ -3,6 +3,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireRedaBranch, requireRedaContext } from '@/lib/reda-scope'
+import { requireStoreSectionPin } from '@/lib/store-section-pin'
 
 type TransferResult =
   | { ok: true; transferId: string }
@@ -86,6 +87,8 @@ export async function requestInventoryTransfer(
       'stock_manager',
     ])
 
+    await requireStoreSectionPin(context)
+
     if (
       !input.sourceBranchId ||
       !input.destinationBranchId ||
@@ -168,6 +171,8 @@ export async function receiveInventoryTransfer(
       'stock_manager',
     ])
 
+    await requireStoreSectionPin(context)
+
     if (!transferId?.trim()) {
       return {
         ok: false,
@@ -230,6 +235,8 @@ export async function cancelInventoryTransfer(
       'manager',
       'stock_manager',
     ])
+
+    await requireStoreSectionPin(context)
 
     if (!transferId?.trim()) {
       return {
