@@ -3,6 +3,7 @@ import SalesPage from '@/components/sales-page'
 import ReturnsManagementPage from '@/components/returns-management-page'
 import InventoryCountsPage from '@/components/inventory-counts-page'
 import SupplierStatementPage from '@/components/supplier-statement-page'
+import StoreSectionPinPrompt from '@/components/store-section-pin-prompt'
 import { notFound } from 'next/navigation'
 import DokkanApp from '@/components/dokkan-app'
 import DashboardPage from '@/components/dashboard-page'
@@ -86,7 +87,34 @@ export default async function Page({
   // Protect selected sections before loading their page data.
   // POS and Dashboard intentionally remain accessible without PIN.
   if (PIN_PROTECTED_SECTIONS.includes(type)) {
-    await requireStoreSectionPin(reda)
+    try {
+      await requireStoreSectionPin(reda)
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'STORE_SECTION_PIN_REQUIRED'
+      ) {
+        const user = {
+          displayName:
+            reda.membership.display_name ||
+            reda.user.user_metadata?.display_name ||
+            reda.user.email ||
+            'مستخدم',
+          role: reda.membership.role || null,
+          storeName: reda.storeName,
+        }
+
+        return (
+          <DokkanApp
+            type={type}
+            user={user}
+            content={<StoreSectionPinPrompt />}
+          />
+        )
+      }
+
+      throw error
+    }
   }
 
   const user = {
