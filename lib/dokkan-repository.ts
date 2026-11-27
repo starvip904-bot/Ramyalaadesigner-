@@ -106,6 +106,7 @@ export async function listDokkanProducts(storeId: string) {
       name,
       category,
       brand,
+      supplier_id,
       status,
       created_at,
       dokkan_product_variants(id, sku, barcode, size, color, price, cost)
@@ -136,6 +137,7 @@ export async function listDokkanProductInventory(storeId: string) {
         name,
         category,
         brand,
+        supplier_id,
         status,
         created_at,
         dokkan_product_variants(id, sku, barcode, size, color, price, cost)
