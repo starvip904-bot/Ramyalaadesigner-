@@ -106,7 +106,8 @@ export default function SettingsManagementPage({
 
     if (busy) return
 
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
 
     // Save the store PIN separately from ordinary store settings.
     if (activeTab === 'security') {
@@ -138,7 +139,7 @@ export default function SettingsManagementPage({
           return
         }
 
-        event.currentTarget.reset()
+        formElement.reset()
         setSuccess(result.message)
         router.refresh()
       } catch {
