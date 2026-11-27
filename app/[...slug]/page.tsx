@@ -19,6 +19,8 @@ import ExpensesPage from '@/components/expenses-page'
 import ReportsPage from '@/components/reports-page'
 
 import { requireRedaContext } from '@/lib/reda-scope'
+import { requireStoreSectionPin } from '@/lib/store-section-pin'
+
 import { getEmployeesPageData } from '@/lib/employees-repository'
 import { getExpensesPageData } from '@/lib/expenses-repository'
 import { getReportsPageData } from '@/lib/reports-repository'
@@ -59,6 +61,14 @@ const valid = [
   'settings',
 ]
 
+const PIN_PROTECTED_SECTIONS = [
+  'products',
+  'inventory',
+  'inventory-counts',
+  'transfers',
+  'reports',
+]
+
 export default async function Page({
   params,
 }: {
@@ -72,6 +82,12 @@ export default async function Page({
   }
 
   const reda = await requireRedaContext()
+
+  // Protect selected sections before loading their page data.
+  // POS and Dashboard intentionally remain accessible without PIN.
+  if (PIN_PROTECTED_SECTIONS.includes(type)) {
+    await requireStoreSectionPin(reda)
+  }
 
   const user = {
     displayName:
