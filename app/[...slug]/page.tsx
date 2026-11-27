@@ -29,6 +29,7 @@ import { getReturnsPageData } from '@/lib/returns-repository'
 import { getInventoryCountsPageData } from '@/lib/inventory-counts-repository'
 import { listInventoryAlertThresholds } from '@/lib/inventory-thresholds-repository'
 import { getInventoryTransfersPageData } from '@/lib/inventory-transfers-repository'
+import { listProductSuppliers } from '@/lib/product-suppliers-repository'
 
 import {
   getDashboardData,
@@ -275,9 +276,10 @@ export default async function Page({
     const storeId = reda.storeId
 
     if (type === 'inventory') {
-      const [data, thresholds] = await Promise.all([
+      const [data, thresholds, suppliers] = await Promise.all([
         listDokkanProductInventory(storeId),
         listInventoryAlertThresholds(),
+        listProductSuppliers(storeId),
       ])
 
       return (
@@ -297,7 +299,10 @@ export default async function Page({
 
               <ProductInventoryPage
                 mode={type}
-                initialData={data}
+                initialData={{
+                  ...data,
+                  suppliers,
+                }}
                 storeIds={[storeId]}
               />
             </div>
@@ -306,7 +311,10 @@ export default async function Page({
       )
     }
 
-    const data = await listDokkanProductInventory(storeId)
+    const [data, suppliers] = await Promise.all([
+      listDokkanProductInventory(storeId),
+      listProductSuppliers(storeId),
+    ])
 
     return (
       <DokkanApp
@@ -315,7 +323,10 @@ export default async function Page({
         content={
           <ProductInventoryPage
             mode={type}
-            initialData={data}
+            initialData={{
+              ...data,
+              suppliers,
+            }}
             storeIds={[storeId]}
           />
         }
