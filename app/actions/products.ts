@@ -163,10 +163,11 @@ export async function createProductWithVariantsAction(input: {
   return data as string
 }
 
-// إنشاء منتج ومتغيراته وتسجيل كميات البداية في عملية واحدة.
+// إنشاء منتج ومتغيراته ومخزونه الافتتاحي وربطه بمورد واحد.
 export async function createProductWithInitialStockAction(input: {
   storeId: string
   branchId: string
+  supplierId: string
   name: string
   category: string
   brand?: string
@@ -174,16 +175,19 @@ export async function createProductWithInitialStockAction(input: {
 }) {
   const context = await getAuthorizedStore(input.storeId)
 
+  const pinTokenHash = await requireStoreSectionPin(context)
+
   await requireRedaBranch(input.branchId)
 
   if (
     !input.name.trim() ||
     !input.category.trim() ||
+    !input.supplierId?.trim() ||
     !Array.isArray(input.variants) ||
     input.variants.length === 0 ||
     input.variants.length > 200
   ) {
-    throw new Error('بيانات المنتج أو المتغيرات غير مكتملة.')
+    throw new Error('يجب إدخال بيانات المنتج واختيار المورد وإضافة متغير واحد على الأقل.')
   }
 
   const variants = input.variants.map((variant) => {
@@ -222,6 +226,8 @@ export async function createProductWithInitialStockAction(input: {
       product_category: input.category.trim(),
       product_brand: input.brand?.trim() || null,
       variants,
+      p_supplier_id: input.supplierId,
+      p_pin_token_hash: pinTokenHash,
     }
   )
 
