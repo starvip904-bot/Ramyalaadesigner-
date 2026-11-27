@@ -471,16 +471,31 @@ export async function getDokkanPurchase(purchaseId: string) {
   return data
 }
 
+/**
+ * تحميل كتالوج المشتريات من مسار خادمي آمن.
+ *
+ * يتم التحقق أولًا من عضوية المستخدم في المتجر.
+ * المنتجات والفروع تُقرأ باستخدام عميل الخادم الإداري
+ * مع تقييد الاستعلام بمعرّف المتجر.
+ *
+ * مدير الفرع يرى الفروع النشطة المسندة إليه فقط.
+ * الموردون يظلون عبر جلسة المستخدم وبنطاق المتجر نفسه.
+ *
+ * لا تتطلب هذه الوظيفة PIN، ولا تغيّر عمليات إنشاء
+ * المشتريات أو استلامها.
+ */
 export async function listDokkanPurchaseCatalog(storeId: string) {
-  const { supabase, storeId: scopedStoreId } =
+  const { context, supabase, storeId: scopedStoreId } =
     await getScopedStore(storeId)
+
+  const admin = createAdminClient()
 
   const [
     { data: products, error: productsError },
-    { data: branches, error: branchesError },
+    { data: allBranches, error: branchesError },
     { data: suppliers, error: suppliersError },
   ] = await Promise.all([
-    supabase
+    admin
       .from('dokkan_products')
       .select(`
         id,
@@ -492,7 +507,7 @@ export async function listDokkanPurchaseCatalog(storeId: string) {
       .eq('status', 'active')
       .order('name'),
 
-    supabase
+    admin
       .from('dokkan_branches')
       .select('id, name, status, store_id')
       .eq('store_id', scopedStoreId)
@@ -508,12 +523,49 @@ export async function listDokkanPurchaseCatalog(storeId: string) {
   ])
 
   if (productsError || branchesError || suppliersError) {
+    console.error('[Purchases] Catalog query failed:', {
+      productsError,
+      branchesError,
+      suppliersError,
+    })
     throw new Error('Unable to load purchase catalog')
+  }
+
+  let branches = allBranches ?? []
+
+  // تقييد مدير الفرع بالفروع المسندة إليه.
+  if (context.membership.role === 'manager') {
+    const {
+      data: assignments,
+      error: assignmentsError,
+    } = await admin
+      .from('dokkan_member_branches')
+      .select('branch_id')
+      .eq('store_id', scopedStoreId)
+      .eq('member_id', context.membership.id)
+
+    if (assignmentsError) {
+      console.error(
+        '[Purchases] Branch assignments query failed:',
+        assignmentsError
+      )
+      throw new Error('Unable to load purchase branch assignments')
+    }
+
+    const allowedBranchIds = new Set(
+      (assignments ?? []).map(
+        (assignment) => assignment.branch_id
+      )
+    )
+
+    branches = branches.filter((branch) =>
+      allowedBranchIds.has(branch.id)
+    )
   }
 
   return {
     products: products ?? [],
-    branches: branches ?? [],
+    branches,
     suppliers: suppliers ?? [],
   }
 }
