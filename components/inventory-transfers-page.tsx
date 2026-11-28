@@ -464,7 +464,7 @@ export default function InventoryTransfersPage({
     return (
       <div
         dir="rtl"
-        className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 text-center"
+        className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-6 text-center shadow-sm"
       >
         <Package
           className="mx-auto mb-3 text-[var(--muted)]"
@@ -482,10 +482,10 @@ export default function InventoryTransfersPage({
 
   return (
     <div dir="rtl" className="space-y-5">
-      <header className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-6">
+      <header className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand)] text-white">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand)] text-white shadow-sm">
               <ArrowLeftRight size={24} />
             </div>
 
@@ -503,7 +503,7 @@ export default function InventoryTransfersPage({
             type="button"
             onClick={() => window.location.reload()}
             disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)] disabled:opacity-50"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition hover:bg-[var(--surface-secondary)] disabled:opacity-50"
           >
             <RefreshCw size={17} />
             تحديث البيانات
@@ -512,7 +512,7 @@ export default function InventoryTransfersPage({
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+        <div className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <Clock3 size={17} />
             طلبات معلقة
@@ -522,7 +522,7 @@ export default function InventoryTransfersPage({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+        <div className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <CheckCircle2 size={17} />
             تحويلات مستلمة
@@ -532,7 +532,7 @@ export default function InventoryTransfersPage({
           </p>
         </div>
 
-        <div className="col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:col-span-1">
+        <div className="col-span-2 rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm sm:col-span-1">
           <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
             <Package size={17} />
             الفروع المتاحة
@@ -543,7 +543,7 @@ export default function InventoryTransfersPage({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-6">
+      <section className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm sm:p-6">
         <div className="mb-5">
           <h3 className="text-lg font-extrabold text-[var(--foreground)]">
             إنشاء طلب تحويل جديد
@@ -554,11 +554,11 @@ export default function InventoryTransfersPage({
         </div>
 
         {branches.length < 2 ? (
-          <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
+          <div className="rounded-2xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
             يلزم توفر فرعين متاحين على الأقل لإنشاء طلب تحويل.
           </div>
         ) : activeProducts.length === 0 ? (
-          <div className="rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
+          <div className="rounded-2xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm leading-7 text-[var(--foreground)]">
             لا توجد متغيرات منتجات نشطة متاحة للتحويل حاليًا.
           </div>
         ) : (
@@ -574,7 +574,7 @@ export default function InventoryTransfersPage({
                     })
                   }
                   required
-                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
                 >
                   <option value="">اختر فرع المصدر</option>
                   {branches.map((branch) => (
@@ -595,7 +595,7 @@ export default function InventoryTransfersPage({
                     })
                   }
                   required
-                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
                 >
                   <option value="">اختر فرع الاستلام</option>
                   {branches
@@ -621,7 +621,7 @@ export default function InventoryTransfersPage({
                   })
                 }
                 required
-                className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+                className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
               >
                 <option value="">اختر المنتج</option>
                 {activeProducts.map((variant) => (
@@ -636,8 +636,8 @@ export default function InventoryTransfersPage({
             </label>
 
             {selectedVariant && (
-              <div className="rounded-xl bg-[var(--card-muted)] p-3 text-sm text-[var(--muted)]">
-                <p>
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--card-muted)] p-4 text-sm text-[var(--muted)]">
+                <p className="font-bold text-[var(--foreground)]">
                   المنتج: {selectedVariant.productName}
                 </p>
                 {selectedVariant.sku && (
@@ -646,7 +646,7 @@ export default function InventoryTransfersPage({
                   </p>
                 )}
                 {form.sourceBranchId && (
-                  <p className="mt-1 font-bold text-[var(--foreground)]">
+                  <p className="mt-2 font-bold text-[var(--foreground)]">
                     الرصيد المتاح في فرع المصدر: {formatQuantity(sourceBalance)}
                   </p>
                 )}
@@ -668,7 +668,7 @@ export default function InventoryTransfersPage({
                   }
                   placeholder="اكتب الكمية"
                   required
-                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
                 />
               </label>
 
@@ -682,7 +682,7 @@ export default function InventoryTransfersPage({
                     updateForm({ note: event.target.value })
                   }
                   placeholder="سبب التحويل أو أي تفاصيل"
-                  className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+                  className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--background)] px-3 text-base text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
                 />
               </label>
             </div>
@@ -690,7 +690,7 @@ export default function InventoryTransfersPage({
             <button
               type="submit"
               disabled={busy || branches.length < 2}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-3 font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand)] px-5 py-3 font-bold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               <ArrowLeftRight size={18} />
               {busy ? 'جارٍ إنشاء الطلب...' : 'إنشاء طلب التحويل'}
@@ -701,7 +701,7 @@ export default function InventoryTransfersPage({
         {error && (
           <div
             role="alert"
-            className="mt-4 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
+            className="mt-4 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
           >
             {error}
           </div>
@@ -710,7 +710,7 @@ export default function InventoryTransfersPage({
         {message && (
           <div
             role="status"
-            className="mt-4 rounded-xl border border-[var(--success)] bg-[var(--success-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
+            className="mt-4 rounded-2xl border border-[var(--success)] bg-[var(--success-soft)] p-3 text-sm leading-6 text-[var(--foreground)]"
           >
             {message}
           </div>
@@ -744,14 +744,14 @@ export default function InventoryTransfersPage({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="ابحث بالفرع أو المنتج أو رقم الطلب"
-              className="min-h-12 w-full rounded-xl border border-[var(--line)] bg-[var(--card)] pr-10 pl-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+              className="min-h-12 w-full rounded-2xl border border-[var(--line)] bg-[var(--card)] pr-10 pl-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="min-h-12 rounded-xl border border-[var(--line)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--brand)]"
+            className="min-h-12 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10"
           >
             <option value="all">كل الحالات</option>
             <option value="requested">في انتظار الاستلام</option>
@@ -761,7 +761,7 @@ export default function InventoryTransfersPage({
         </div>
 
         {filteredTransfers.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[var(--line)] bg-[var(--card)] p-8 text-center">
+          <div className="rounded-3xl border border-dashed border-[var(--line)] bg-[var(--card)] p-8 text-center shadow-sm">
             <Package
               size={34}
               className="mx-auto mb-3 text-[var(--muted)]"
@@ -778,7 +778,7 @@ export default function InventoryTransfersPage({
             {filteredTransfers.map((transfer) => (
               <article
                 key={transfer.id}
-                className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 sm:p-5"
+                className="rounded-3xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm transition hover:shadow-md sm:p-5"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -834,7 +834,7 @@ export default function InventoryTransfersPage({
                             type="button"
                             onClick={() => handleReceive(transfer)}
                             disabled={busy}
-                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--success)] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--success)] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
                           >
                             <CheckCircle2 size={17} />
                             استلام التحويل
@@ -844,7 +844,7 @@ export default function InventoryTransfersPage({
                             type="button"
                             onClick={() => handleCancel(transfer)}
                             disabled={busy}
-                            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50"
+                            className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--danger)] px-4 py-2 text-sm font-bold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50"
                           >
                             <XCircle size={17} />
                             إلغاء الطلب
@@ -855,20 +855,20 @@ export default function InventoryTransfersPage({
                     {transfer.status === 'requested' &&
                       role === 'manager' &&
                       !canActOnTransfer(transfer) && (
-                        <p className="rounded-xl bg-[var(--card-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+                        <p className="rounded-2xl bg-[var(--card-muted)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
                           لا تملك صلاحية الوصول إلى الفرعين لإتمام هذا التحويل.
                         </p>
                       )}
 
                     {transfer.status === 'received' && (
-                      <div className="flex items-center justify-center gap-2 rounded-xl bg-[var(--success-soft)] px-3 py-3 text-sm font-bold text-[var(--success)]">
+                      <div className="flex items-center justify-center gap-2 rounded-2xl bg-[var(--success-soft)] px-3 py-3 text-sm font-bold text-[var(--success)]">
                         <CheckCircle2 size={17} />
                         تم الاستلام
                       </div>
                     )}
 
                     {transfer.status === 'cancelled' && (
-                      <div className="flex items-center justify-center gap-2 rounded-xl bg-[var(--danger-soft)] px-3 py-3 text-sm font-bold text-[var(--danger)]">
+                      <div className="flex items-center justify-center gap-2 rounded-2xl bg-[var(--danger-soft)] px-3 py-3 text-sm font-bold text-[var(--danger)]">
                         <XCircle size={17} />
                         تم الإلغاء
                       </div>
