@@ -105,18 +105,18 @@ const purchaseStatus = (status: string) => ({
 
 const statusStyle = (status: string) => {
   if (status === 'received') {
-    return 'bg-green-50 text-green-700'
+    return 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300'
   }
 
   if (status === 'paid') {
-    return 'bg-blue-50 text-blue-700'
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
   }
 
   if (status === 'cancelled') {
-    return 'bg-red-50 text-red-700'
+    return 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
   }
 
-  return 'bg-orange-50 text-orange-700'
+  return 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
 }
 
 function normalizePurchase(row: any): Purchase {
@@ -497,7 +497,7 @@ export default function PurchasesPage({
     return (
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
         <input
-          className="min-w-0 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm sm:w-28"
+          className="dokkan-input min-w-0 w-full sm:w-28"
           type="number"
           min="0.01"
           max={remaining}
@@ -514,7 +514,7 @@ export default function PurchasesPage({
         />
 
         <select
-          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="dokkan-input min-w-0"
           value={paymentMethods[purchase.id] || 'cash'}
           onChange={(event) =>
             setPaymentMethods((current) => ({
@@ -531,7 +531,7 @@ export default function PurchasesPage({
 
         <button
           type="button"
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          className="dokkan-primary rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
           disabled={busy || !paymentAmounts[purchase.id]}
           onClick={() => pay(purchase)}
         >
@@ -546,16 +546,16 @@ export default function PurchasesPage({
       className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-5 p-3 sm:gap-6 sm:p-5 lg:p-6"
       dir="rtl"
     >
-      <header>
+      <header className="dokkan-panel">
         <p className="text-xs font-semibold text-slate-500 sm:text-sm">
           إدارة المشتريات
         </p>
 
-        <h1 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
+        <h1 className="mt-2 text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">
           فواتير الشراء ومدفوعات الموردين
         </h1>
 
-        <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
+        <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
           إنشاء فواتير الشراء ومتابعة الاستلام والمدفوعات وتفاصيل كل فاتورة
         </p>
       </header>
@@ -563,50 +563,50 @@ export default function PurchasesPage({
       {message && (
         <div
           role="status"
-          className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-700"
+          className="dokkan-panel-muted rounded-xl p-4 text-sm font-semibold leading-6"
         >
           {message}
         </div>
       )}
 
       <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">إجمالي المشتريات</p>
+        <article className="dokkan-card">
+          <p className="dokkan-text-muted text-sm">إجمالي المشتريات</p>
           <p className="mt-2 break-words text-xl font-extrabold">
             {money(purchasesTotal)}
           </p>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">إجمالي المدفوع</p>
-          <p className="mt-2 break-words text-xl font-extrabold text-green-700">
+        <article className="dokkan-card">
+          <p className="dokkan-text-muted text-sm">إجمالي المدفوع</p>
+          <p className="mt-2 break-words text-xl font-extrabold text-green-700 dark:text-green-400">
             {money(purchasesPaid)}
           </p>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">إجمالي المتبقي للموردين</p>
-          <p className="mt-2 break-words text-xl font-extrabold text-orange-600">
+        <article className="dokkan-card">
+          <p className="dokkan-text-muted text-sm">إجمالي المتبقي للموردين</p>
+          <p className="mt-2 break-words text-xl font-extrabold text-orange-600 dark:text-orange-400">
             {money(purchasesRemaining)}
           </p>
         </article>
       </section>
 
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="dokkan-card min-w-0">
         <div className="mb-5">
-          <h2 className="text-lg font-extrabold text-slate-900">
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
             فاتورة شراء جديدة
           </h2>
-          <p className="mt-1 text-xs leading-6 text-slate-500">
+          <p className="dokkan-text-muted mt-1 text-xs leading-6">
             اختر الفرع والمورد ثم أضف الأصناف والكميات والتكاليف
           </p>
         </div>
 
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="min-w-0 text-sm font-semibold text-slate-700">
+          <label className="dokkan-label min-w-0 text-sm font-semibold">
             الفرع
             <select
-              className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input mt-2 w-full min-w-0 p-3 text-base"
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
             >
@@ -619,10 +619,10 @@ export default function PurchasesPage({
             </select>
           </label>
 
-          <label className="min-w-0 text-sm font-semibold text-slate-700">
+          <label className="dokkan-label min-w-0 text-sm font-semibold">
             المورد
             <select
-              className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input mt-2 w-full min-w-0 p-3 text-base"
               value={supplierId}
               onChange={(event) => setSupplierId(event.target.value)}
             >
@@ -638,18 +638,20 @@ export default function PurchasesPage({
 
         <div className="mt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-bold text-slate-800">أصناف الفاتورة</h3>
-            <span className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100">
+              أصناف الفاتورة
+            </h3>
+            <span className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
               {lines.length.toLocaleString('ar-EG')} صنف
             </span>
           </div>
 
           {!variants.length && (
-            <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50 p-5 text-center">
-              <p className="font-bold text-orange-800">
+            <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50 p-5 text-center dark:border-orange-800 dark:bg-orange-950/20">
+              <p className="font-bold text-orange-800 dark:text-orange-300">
                 لا توجد أصناف متاحة للشراء
               </p>
-              <p className="mt-2 text-sm text-orange-700">
+              <p className="mt-2 text-sm text-orange-700 dark:text-orange-400">
                 أضف منتجًا ومتغيرًا من قسم المنتجات أولاً.
               </p>
             </div>
@@ -667,10 +669,10 @@ export default function PurchasesPage({
               return (
                 <article
                   key={`${index}-${line.variant_id}`}
-                  className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4"
+                  className="dokkan-panel-muted min-w-0 rounded-xl p-3 sm:p-4"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-extrabold text-slate-800">
+                    <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
                       الصنف رقم {index + 1}
                     </p>
 
@@ -678,17 +680,17 @@ export default function PurchasesPage({
                       type="button"
                       disabled={busy}
                       onClick={() => removeLine(index)}
-                      className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                      className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
                     >
                       حذف الصنف
                     </button>
                   </div>
 
                   <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="min-w-0 text-xs font-semibold text-slate-600 sm:col-span-2">
+                    <label className="dokkan-label min-w-0 text-xs font-semibold sm:col-span-2">
                       المنتج والمتغير
                       <select
-                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-blue-500"
+                        className="dokkan-input mt-2 w-full min-w-0 p-3 text-sm"
                         value={line.variant_id}
                         onChange={(event) =>
                           changeVariant(index, event.target.value)
@@ -707,10 +709,10 @@ export default function PurchasesPage({
                       </select>
                     </label>
 
-                    <label className="min-w-0 text-xs font-semibold text-slate-600">
+                    <label className="dokkan-label min-w-0 text-xs font-semibold">
                       الكمية
                       <input
-                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+                        className="dokkan-input mt-2 w-full min-w-0 p-3 text-base"
                         type="number"
                         min="0.01"
                         step="0.01"
@@ -723,10 +725,10 @@ export default function PurchasesPage({
                       />
                     </label>
 
-                    <label className="min-w-0 text-xs font-semibold text-slate-600">
+                    <label className="dokkan-label min-w-0 text-xs font-semibold">
                       تكلفة الوحدة
                       <input
-                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+                        className="dokkan-input mt-2 w-full min-w-0 p-3 text-base"
                         type="number"
                         min="0"
                         step="0.01"
@@ -739,10 +741,10 @@ export default function PurchasesPage({
                       />
                     </label>
 
-                    <label className="min-w-0 text-xs font-semibold text-slate-600">
+                    <label className="dokkan-label min-w-0 text-xs font-semibold">
                       الخصم
                       <input
-                        className="mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+                        className="dokkan-input mt-2 w-full min-w-0 p-3 text-base"
                         type="number"
                         min="0"
                         step="0.01"
@@ -755,15 +757,15 @@ export default function PurchasesPage({
                       />
                     </label>
 
-                    <div className="flex min-w-0 flex-col justify-center rounded-xl bg-white p-3">
-                      <span className="text-xs text-slate-500">
+                    <div className="dokkan-surface flex min-w-0 flex-col justify-center rounded-xl p-3">
+                      <span className="dokkan-text-muted text-xs">
                         إجمالي الصنف
                       </span>
-                      <strong className={`mt-1 break-words text-base ${lineTotal < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                      <strong className={`mt-1 break-words text-base ${lineTotal < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                         {money(lineTotal)}
                       </strong>
                       {selectedVariant && (
-                        <span className="mt-1 break-all text-xs text-slate-400">
+                        <span className="dokkan-text-muted mt-1 break-all text-xs">
                           {selectedVariant.sku || 'بدون باركود / SKU'}
                         </span>
                       )}
@@ -775,60 +777,28 @@ export default function PurchasesPage({
           </div>
         </div>
 
-        <div className="mt-5 flex min-w-0 flex-col gap-4 border-t border-slate-200 pt-5">
-          <button
-            type="button"
-            disabled={!firstVariant || busy}
-            onClick={addLine}
-            className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 sm:w-fit"
-          >
-            + إضافة صنف آخر
-          </button>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4">
-            <span className="font-bold text-slate-700">
-              إجمالي فاتورة الشراء
-            </span>
-            <strong className="break-words text-xl font-extrabold text-slate-900">
-              {money(total)}
-            </strong>
-          </div>
-
-          <button
-            type="button"
-            className="w-full rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={
-              busy ||
-              !branchId ||
-              !lines.length ||
-              !variants.length
-            }
-            onClick={submit}
-          >
-            {busy ? 'جارٍ الحفظ...' : 'حفظ مسودة فاتورة الشراء'}
-          </button>
         </div>
       </section>
 
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="dokkan-card min-w-0">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-extrabold text-slate-900">
+            <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
               سجل فواتير الشراء
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="dokkan-text-muted mt-1 text-xs">
               متابعة الاستلام والمدفوعات والمتبقي وتفاصيل كل فاتورة
             </p>
           </div>
 
-          <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+          <span className="dokkan-panel-muted rounded-lg px-3 py-2 text-xs font-bold">
             {purchases.length.toLocaleString('ar-EG')} فاتورة
           </span>
         </div>
 
         <div className="hidden overflow-x-auto lg:block">
           <table className="w-full min-w-[1000px] text-right text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="dokkan-panel-muted">
               <tr>
                 <th className="p-4">التاريخ</th>
                 <th className="p-4">المورد</th>
@@ -854,9 +824,9 @@ export default function PurchasesPage({
                 return (
                   <tr
                     key={purchase.id}
-                    className="border-t border-slate-100 hover:bg-slate-50"
+                    className="border-t border-slate-200 transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/40"
                   >
-                    <td className="p-4 text-xs text-slate-600">
+                    <td className="p-4 text-xs text-slate-600 dark:text-slate-300">
                       {new Date(purchase.created_at).toLocaleDateString('ar-EG')}
                     </td>
 
@@ -874,11 +844,11 @@ export default function PurchasesPage({
                       {money(purchase.total)}
                     </td>
 
-                    <td className="p-4 font-semibold text-green-700">
+                    <td className="p-4 font-semibold text-green-700 dark:text-green-400">
                       {money(purchase.amount_paid)}
                     </td>
 
-                    <td className="p-4 font-semibold text-orange-600">
+                    <td className="p-4 font-semibold text-orange-600 dark:text-orange-400">
                       {money(remaining)}
                     </td>
 
@@ -888,7 +858,7 @@ export default function PurchasesPage({
                           type="button"
                           disabled={detailsLoading}
                           onClick={() => openDetails(purchase.id)}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                          className="dokkan-surface rounded-lg px-3 py-2 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
                         >
                           التفاصيل
                         </button>
@@ -896,7 +866,7 @@ export default function PurchasesPage({
                         {canReceive && (
                           <button
                             type="button"
-                            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 disabled:opacity-50"
+                            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
                             disabled={busy}
                             onClick={() => receive(purchase.id)}
                           >
@@ -913,7 +883,7 @@ export default function PurchasesPage({
 
               {!purchases.length && (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500">
+                  <td colSpan={7} className="p-12 text-center text-slate-500 dark:text-slate-400">
                     لا توجد فواتير شراء حتى الآن
                   </td>
                 </tr>
@@ -936,14 +906,14 @@ export default function PurchasesPage({
             return (
               <article
                 key={purchase.id}
-                className="min-w-0 rounded-xl border border-slate-200 p-4"
+                className="dokkan-panel-muted min-w-0 rounded-xl p-4"
               >
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-extrabold text-slate-900">
+                    <p className="text-sm font-extrabold text-slate-900 dark:text-white">
                       {purchase.supplier?.name || getSupplierName(purchase.supplier_id)}
                     </p>
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="dokkan-text-muted mt-2 text-xs">
                       {new Date(purchase.created_at).toLocaleDateString('ar-EG')}
                     </p>
                   </div>
@@ -953,24 +923,24 @@ export default function PurchasesPage({
                   </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
+                <div className="dokkan-surface mt-4 grid grid-cols-2 gap-3 rounded-xl p-3">
                   <div>
-                    <p className="text-xs text-slate-500">الإجمالي</p>
+                    <p className="dokkan-text-muted text-xs">الإجمالي</p>
                     <p className="mt-1 break-words text-sm font-extrabold">
                       {money(purchase.total)}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">المدفوع</p>
-                    <p className="mt-1 break-words text-sm font-bold text-green-700">
+                    <p className="dokkan-text-muted text-xs">المدفوع</p>
+                    <p className="mt-1 break-words text-sm font-bold text-green-700 dark:text-green-400">
                       {money(purchase.amount_paid)}
                     </p>
                   </div>
 
-                  <div className="col-span-2 border-t border-slate-200 pt-3">
-                    <p className="text-xs text-slate-500">المتبقي للمورد</p>
-                    <p className="mt-1 break-words text-sm font-extrabold text-orange-600">
+                  <div className="col-span-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+                    <p className="dokkan-text-muted text-xs">المتبقي للمورد</p>
+                    <p className="mt-1 break-words text-sm font-extrabold text-orange-600 dark:text-orange-400">
                       {money(remaining)}
                     </p>
                   </div>
@@ -980,7 +950,7 @@ export default function PurchasesPage({
                   <button
                     type="button"
                     onClick={() => openDetails(purchase.id)}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700"
+                    className="dokkan-surface w-full rounded-xl px-4 py-3 text-sm font-bold transition hover:opacity-80"
                   >
                     عرض تفاصيل الفاتورة والدفعات
                   </button>
@@ -988,7 +958,7 @@ export default function PurchasesPage({
                   {canReceive && (
                     <button
                       type="button"
-                      className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700 disabled:opacity-50"
+                      className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
                       disabled={busy}
                       onClick={() => receive(purchase.id)}
                     >
@@ -1003,11 +973,11 @@ export default function PurchasesPage({
           })}
 
           {!purchases.length && (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
-              <p className="font-bold text-slate-700">
+            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700">
+              <p className="font-bold text-slate-700 dark:text-slate-200">
                 لا توجد فواتير شراء حتى الآن
               </p>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="dokkan-text-muted mt-2 text-xs">
                 ستظهر الفواتير هنا بعد إنشائها.
               </p>
             </div>
@@ -1017,7 +987,7 @@ export default function PurchasesPage({
 
       {(detailsLoading || detailsError || details) && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget && !detailsLoading) {
               setDetails(null)
@@ -1025,13 +995,13 @@ export default function PurchasesPage({
             }
           }}
         >
-          <section className="my-auto max-h-[94dvh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <section className="my-auto max-h-[94dvh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-t-3xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:rounded-2xl sm:p-6">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-700">
               <div>
-                <h2 className="text-lg font-extrabold text-slate-900">
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
                   تفاصيل فاتورة الشراء
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="dokkan-text-muted mt-1 text-xs">
                   الأصناف والاستلام والمدفوعات المسجلة
                 </p>
               </div>
@@ -1042,50 +1012,50 @@ export default function PurchasesPage({
                   setDetails(null)
                   setDetailsError('')
                 }}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600"
+                className="dokkan-surface rounded-xl px-3 py-2 text-sm font-bold transition hover:opacity-80"
               >
                 إغلاق
               </button>
             </div>
 
             {detailsLoading && (
-              <p className="py-10 text-center text-sm text-slate-500">
+              <p className="dokkan-text-muted py-10 text-center text-sm">
                 جارٍ تحميل تفاصيل الفاتورة...
               </p>
             )}
 
             {detailsError && (
-              <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">
+              <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
                 {detailsError}
               </p>
             )}
 
             {details && (
               <>
-                <div className="grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+                <div className="dokkan-panel-muted grid grid-cols-1 gap-3 rounded-xl p-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-slate-500">المورد</p>
+                    <p className="dokkan-text-muted text-xs">المورد</p>
                     <p className="mt-1 font-bold">
                       {details.supplier?.name || 'بدون مورد'}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">الفرع</p>
+                    <p className="dokkan-text-muted text-xs">الفرع</p>
                     <p className="mt-1 font-bold">
                       {details.branch?.name || '—'}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">تاريخ الفاتورة</p>
+                    <p className="dokkan-text-muted text-xs">تاريخ الفاتورة</p>
                     <p className="mt-1 font-bold">
                       {new Date(details.created_at).toLocaleString('ar-EG')}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">الحالة</p>
+                    <p className="dokkan-text-muted text-xs">الحالة</p>
                     <p className="mt-1 font-bold">
                       {purchaseStatus(details.status)}
                     </p>
@@ -1093,7 +1063,7 @@ export default function PurchasesPage({
                 </div>
 
                 <section>
-                  <h3 className="mb-3 font-extrabold text-slate-800">
+                  <h3 className="mb-3 font-extrabold text-slate-800 dark:text-slate-100">
                     أصناف الفاتورة
                   </h3>
 
@@ -1101,13 +1071,13 @@ export default function PurchasesPage({
                     {(details.items || []).map((item) => (
                       <article
                         key={item.id}
-                        className="rounded-xl border border-slate-200 p-3"
+                        className="dokkan-surface rounded-xl p-3"
                       >
-                        <p className="font-bold text-slate-800">
+                        <p className="font-bold text-slate-800 dark:text-slate-100">
                           {item.variant?.product_name || 'منتج'}
                         </p>
 
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="dokkan-text-muted mt-1 text-xs">
                           المقاس: {item.variant?.size || '—'}
                           {' · '}
                           اللون: {item.variant?.color || '—'}
@@ -1133,7 +1103,7 @@ export default function PurchasesPage({
                     ))}
 
                     {!details.items?.length && (
-                      <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                      <p className="dokkan-panel-muted rounded-xl p-4 text-sm">
                         لا توجد أصناف مسجلة في هذه الفاتورة.
                       </p>
                     )}
@@ -1142,10 +1112,10 @@ export default function PurchasesPage({
 
                 <section>
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="font-extrabold text-slate-800">
+                    <h3 className="font-extrabold text-slate-800 dark:text-slate-100">
                       سجل الدفعات
                     </h3>
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
                       {(details.payments || []).length} دفعة
                     </span>
                   </div>
@@ -1154,20 +1124,20 @@ export default function PurchasesPage({
                     {(details.payments || []).map((payment) => (
                       <article
                         key={payment.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
+                        className="dokkan-surface flex flex-wrap items-center justify-between gap-3 rounded-xl p-3"
                       >
                         <div>
-                          <p className="font-bold text-green-700">
+                          <p className="font-bold text-green-700 dark:text-green-400">
                             {money(Number(payment.amount || 0))}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="dokkan-text-muted mt-1 text-xs">
                             {new Date(payment.created_at).toLocaleString('ar-EG')}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="dokkan-text-muted mt-1 text-xs">
                             طريقة الدفع: {paymentMethodLabel(payment.payment_method)}
                           </p>
                           {payment.notes && (
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="dokkan-text-muted mt-1 text-xs">
                               {payment.notes}
                             </p>
                           )}
@@ -1176,31 +1146,31 @@ export default function PurchasesPage({
                     ))}
 
                     {!details.payments?.length && (
-                      <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                      <p className="dokkan-panel-muted rounded-xl p-4 text-sm">
                         لا توجد دفعات مسجلة على هذه الفاتورة حتى الآن.
                       </p>
                     )}
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-3">
+                <div className="dokkan-panel-muted grid grid-cols-1 gap-3 rounded-xl p-4 sm:grid-cols-3">
                   <div>
-                    <p className="text-xs text-slate-500">الإجمالي</p>
+                    <p className="dokkan-text-muted text-xs">الإجمالي</p>
                     <p className="mt-1 font-extrabold">
                       {money(Number(details.total || 0))}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">المدفوع</p>
-                    <p className="mt-1 font-extrabold text-green-700">
+                    <p className="dokkan-text-muted text-xs">المدفوع</p>
+                    <p className="mt-1 font-extrabold text-green-700 dark:text-green-400">
                       {money(Number(details.amount_paid || 0))}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-slate-500">المتبقي</p>
-                    <p className="mt-1 font-extrabold text-orange-600">
+                    <p className="dokkan-text-muted text-xs">المتبقي</p>
+                    <p className="mt-1 font-extrabold text-orange-600 dark:text-orange-400">
                       {money(
                         Number(details.total || 0) -
                         Number(details.amount_paid || 0)
@@ -1210,7 +1180,7 @@ export default function PurchasesPage({
                 </div>
 
                 {details.notes && (
-                  <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                  <div className="dokkan-panel-muted rounded-xl p-3 text-sm">
                     ملاحظات الفاتورة: {details.notes}
                   </div>
                 )}
