@@ -117,6 +117,19 @@ function getSavedGroupOrder(): NavGroup[] {
   }
 }
 
+function isActivePath(pathname: string, href: string) {
+  if (href === '/inventory') {
+    return (
+      pathname === '/inventory' ||
+      pathname === '/products' ||
+      pathname.startsWith('/inventory/') ||
+      pathname.startsWith('/products/')
+    )
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
 export default function DokkanSidebar({
   mobile = false,
   onClose,
@@ -169,11 +182,12 @@ export default function DokkanSidebar({
       className={`${
         mobile
           ? 'fixed inset-y-0 right-0 z-50 w-[min(20rem,85vw)] shadow-2xl'
-          : 'hidden w-72 shrink-0 border-l border-[var(--line)] lg:block'
+          : 'sticky top-0 hidden h-screen w-72 shrink-0 border-l border-[var(--line)] lg:block'
       } bg-[var(--sidebar)] text-[var(--foreground)]`}
     >
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-5 sm:px-6">
+      <div className="flex h-full min-h-0 flex-col">
+        {/* Brand */}
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--line)] px-5 py-5 sm:px-6">
           <Link
             href="/dashboard"
             onClick={onClose}
@@ -210,7 +224,8 @@ export default function DokkanSidebar({
           )}
         </div>
 
-        <div className="mx-4 mt-5 rounded-2xl border border-[var(--line)] bg-[var(--surface-secondary)] px-3 py-3">
+        {/* Current store */}
+        <div className="mx-4 mt-5 shrink-0 rounded-2xl border border-[var(--line)] bg-[var(--surface-secondary)] px-3 py-3">
           <p className="text-xs text-[var(--muted)]">
             المتجر الحالي
           </p>
@@ -226,9 +241,10 @@ export default function DokkanSidebar({
           </div>
         </div>
 
+        {/* Navigation */}
         <nav
           aria-label="القائمة الرئيسية"
-          className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-5 sm:px-4"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-5 sm:px-4"
         >
           {orderedGroups.map((group, index) => {
             const isCollapsed = Boolean(collapsedGroups[group.title])
@@ -287,9 +303,7 @@ export default function DokkanSidebar({
                 {!isCollapsed && (
                   <div className="space-y-1">
                     {group.items.map(({ label, href, icon: Icon }) => {
-                      const active =
-                        pathname === href ||
-                        pathname.startsWith(`${href}/`)
+                      const active = isActivePath(pathname, href)
 
                       return (
                         <Link
@@ -297,12 +311,19 @@ export default function DokkanSidebar({
                           href={href}
                           onClick={onClose}
                           aria-current={active ? 'page' : undefined}
-                          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
+                          className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${
                             active
-                              ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
+                              ? 'bg-[var(--brand-soft)] text-[var(--brand)] shadow-sm'
                               : 'text-[var(--muted-strong)] hover:bg-[var(--surface-secondary)] hover:text-[var(--brand)]'
                           }`}
                         >
+                          {active && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute right-0 top-2 bottom-2 w-1 rounded-l-full bg-[var(--brand)]"
+                            />
+                          )}
+
                           <Icon
                             size={20}
                             strokeWidth={active ? 2.4 : 2}
@@ -322,7 +343,8 @@ export default function DokkanSidebar({
           })}
         </nav>
 
-        <div className="border-t border-[var(--line)] p-4">
+        {/* Subscription shortcut */}
+        <div className="shrink-0 border-t border-[var(--line)] p-4">
           <Link
             href="/subscription"
             onClick={onClose}
