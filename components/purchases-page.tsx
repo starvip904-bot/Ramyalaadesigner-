@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -89,33 +88,32 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   })} ج.م`
 
-const paymentMethodLabel = (method: string) => ({
-  cash: 'نقدي',
-  card: 'بطاقة',
-  transfer: 'تحويل بنكي',
-}[method] || method)
+const paymentMethodLabel = (method: string) =>
+  ({
+    cash: 'نقدي',
+    card: 'بطاقة',
+    transfer: 'تحويل بنكي',
+  }[method] || method)
 
-const purchaseStatus = (status: string) => ({
-  pending: 'مسودة / بانتظار الاستلام',
-  paid: 'مدفوعة',
-  received: 'تم الاستلام',
-  partially_received: 'استلام جزئي',
-  cancelled: 'ملغاة',
-}[status] || status)
+const purchaseStatus = (status: string) =>
+  ({
+    pending: 'مسودة / بانتظار الاستلام',
+    paid: 'مدفوعة',
+    received: 'تم الاستلام',
+    partially_received: 'استلام جزئي',
+    cancelled: 'ملغاة',
+  }[status] || status)
 
 const statusStyle = (status: string) => {
   if (status === 'received') {
     return 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300'
   }
-
   if (status === 'paid') {
     return 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
   }
-
   if (status === 'cancelled') {
     return 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
   }
-
   return 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
 }
 
@@ -154,39 +152,25 @@ export default function PurchasesPage({
   const [purchases, setPurchases] = useState<Purchase[]>(
     initialPurchases.map(normalizePurchase)
   )
-
-  const [branchId, setBranchId] = useState(
-    catalog.branches[0]?.id ?? ''
-  )
-
+  const [branchId, setBranchId] = useState(catalog.branches[0]?.id ?? '')
   const [supplierId, setSupplierId] = useState('')
-
   const [lines, setLines] = useState<Line[]>(
     firstVariant
-      ? [{
-          variant_id: firstVariant.id,
-          quantity: 1,
-          unit_cost: Number(firstVariant.cost ?? 0),
-          discount: 0,
-        }]
+      ? [
+          {
+            variant_id: firstVariant.id,
+            quantity: 1,
+            unit_cost: Number(firstVariant.cost ?? 0),
+            discount: 0,
+          },
+        ]
       : []
   )
-
-  const [paymentAmounts, setPaymentAmounts] = useState<
-    Record<string, string>
-  >({})
-
-  const [paymentMethods, setPaymentMethods] = useState<
-    Record<string, string>
-  >({})
-
-  const [paymentKeys, setPaymentKeys] = useState<
-    Record<string, string>
-  >({})
-
+  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({})
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, string>>({})
+  const [paymentKeys, setPaymentKeys] = useState<Record<string, string>>({})
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-
   const [details, setDetails] = useState<PurchaseDetails | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState('')
@@ -198,54 +182,40 @@ export default function PurchasesPage({
   const total = useMemo(
     () =>
       lines.reduce(
-        (sum, line) =>
-          sum +
-          line.quantity * line.unit_cost -
-          line.discount,
+        (sum, line) => sum + line.quantity * line.unit_cost - line.discount,
         0
       ),
     [lines]
   )
 
   const purchasesTotal = purchases.reduce(
-    (sum, purchase) =>
-      sum + Number(purchase.total || 0),
+    (sum, purchase) => sum + Number(purchase.total || 0),
     0
   )
-
   const purchasesPaid = purchases.reduce(
-    (sum, purchase) =>
-      sum + Number(purchase.amount_paid || 0),
+    (sum, purchase) => sum + Number(purchase.amount_paid || 0),
     0
   )
-
   const purchasesRemaining = purchases.reduce(
     (sum, purchase) =>
       sum +
       Math.max(
         0,
-        Number(purchase.total || 0) -
-        Number(purchase.amount_paid || 0)
+        Number(purchase.total || 0) - Number(purchase.amount_paid || 0)
       ),
     0
   )
 
-  const updateLine = (
-    index: number,
-    patch: Partial<Line>
-  ) => {
+  const updateLine = (index: number, patch: Partial<Line>) => {
     setLines((current) =>
       current.map((line, lineIndex) =>
-        lineIndex === index
-          ? { ...line, ...patch }
-          : line
+        lineIndex === index ? { ...line, ...patch } : line
       )
     )
   }
 
   const addLine = () => {
     if (!firstVariant) return
-
     setLines((current) => [
       ...current,
       {
@@ -255,31 +225,37 @@ export default function PurchasesPage({
         discount: 0,
       },
     ])
-
     setMessage('')
   }
 
   const removeLine = (index: number) => {
-    setLines((current) =>
-      current.filter((_, lineIndex) => lineIndex !== index)
-    )
+    setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))
     setMessage('')
   }
 
-  const changeVariant = (
-    index: number,
-    variantId: string
-  ) => {
-    const variant = variants.find(
-      (item) => item.id === variantId
-    )
-
+  const changeVariant = (index: number, variantId: string) => {
+    const variant = variants.find((item) => item.id === variantId)
     if (!variant) return
-
     updateLine(index, {
       variant_id: variant.id,
       unit_cost: Number(variant.cost ?? 0),
     })
+  }
+
+  const openDetails = async (id: string) => {
+    setDetails(null)
+    setDetailsError('')
+    setDetailsLoading(true)
+    try {
+      const result = await getPurchaseDetailsAction(id)
+      setDetails(result as PurchaseDetails)
+    } catch (error) {
+      setDetailsError(
+        error instanceof Error ? error.message : 'تعذر تحميل تفاصيل الفاتورة'
+      )
+    } finally {
+      setDetailsLoading(false)
+    }
   }
 
   const submit = async () => {
@@ -287,7 +263,6 @@ export default function PurchasesPage({
       setMessage('اختر الفرع أولاً.')
       return
     }
-
     if (!lines.length) {
       setMessage('أضف صنفاً واحداً على الأقل.')
       return
@@ -312,7 +287,6 @@ export default function PurchasesPage({
 
     setBusy(true)
     setMessage('')
-
     try {
       const id = await createPurchase(storeId, {
         branchId,
@@ -333,15 +307,23 @@ export default function PurchasesPage({
         }),
         ...current,
       ])
-
       setMessage('تم إنشاء فاتورة الشراء كمسودة.')
+      setLines(
+        firstVariant
+          ? [
+              {
+                variant_id: firstVariant.id,
+                quantity: 1,
+                unit_cost: Number(firstVariant.cost ?? 0),
+                discount: 0,
+              },
+            ]
+          : []
+      )
+      setSupplierId('')
       router.refresh()
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'تعذر حفظ الفاتورة'
-      )
+      setMessage(error instanceof Error ? error.message : 'تعذر حفظ الفاتورة')
     } finally {
       setBusy(false)
     }
@@ -350,26 +332,17 @@ export default function PurchasesPage({
   const receive = async (id: string) => {
     setBusy(true)
     setMessage('')
-
     try {
       await receivePurchase(storeId, id)
-
       setPurchases((current) =>
         current.map((purchase) =>
-          purchase.id === id
-            ? { ...purchase, status: 'received' }
-            : purchase
+          purchase.id === id ? { ...purchase, status: 'received' } : purchase
         )
       )
-
       setMessage('تم استلام الفاتورة وتحديث المخزون.')
       router.refresh()
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'تعذر الاستلام'
-      )
+      setMessage(error instanceof Error ? error.message : 'تعذر الاستلام')
     } finally {
       setBusy(false)
     }
@@ -377,33 +350,20 @@ export default function PurchasesPage({
 
   const pay = async (purchase: Purchase) => {
     const amount = Number(paymentAmounts[purchase.id])
-
     const remaining =
-      Number(purchase.total) -
-      Number(purchase.amount_paid)
-
+      Number(purchase.total) - Number(purchase.amount_paid)
     const method = paymentMethods[purchase.id] || 'cash'
 
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      amount > remaining
-    ) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
       setMessage('تحقق من مبلغ الدفعة والمتبقي.')
       return
     }
 
     setBusy(true)
     setMessage('')
-
     try {
-      const key =
-        paymentKeys[purchase.id] ?? crypto.randomUUID()
-
-      setPaymentKeys((current) => ({
-        ...current,
-        [purchase.id]: key,
-      }))
+      const key = paymentKeys[purchase.id] ?? crypto.randomUUID()
+      setPaymentKeys((current) => ({ ...current, [purchase.id]: key }))
 
       const result = await recordSupplierPayment(
         storeId,
@@ -415,9 +375,7 @@ export default function PurchasesPage({
       )
 
       if (!result.ok) {
-        setMessage(
-          `${result.message} (${result.diagnosticId})`
-        )
+        setMessage(`${result.message} (${result.diagnosticId})`)
         return
       }
 
@@ -426,24 +384,17 @@ export default function PurchasesPage({
           item.id === purchase.id
             ? {
                 ...item,
-                amount_paid:
-                  Number(item.amount_paid || 0) + amount,
+                amount_paid: Number(item.amount_paid || 0) + amount,
               }
             : item
         )
       )
-
-      setPaymentAmounts((current) => ({
-        ...current,
-        [purchase.id]: '',
-      }))
-
+      setPaymentAmounts((current) => ({ ...current, [purchase.id]: '' }))
       setPaymentKeys((current) => {
         const next = { ...current }
         delete next[purchase.id]
         return next
       })
-
       setMessage(result.message)
       router.refresh()
 
@@ -451,46 +402,24 @@ export default function PurchasesPage({
         await openDetails(purchase.id)
       }
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'تعذر تسجيل الدفعة'
-      )
+      setMessage(error instanceof Error ? error.message : 'تعذر تسجيل الدفعة')
     } finally {
       setBusy(false)
     }
   }
 
-  const openDetails = async (id: string) => {
-    setDetails(null)
-    setDetailsError('')
-    setDetailsLoading(true)
-
-    try {
-      const result = await getPurchaseDetailsAction(id)
-      setDetails(result as PurchaseDetails)
-    } catch (error) {
-      setDetailsError(
-        error instanceof Error
-          ? error.message
-          : 'تعذر تحميل تفاصيل الفاتورة'
-      )
-    } finally {
-      setDetailsLoading(false)
-    }
-  }
-
   const getSupplierName = (id: string | null) =>
-    catalog.suppliers.find(
-      (supplier) => supplier.id === id
-    )?.name || 'بدون مورد'
+    catalog.suppliers.find((supplier) => supplier.id === id)?.name || 'بدون مورد'
 
   const renderPaymentControls = (purchase: Purchase) => {
     const remaining =
-      Number(purchase.total) -
-      Number(purchase.amount_paid)
+      Number(purchase.total) - Number(purchase.amount_paid)
 
-    if (remaining <= 0 || !purchase.supplier_id || purchase.status === 'cancelled') {
+    if (
+      remaining <= 0 ||
+      !purchase.supplier_id ||
+      purchase.status === 'cancelled'
+    ) {
       return null
     }
 
@@ -512,7 +441,6 @@ export default function PurchasesPage({
           placeholder="مبلغ الدفعة"
           aria-label="مبلغ الدفعة"
         />
-
         <select
           className="dokkan-input min-w-0"
           value={paymentMethods[purchase.id] || 'cash'}
@@ -528,7 +456,6 @@ export default function PurchasesPage({
           <option value="card">بطاقة</option>
           <option value="transfer">تحويل بنكي</option>
         </select>
-
         <button
           type="button"
           className="dokkan-primary rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
@@ -537,6 +464,37 @@ export default function PurchasesPage({
         >
           تسجيل الدفع
         </button>
+      </div>
+    )
+  }
+
+  const renderPurchaseActions = (purchase: Purchase) => {
+    const canReceive =
+      purchase.status === 'pending' ||
+      purchase.status === 'paid' ||
+      purchase.status === 'partially_received'
+
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={detailsLoading}
+          onClick={() => openDetails(purchase.id)}
+          className="dokkan-surface rounded-lg px-3 py-2 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
+        >
+          التفاصيل
+        </button>
+        {canReceive && (
+          <button
+            type="button"
+            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+            disabled={busy}
+            onClick={() => receive(purchase.id)}
+          >
+            استلام
+          </button>
+        )}
+        {renderPaymentControls(purchase)}
       </div>
     )
   }
@@ -550,11 +508,9 @@ export default function PurchasesPage({
         <p className="text-xs font-semibold text-slate-500 sm:text-sm">
           إدارة المشتريات
         </p>
-
         <h1 className="mt-2 text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">
           فواتير الشراء ومدفوعات الموردين
         </h1>
-
         <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
           إنشاء فواتير الشراء ومتابعة الاستلام والمدفوعات وتفاصيل كل فاتورة
         </p>
@@ -576,14 +532,12 @@ export default function PurchasesPage({
             {money(purchasesTotal)}
           </p>
         </article>
-
         <article className="dokkan-card">
           <p className="dokkan-text-muted text-sm">إجمالي المدفوع</p>
           <p className="mt-2 break-words text-xl font-extrabold text-green-700 dark:text-green-400">
             {money(purchasesPaid)}
           </p>
         </article>
-
         <article className="dokkan-card">
           <p className="dokkan-text-muted text-sm">إجمالي المتبقي للموردين</p>
           <p className="mt-2 break-words text-xl font-extrabold text-orange-600 dark:text-orange-400">
@@ -662,7 +616,6 @@ export default function PurchasesPage({
               const selectedVariant = variants.find(
                 (variant) => variant.id === line.variant_id
               )
-
               const lineTotal =
                 line.quantity * line.unit_cost - line.discount
 
@@ -675,10 +628,9 @@ export default function PurchasesPage({
                     <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
                       الصنف رقم {index + 1}
                     </p>
-
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || lines.length <= 1}
                       onClick={() => removeLine(index)}
                       className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
                     >
@@ -761,7 +713,13 @@ export default function PurchasesPage({
                       <span className="dokkan-text-muted text-xs">
                         إجمالي الصنف
                       </span>
-                      <strong className={`mt-1 break-words text-base ${lineTotal < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                      <strong
+                        className={`mt-1 break-words text-base ${
+                          lineTotal < 0
+                            ? 'text-red-600'
+                            : 'text-slate-900 dark:text-white'
+                        }`}
+                      >
                         {money(lineTotal)}
                       </strong>
                       {selectedVariant && (
@@ -777,6 +735,36 @@ export default function PurchasesPage({
           </div>
         </div>
 
+        <div className="mt-5 flex min-w-0 flex-col gap-4 border-t border-slate-200 pt-5 dark:border-slate-700">
+          <button
+            type="button"
+            disabled={!firstVariant || busy}
+            onClick={addLine}
+            className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 sm:w-fit"
+          >
+            + إضافة صنف آخر
+          </button>
+
+          <div className="dokkan-panel-muted flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl p-4">
+            <span className="font-bold">إجمالي فاتورة الشراء</span>
+            <strong className="break-words text-xl font-extrabold">
+              {money(total)}
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            className="dokkan-primary w-full rounded-xl px-5 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              busy ||
+              !branchId ||
+              !lines.length ||
+              !variants.length
+            }
+            onClick={submit}
+          >
+            {busy ? 'جارٍ الحفظ...' : 'حفظ مسودة فاتورة الشراء'}
+          </button>
         </div>
       </section>
 
@@ -790,7 +778,6 @@ export default function PurchasesPage({
               متابعة الاستلام والمدفوعات والمتبقي وتفاصيل كل فاتورة
             </p>
           </div>
-
           <span className="dokkan-panel-muted rounded-lg px-3 py-2 text-xs font-bold">
             {purchases.length.toLocaleString('ar-EG')} فاتورة
           </span>
@@ -809,18 +796,10 @@ export default function PurchasesPage({
                 <th className="p-4">الإجراءات</th>
               </tr>
             </thead>
-
             <tbody>
               {purchases.map((purchase) => {
                 const remaining =
-                  Number(purchase.total) -
-                  Number(purchase.amount_paid)
-
-                const canReceive =
-                  purchase.status === 'pending' ||
-                  purchase.status === 'paid' ||
-                  purchase.status === 'partially_received'
-
+                  Number(purchase.total) - Number(purchase.amount_paid)
                 return (
                   <tr
                     key={purchase.id}
@@ -829,61 +808,38 @@ export default function PurchasesPage({
                     <td className="p-4 text-xs text-slate-600 dark:text-slate-300">
                       {new Date(purchase.created_at).toLocaleDateString('ar-EG')}
                     </td>
-
                     <td className="p-4 font-semibold">
-                      {purchase.supplier?.name || getSupplierName(purchase.supplier_id)}
+                      {purchase.supplier?.name ||
+                        getSupplierName(purchase.supplier_id)}
                     </td>
-
                     <td className="p-4">
-                      <span className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(purchase.status)}`}>
+                      <span
+                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(
+                          purchase.status
+                        )}`}
+                      >
                         {purchaseStatus(purchase.status)}
                       </span>
                     </td>
-
-                    <td className="p-4 font-bold">
-                      {money(purchase.total)}
-                    </td>
-
+                    <td className="p-4 font-bold">{money(purchase.total)}</td>
                     <td className="p-4 font-semibold text-green-700 dark:text-green-400">
                       {money(purchase.amount_paid)}
                     </td>
-
                     <td className="p-4 font-semibold text-orange-600 dark:text-orange-400">
                       {money(remaining)}
                     </td>
-
                     <td className="p-4">
-                      <div className="flex min-w-[270px] flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={detailsLoading}
-                          onClick={() => openDetails(purchase.id)}
-                          className="dokkan-surface rounded-lg px-3 py-2 text-xs font-bold transition hover:opacity-80 disabled:opacity-50"
-                        >
-                          التفاصيل
-                        </button>
-
-                        {canReceive && (
-                          <button
-                            type="button"
-                            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-                            disabled={busy}
-                            onClick={() => receive(purchase.id)}
-                          >
-                            استلام
-                          </button>
-                        )}
-
-                        {renderPaymentControls(purchase)}
-                      </div>
+                      {renderPurchaseActions(purchase)}
                     </td>
                   </tr>
                 )
               })}
-
               {!purchases.length && (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-slate-500 dark:text-slate-400">
+                  <td
+                    colSpan={7}
+                    className="p-12 text-center text-slate-500 dark:text-slate-400"
+                  >
                     لا توجد فواتير شراء حتى الآن
                   </td>
                 </tr>
@@ -895,14 +851,7 @@ export default function PurchasesPage({
         <div className="grid min-w-0 grid-cols-1 gap-3 lg:hidden">
           {purchases.map((purchase) => {
             const remaining =
-              Number(purchase.total) -
-              Number(purchase.amount_paid)
-
-            const canReceive =
-              purchase.status === 'pending' ||
-              purchase.status === 'paid' ||
-              purchase.status === 'partially_received'
-
+              Number(purchase.total) - Number(purchase.amount_paid)
             return (
               <article
                 key={purchase.id}
@@ -911,14 +860,18 @@ export default function PurchasesPage({
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-extrabold text-slate-900 dark:text-white">
-                      {purchase.supplier?.name || getSupplierName(purchase.supplier_id)}
+                      {purchase.supplier?.name ||
+                        getSupplierName(purchase.supplier_id)}
                     </p>
                     <p className="dokkan-text-muted mt-2 text-xs">
                       {new Date(purchase.created_at).toLocaleDateString('ar-EG')}
                     </p>
                   </div>
-
-                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(purchase.status)}`}>
+                  <span
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(
+                      purchase.status
+                    )}`}
+                  >
                     {purchaseStatus(purchase.status)}
                   </span>
                 </div>
@@ -930,14 +883,12 @@ export default function PurchasesPage({
                       {money(purchase.total)}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">المدفوع</p>
                     <p className="mt-1 break-words text-sm font-bold text-green-700 dark:text-green-400">
                       {money(purchase.amount_paid)}
                     </p>
                   </div>
-
                   <div className="col-span-2 border-t border-slate-200 pt-3 dark:border-slate-700">
                     <p className="dokkan-text-muted text-xs">المتبقي للمورد</p>
                     <p className="mt-1 break-words text-sm font-extrabold text-orange-600 dark:text-orange-400">
@@ -946,32 +897,12 @@ export default function PurchasesPage({
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={() => openDetails(purchase.id)}
-                    className="dokkan-surface w-full rounded-xl px-4 py-3 text-sm font-bold transition hover:opacity-80"
-                  >
-                    عرض تفاصيل الفاتورة والدفعات
-                  </button>
-
-                  {canReceive && (
-                    <button
-                      type="button"
-                      className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-                      disabled={busy}
-                      onClick={() => receive(purchase.id)}
-                    >
-                      استلام الفاتورة وتحديث المخزون
-                    </button>
-                  )}
-
-                  {renderPaymentControls(purchase)}
+                <div className="mt-4">
+                  {renderPurchaseActions(purchase)}
                 </div>
               </article>
             )
           })}
-
           {!purchases.length && (
             <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-700">
               <p className="font-bold text-slate-700 dark:text-slate-200">
@@ -1005,7 +936,6 @@ export default function PurchasesPage({
                   الأصناف والاستلام والمدفوعات المسجلة
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={() => {
@@ -1023,9 +953,11 @@ export default function PurchasesPage({
                 جارٍ تحميل تفاصيل الفاتورة...
               </p>
             )}
-
             {detailsError && (
-              <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
+              <p
+                role="alert"
+                className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300"
+              >
                 {detailsError}
               </p>
             )}
@@ -1039,21 +971,18 @@ export default function PurchasesPage({
                       {details.supplier?.name || 'بدون مورد'}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">الفرع</p>
                     <p className="mt-1 font-bold">
                       {details.branch?.name || '—'}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">تاريخ الفاتورة</p>
                     <p className="mt-1 font-bold">
                       {new Date(details.created_at).toLocaleString('ar-EG')}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">الحالة</p>
                     <p className="mt-1 font-bold">
@@ -1066,7 +995,6 @@ export default function PurchasesPage({
                   <h3 className="mb-3 font-extrabold text-slate-800 dark:text-slate-100">
                     أصناف الفاتورة
                   </h3>
-
                   <div className="space-y-2">
                     {(details.items || []).map((item) => (
                       <article
@@ -1076,7 +1004,6 @@ export default function PurchasesPage({
                         <p className="font-bold text-slate-800 dark:text-slate-100">
                           {item.variant?.product_name || 'منتج'}
                         </p>
-
                         <p className="dokkan-text-muted mt-1 text-xs">
                           المقاس: {item.variant?.size || '—'}
                           {' · '}
@@ -1084,24 +1011,36 @@ export default function PurchasesPage({
                           {' · '}
                           SKU: {item.variant?.sku || '—'}
                         </p>
-
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                           <p>
-                            الكمية: <strong>{Number(item.quantity || 0).toLocaleString('ar-EG')}</strong>
+                            الكمية:{' '}
+                            <strong>
+                              {Number(item.quantity || 0).toLocaleString('ar-EG')}
+                            </strong>
                           </p>
                           <p>
-                            المستلم: <strong>{Number(item.received_quantity || 0).toLocaleString('ar-EG')}</strong>
+                            المستلم:{' '}
+                            <strong>
+                              {Number(item.received_quantity || 0).toLocaleString(
+                                'ar-EG'
+                              )}
+                            </strong>
                           </p>
                           <p>
-                            تكلفة الوحدة: <strong>{money(Number(item.unit_cost || 0))}</strong>
+                            تكلفة الوحدة:{' '}
+                            <strong>
+                              {money(Number(item.unit_cost || 0))}
+                            </strong>
                           </p>
                           <p>
-                            الخصم: <strong>{money(Number(item.discount || 0))}</strong>
+                            الخصم:{' '}
+                            <strong>
+                              {money(Number(item.discount || 0))}
+                            </strong>
                           </p>
                         </div>
                       </article>
                     ))}
-
                     {!details.items?.length && (
                       <p className="dokkan-panel-muted rounded-xl p-4 text-sm">
                         لا توجد أصناف مسجلة في هذه الفاتورة.
@@ -1119,7 +1058,6 @@ export default function PurchasesPage({
                       {(details.payments || []).length} دفعة
                     </span>
                   </div>
-
                   <div className="space-y-2">
                     {(details.payments || []).map((payment) => (
                       <article
@@ -1134,7 +1072,8 @@ export default function PurchasesPage({
                             {new Date(payment.created_at).toLocaleString('ar-EG')}
                           </p>
                           <p className="dokkan-text-muted mt-1 text-xs">
-                            طريقة الدفع: {paymentMethodLabel(payment.payment_method)}
+                            طريقة الدفع:{' '}
+                            {paymentMethodLabel(payment.payment_method)}
                           </p>
                           {payment.notes && (
                             <p className="dokkan-text-muted mt-1 text-xs">
@@ -1144,7 +1083,6 @@ export default function PurchasesPage({
                         </div>
                       </article>
                     ))}
-
                     {!details.payments?.length && (
                       <p className="dokkan-panel-muted rounded-xl p-4 text-sm">
                         لا توجد دفعات مسجلة على هذه الفاتورة حتى الآن.
@@ -1160,20 +1098,18 @@ export default function PurchasesPage({
                       {money(Number(details.total || 0))}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">المدفوع</p>
                     <p className="mt-1 font-extrabold text-green-700 dark:text-green-400">
                       {money(Number(details.amount_paid || 0))}
                     </p>
                   </div>
-
                   <div>
                     <p className="dokkan-text-muted text-xs">المتبقي</p>
                     <p className="mt-1 font-extrabold text-orange-600 dark:text-orange-400">
                       {money(
                         Number(details.total || 0) -
-                        Number(details.amount_paid || 0)
+                          Number(details.amount_paid || 0)
                       )}
                     </p>
                   </div>
