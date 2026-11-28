@@ -47,7 +47,11 @@ const menuGroups = [
     title: 'المنتجات والمخزون',
     items: [
       { label: 'الجرد', href: '/inventory-counts', icon: ClipboardList },
-      { label: 'التحويلات بين الفروع', href: '/transfers', icon: ArrowLeftRight },
+      {
+        label: 'التحويلات بين الفروع',
+        href: '/transfers',
+        icon: ArrowLeftRight,
+      },
     ],
   },
   {
@@ -61,7 +65,11 @@ const menuGroups = [
     title: 'المشتريات والمالية',
     items: [
       { label: 'الموردون', href: '/suppliers', icon: Truck },
-      { label: 'المشتريات ومدفوعات الموردين', href: '/purchases', icon: Truck },
+      {
+        label: 'المشتريات ومدفوعات الموردين',
+        href: '/purchases',
+        icon: Truck,
+      },
       { label: 'المصروفات', href: '/expenses', icon: WalletCards },
       { label: 'التقارير والأرباح', href: '/reports', icon: BarChart3 },
     ],
@@ -72,7 +80,11 @@ const menuGroups = [
       { label: 'اشتراكي وخطتي', href: '/subscription', icon: CreditCard },
       { label: 'الخطط والأسعار', href: '/pricing', icon: Sparkles },
       { label: 'سجل العمليات', href: '/audit-log', icon: ClipboardList },
-      { label: 'إعدادات المتجر والفواتير', href: '/settings', icon: Settings },
+      {
+        label: 'إعدادات المتجر والفواتير',
+        href: '/settings',
+        icon: Settings,
+      },
     ],
   },
 ]
@@ -109,7 +121,8 @@ function isActivePath(pathname: string, href: string) {
     return (
       pathname === '/inventory' ||
       pathname === '/products' ||
-      pathname.startsWith('/inventory/')
+      pathname.startsWith('/inventory/') ||
+      pathname.startsWith('/products/')
     )
   }
 
@@ -118,12 +131,35 @@ function isActivePath(pathname: string, href: string) {
 
 export default function MobileBottomNav() {
   const pathname = usePathname()
+
   const [showMore, setShowMore] = useState(false)
   const [orderedGroups, setOrderedGroups] = useState<MenuGroup[]>(menuGroups)
 
   useEffect(() => {
     setOrderedGroups(getSavedGroupOrder())
   }, [])
+
+  // إغلاق قائمة المزيد تلقائيًا عند الانتقال إلى صفحة أخرى.
+  useEffect(() => {
+    setShowMore(false)
+  }, [pathname])
+
+  // إتاحة إغلاق القائمة بزر Escape.
+  useEffect(() => {
+    if (!showMore) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setShowMore(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [showMore])
 
   const moreActive = orderedGroups.some((group) =>
     group.items.some((item) => isActivePath(pathname, item.href))
@@ -143,6 +179,7 @@ export default function MobileBottomNav() {
           <section
             id="dokkan-mobile-more-menu"
             aria-label="باقي أقسام دكان"
+            aria-modal="true"
             className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 max-h-[70dvh] overflow-y-auto rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] px-4 pb-5 pt-4 shadow-2xl lg:hidden"
           >
             <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[var(--line)]" />
