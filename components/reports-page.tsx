@@ -2,6 +2,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import {
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  CircleAlert,
+  Filter,
+  RotateCcw,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react'
 
 type Branch = {
   id: string
@@ -85,11 +96,7 @@ function cairoDate(value: string) {
   }).format(date)
 }
 
-function inDateRange(
-  value: string,
-  from: string,
-  to: string
-) {
+function inDateRange(value: string, from: string, to: string) {
   const date = cairoDate(value)
 
   if (!date) return false
@@ -104,40 +111,93 @@ function Metric({
   value,
   description,
   accent = 'slate',
+  icon: Icon = Wallet,
 }: {
   label: string
   value: string
   description?: string
   accent?: 'slate' | 'blue' | 'red' | 'green' | 'orange'
+  icon?: typeof Wallet
 }) {
   const accents = {
-    slate: 'bg-slate-100 text-slate-700',
-    blue: 'bg-blue-50 text-blue-700',
-    red: 'bg-red-50 text-red-700',
-    green: 'bg-green-50 text-green-700',
-    orange: 'bg-orange-50 text-orange-700',
+    slate: {
+      icon: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+      border: 'border-slate-200 dark:border-slate-700',
+    },
+    blue: {
+      icon: 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
+      border: 'border-blue-100 dark:border-blue-900/60',
+    },
+    red: {
+      icon: 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300',
+      border: 'border-red-100 dark:border-red-900/60',
+    },
+    green: {
+      icon: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
+      border: 'border-emerald-100 dark:border-emerald-900/60',
+    },
+    orange: {
+      icon: 'bg-orange-50 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300',
+      border: 'border-orange-100 dark:border-orange-900/60',
+    },
   }
 
+  const style = accents[accent]
+
   return (
-    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
+    <article
+      className={`min-w-0 rounded-2xl border ${style.border} bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900 sm:p-5`}
+    >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold leading-6 text-slate-500 sm:text-sm">
+        <p className="text-xs font-bold leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
           {label}
         </p>
 
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${accents[accent]}`} />
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${style.icon}`}
+        >
+          <Icon size={19} />
+        </span>
       </div>
 
-      <p className="mt-3 break-words text-lg font-extrabold leading-8 text-slate-900 sm:text-xl">
+      <p className="mt-3 break-words text-lg font-extrabold leading-8 text-slate-900 dark:text-white sm:text-xl">
         {value}
       </p>
 
       {description && (
-        <p className="mt-2 text-xs leading-5 text-slate-500">
+        <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
           {description}
         </p>
       )}
     </article>
+  )
+}
+
+function ReportSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-base font-extrabold text-slate-900 dark:text-white sm:text-lg">
+          {title}
+        </h2>
+
+        {description && (
+          <p className="mt-1 text-xs leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
+            {description}
+          </p>
+        )}
+      </div>
+
+      {children}
+    </section>
   )
 }
 
@@ -154,22 +214,25 @@ export default function ReportsPage({
   const [to, setTo] = useState('')
 
   const report = useMemo(() => {
-    const selectedSales = sales.filter((sale) =>
-      (branchId === 'all' || sale.branch_id === branchId) &&
-      inDateRange(sale.created_at, from, to) &&
-      !['cancelled', 'canceled', 'void'].includes(
-        sale.status.toLowerCase()
-      )
+    const selectedSales = sales.filter(
+      (sale) =>
+        (branchId === 'all' || sale.branch_id === branchId) &&
+        inDateRange(sale.created_at, from, to) &&
+        !['cancelled', 'canceled', 'void'].includes(
+          sale.status.toLowerCase()
+        )
     )
 
-    const selectedReturns = returns.filter((item) =>
-      (branchId === 'all' || item.branch_id === branchId) &&
-      inDateRange(item.created_at, from, to)
+    const selectedReturns = returns.filter(
+      (item) =>
+        (branchId === 'all' || item.branch_id === branchId) &&
+        inDateRange(item.created_at, from, to)
     )
 
-    const selectedExpenses = expenses.filter((expense) =>
-      (branchId === 'all' || expense.branch_id === branchId) &&
-      inDateRange(expense.created_at, from, to)
+    const selectedExpenses = expenses.filter(
+      (expense) =>
+        (branchId === 'all' || expense.branch_id === branchId) &&
+        inDateRange(expense.created_at, from, to)
     )
 
     const selectedSaleIds = new Set(
@@ -298,46 +361,85 @@ export default function ReportsPage({
 
   const hasFilters = branchId !== 'all' || from !== '' || to !== ''
 
+  const selectedBranch =
+    branchId === 'all'
+      ? 'كل الفروع'
+      : branches.find((branch) => branch.id === branchId)?.name ??
+        'الفرع المحدد'
+
+  const periodLabel =
+    from || to
+      ? `${from || 'بداية الفترة'} — ${to || 'حتى الآن'}`
+      : 'كل الفترات'
+
   return (
     <main
-      className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-3 sm:space-y-6 sm:p-5 lg:p-6"
+      className="mx-auto w-full max-w-7xl min-w-0 space-y-7 p-3 sm:space-y-8 sm:p-5 lg:p-6"
       dir="rtl"
     >
-      {/* عنوان الصفحة */}
-      <header>
-        <p className="text-xs font-semibold text-slate-500 sm:text-sm">
-          الإدارة المالية
-        </p>
+      {/* Page header */}
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+              <BarChart3 size={24} />
+            </div>
 
-        <h1 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
-          التقارير والأرباح
-        </h1>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-blue-700 dark:text-blue-300">
+                الإدارة المالية
+              </p>
 
-        <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
-          متابعة المبيعات والمرتجعات وتكلفة البضاعة والمصروفات وصافي الربح.
-        </p>
+              <h1 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">
+                التقارير والأرباح
+              </h1>
+
+              <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400 sm:text-sm">
+                متابعة المبيعات والمرتجعات وتكلفة البضاعة والمصروفات وصافي الربح.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <CalendarDays size={15} />
+              {periodLabel}
+            </span>
+
+            <span className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <Filter size={15} />
+              {selectedBranch}
+            </span>
+          </div>
+        </div>
       </header>
 
-      {/* الفلاتر */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4">
-          <h2 className="font-extrabold text-slate-900">
-            تحديد فترة التقرير
-          </h2>
+      {/* Filters */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <Filter size={19} />
+          </div>
 
-          <p className="mt-1 text-xs text-slate-500">
-            اختر الفرع والفترة التي تريد مراجعة نتائجها.
-          </p>
+          <div>
+            <h2 className="font-extrabold text-slate-900 dark:text-white">
+              تحديد فترة التقرير
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              اختر الفرع والفترة التي تريد مراجعة نتائجها.
+            </p>
+          </div>
         </div>
 
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
             الفرع
 
             <select
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none transition focus:border-blue-500"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
               <option value="all">كل الفروع</option>
 
@@ -349,7 +451,7 @@ export default function ReportsPage({
             </select>
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
             من تاريخ
 
             <input
@@ -357,11 +459,11 @@ export default function ReportsPage({
               value={from}
               max={to || undefined}
               onChange={(event) => setFrom(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
+          <label className="flex min-w-0 flex-col gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
             إلى تاريخ
 
             <input
@@ -369,40 +471,37 @@ export default function ReportsPage({
               value={to}
               min={from || undefined}
               onChange={(event) => setTo(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </label>
         </div>
 
         {hasFilters && (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="mt-4 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200"
-          >
-            إعادة ضبط الفلاتر
-          </button>
+          <div className="mt-4 flex justify-start">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <RotateCcw size={15} />
+              إعادة ضبط الفلاتر
+            </button>
+          </div>
         )}
       </section>
 
-      {/* أهم النتائج */}
-      <section>
-        <div className="mb-3">
-          <h2 className="font-extrabold text-slate-900">
-            ملخص النتائج المالية
-          </h2>
-
-          <p className="mt-1 text-xs text-slate-500">
-            النتائج حسب الفرع والفترة المحددين.
-          </p>
-        </div>
-
+      {/* Main metrics */}
+      <ReportSection
+        title="ملخص النتائج المالية"
+        description="النتائج محسوبة حسب الفرع والفترة المحددين."
+      >
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Metric
             label="إجمالي المبيعات"
             value={money(report.salesTotal)}
             description={`${report.salesCount.toLocaleString('ar-EG')} فاتورة`}
             accent="blue"
+            icon={TrendingUp}
           />
 
           <Metric
@@ -410,6 +509,7 @@ export default function ReportsPage({
             value={money(report.returnsTotal)}
             description={`${report.returnsCount.toLocaleString('ar-EG')} عملية إرجاع`}
             accent="red"
+            icon={TrendingDown}
           />
 
           <Metric
@@ -417,12 +517,14 @@ export default function ReportsPage({
             value={money(report.netSales)}
             description="المبيعات بعد خصم المرتجعات"
             accent="green"
+            icon={Wallet}
           />
 
           <Metric
             label="تكلفة البضاعة المباعة"
             value={money(report.soldCost)}
             description="حسب التكلفة المحفوظة وقت البيع"
+            icon={Wallet}
           />
 
           <Metric
@@ -430,11 +532,14 @@ export default function ReportsPage({
             value={money(report.returnedCost)}
             description="تُخصم من تكلفة البضاعة المباعة"
             accent="orange"
+            icon={TrendingDown}
           />
 
           <Metric
             label="صافي تكلفة البضاعة"
             value={money(report.netCost)}
+            description="بعد خصم تكلفة المرتجعات"
+            icon={BarChart3}
           />
 
           <Metric
@@ -442,6 +547,7 @@ export default function ReportsPage({
             value={money(report.expensesTotal)}
             description={`${report.expensesCount.toLocaleString('ar-EG')} مصروف`}
             accent="red"
+            icon={Wallet}
           />
 
           <Metric
@@ -449,6 +555,7 @@ export default function ReportsPage({
             value={money(report.grossProfit)}
             description="صافي المبيعات ناقص صافي تكلفة البضاعة"
             accent="green"
+            icon={TrendingUp}
           />
 
           <Metric
@@ -456,43 +563,42 @@ export default function ReportsPage({
             value={money(report.netProfit)}
             description="مجمل الربح المعروف ناقص المصروفات"
             accent="green"
+            icon={BarChart3}
           />
         </div>
-      </section>
+      </ReportSection>
 
-      {/* تنبيه التكلفة */}
+      {/* Missing cost warning */}
       {report.missingCostCount > 0 && (
         <section
           role="alert"
-          className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30 sm:p-5"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-lg text-amber-800">
-              !
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+              <CircleAlert size={21} />
             </span>
 
-            <div className="min-w-0">
-              <h2 className="font-extrabold text-amber-900">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-extrabold text-amber-900 dark:text-amber-200">
                 تنبيه: حساب الربح غير مكتمل
               </h2>
 
-              <p className="mt-2 text-xs leading-7 text-amber-800 sm:text-sm">
+              <p className="mt-2 text-xs leading-7 text-amber-800 dark:text-amber-300 sm:text-sm">
                 يوجد {report.missingCostCount.toLocaleString('ar-EG')} بند بيع أو مرتجع
-                لا تتوفر له تكلفة تاريخية محفوظة.
-                الأرقام المعروضة للربح هي الربح المعروف من البنود التي تتوفر
-                تكلفتها فقط، وليست صافي الربح النهائي المؤكد.
+                لا تتوفر له تكلفة تاريخية محفوظة. الأرقام المعروضة للربح هي
+                الربح المعروف من البنود التي تتوفر تكلفتها فقط، وليست صافي
+                الربح النهائي المؤكد.
               </p>
 
-              <div className="mt-3 grid grid-cols-1 gap-2 text-xs font-semibold text-amber-900 sm:grid-cols-2">
-                <p className="rounded-lg bg-amber-100/70 p-3">
-                  بنود بيع بلا تكلفة:
-                  {' '}
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <p className="rounded-xl bg-amber-100/80 p-3 text-xs font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+                  بنود بيع بلا تكلفة:{' '}
                   {report.missingSaleCostCount.toLocaleString('ar-EG')}
                 </p>
 
-                <p className="rounded-lg bg-amber-100/70 p-3">
-                  بنود مرتجعات بلا تكلفة:
-                  {' '}
+                <p className="rounded-xl bg-amber-100/80 p-3 text-xs font-bold text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+                  بنود مرتجعات بلا تكلفة:{' '}
                   {report.missingReturnCostCount.toLocaleString('ar-EG')}
                 </p>
               </div>
@@ -502,18 +608,18 @@ export default function ReportsPage({
       )}
 
       {report.missingCostCount === 0 && (
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
           <div className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 font-bold text-emerald-700">
-              ✓
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+              <CheckCircle2 size={21} />
             </span>
 
             <div>
-              <h2 className="text-sm font-extrabold text-emerald-900">
+              <h2 className="text-sm font-extrabold text-emerald-900 dark:text-emerald-200">
                 بيانات التكلفة مكتملة
               </h2>
 
-              <p className="mt-1 text-xs leading-6 text-emerald-800">
+              <p className="mt-1 text-xs leading-6 text-emerald-800 dark:text-emerald-300">
                 تتوفر التكلفة التاريخية لجميع بنود البيع والمرتجعات في الفترة المحددة.
               </p>
             </div>
@@ -521,59 +627,67 @@ export default function ReportsPage({
         </section>
       )}
 
-      {/* طريقة الحساب */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="font-extrabold text-slate-900">
-          ملخص طريقة الحساب
-        </h2>
+      {/* Calculation details */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <BarChart3 size={19} />
+          </div>
 
-        <p className="mt-1 text-xs text-slate-500">
-          المعادلات المستخدمة في التقرير.
-        </p>
+          <div>
+            <h2 className="font-extrabold text-slate-900 dark:text-white">
+              ملخص طريقة الحساب
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              المعادلات المستخدمة في التقرير.
+            </p>
+          </div>
+        </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs font-semibold text-slate-500">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
               صافي المبيعات
             </p>
 
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+            <p className="mt-2 text-sm font-extrabold leading-6 text-slate-800 dark:text-slate-100">
               إجمالي المبيعات − قيمة المرتجعات
             </p>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs font-semibold text-slate-500">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
               صافي تكلفة البضاعة
             </p>
 
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+            <p className="mt-2 text-sm font-extrabold leading-6 text-slate-800 dark:text-slate-100">
               تكلفة المبيعات − تكلفة البضاعة المرتجعة
             </p>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs font-semibold text-slate-500">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
               مجمل الربح
             </p>
 
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+            <p className="mt-2 text-sm font-extrabold leading-6 text-slate-800 dark:text-slate-100">
               صافي المبيعات − صافي تكلفة البضاعة
             </p>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs font-semibold text-slate-500">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
               صافي الربح
             </p>
 
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-800">
+            <p className="mt-2 text-sm font-extrabold leading-6 text-slate-800 dark:text-slate-100">
               مجمل الربح − المصروفات
             </p>
           </div>
         </div>
 
-        <p className="mt-4 rounded-lg border border-slate-100 p-3 text-xs leading-6 text-slate-500">
+        <p className="mt-4 rounded-xl border border-slate-100 bg-white p-3 text-xs leading-6 text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
           ملاحظة: الأرقام تعتمد على البيانات المسجلة في النظام والتكلفة التاريخية
           المحفوظة لكل بند بيع أو مرتجع.
         </p>
