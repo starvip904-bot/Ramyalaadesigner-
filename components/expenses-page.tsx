@@ -1,8 +1,20 @@
-
 'use client'
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  Wallet,
+  ReceiptText,
+  Search,
+  CalendarDays,
+  Filter,
+  RotateCcw,
+  Plus,
+  LoaderCircle,
+  CircleDollarSign,
+  Hash,
+  type LucideIcon,
+} from 'lucide-react'
 import { createExpense } from '@/app/actions/expenses'
 
 type Branch = {
@@ -43,14 +55,46 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   })} ج.م`
 
-const categoryStyle = (category: string) => {
-  if (category === 'رواتب') return 'bg-blue-50 text-blue-700'
-  if (category === 'إيجار') return 'bg-purple-50 text-purple-700'
-  if (category === 'كهرباء ومياه') return 'bg-yellow-50 text-yellow-700'
-  if (category === 'نقل وشحن') return 'bg-orange-50 text-orange-700'
-  if (category === 'صيانة') return 'bg-red-50 text-red-700'
-  if (category === 'تسويق') return 'bg-pink-50 text-pink-700'
-  return 'bg-slate-100 text-slate-700'
+const categoryTone = (category: string) => {
+  const tones: Record<string, { background: string; color: string }> = {
+    'رواتب': { background: 'var(--info-soft)', color: 'var(--info)' },
+    'إيجار': { background: 'var(--brand-soft)', color: 'var(--brand)' },
+    'كهرباء ومياه': { background: 'var(--warning-soft)', color: 'var(--warning)' },
+    'نقل وشحن': { background: 'var(--info-soft)', color: 'var(--info)' },
+    'صيانة': { background: 'var(--danger-soft)', color: 'var(--danger)' },
+    'تسويق': { background: 'var(--brand-soft)', color: 'var(--brand)' },
+    'تشغيل': { background: 'var(--surface-secondary)', color: 'var(--muted-strong)' },
+    'أخرى': { background: 'var(--surface-secondary)', color: 'var(--muted-strong)' },
+  }
+
+  return tones[category] || tones['أخرى']
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: LucideIcon
+}) {
+  return (
+    <article className="dokkan-card min-w-0 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold dokkan-text-muted">{label}</p>
+        <span
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: 'var(--brand-soft)', color: 'var(--brand)' }}
+        >
+          <Icon size={21} />
+        </span>
+      </div>
+      <p className="mt-3 break-words text-xl font-extrabold sm:text-2xl">
+        {value}
+      </p>
+    </article>
+  )
 }
 
 export default function ExpensesPage({
@@ -101,10 +145,8 @@ export default function ExpensesPage({
       const date = expense.created_at.slice(0, 10)
       const matchesFrom = !from || date >= from
       const matchesTo = !to || date <= to
-
       const matchesBranch =
         !filterBranch || expense.branch_id === filterBranch
-
       const matchesCategory =
         !filterCategory || expense.category === filterCategory
 
@@ -189,93 +231,79 @@ export default function ExpensesPage({
     })
   }
 
+  const hasActiveFilters = Boolean(
+    search || from || to || filterBranch || filterCategory
+  )
+
   return (
     <main
-      className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-3 sm:space-y-6 sm:p-5 lg:p-6"
       dir="rtl"
+      className="mx-auto w-full max-w-7xl min-w-0 space-y-5 p-3 sm:space-y-6 sm:p-5 lg:p-6"
     >
-      {/* عنوان الصفحة */}
-      <header>
-        <p className="text-xs font-semibold text-slate-500 sm:text-sm">
-          الإدارة المالية
-        </p>
-
-        <h1 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
-          المصروفات
-        </h1>
-
-        <p className="mt-2 text-xs leading-6 text-slate-500 sm:text-sm">
-          سجل مصروفات متجرك وتابع إجمالي المبالغ المسجلة لكل فرع.
-        </p>
-      </header>
-
-      {/* ملخص المصروفات */}
-      <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-500">
-              إجمالي المصروفات المسجلة
-            </p>
-
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-lg text-red-600">
-              <span aria-hidden="true">−</span>
-            </span>
-          </div>
-
-          <p className="mt-3 break-words text-xl font-extrabold text-slate-900 sm:text-2xl">
-            {money(total)}
+      <header className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold dokkan-text-muted sm:text-sm">
+            الإدارة المالية
           </p>
-
-          <p className="mt-1 text-xs text-slate-400">
-            جميع المصروفات المسجلة
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-500">
-              عدد المصروفات
-            </p>
-
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg text-blue-600">
-              #
-            </span>
-          </div>
-
-          <p className="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">
-            {initialExpenses.length.toLocaleString('ar-EG')}
-          </p>
-
-          <p className="mt-1 text-xs text-slate-400">
-            عدد السجلات المسجلة
-          </p>
-        </article>
-      </section>
-
-      {/* إضافة مصروف */}
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-5">
-          <h2 className="text-lg font-extrabold text-slate-900">
-            إضافة مصروف جديد
-          </h2>
-
-          <p className="mt-1 text-xs leading-6 text-slate-500">
-            أدخل بيانات المصروف وسيتم تسجيله على الفرع المحدد.
+          <h1 className="mt-2 break-words text-xl font-extrabold sm:text-2xl">
+            المصروفات
+          </h1>
+          <p className="mt-2 text-xs leading-6 dokkan-text-muted sm:text-sm">
+            سجل مصروفات متجرك وتابع إجمالي المبالغ المسجلة لكل فرع.
           </p>
         </div>
 
-        <form onSubmit={submit} className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-700">
-            الفرع
+        <span
+          className="inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"
+          style={{ background: 'var(--brand-soft)', color: 'var(--brand)' }}
+        >
+          <ReceiptText size={17} />
+          {initialExpenses.length.toLocaleString('ar-EG')} مصروف
+        </span>
+      </header>
 
+      <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+        <StatCard
+          label="إجمالي المصروفات المسجلة"
+          value={money(total)}
+          icon={CircleDollarSign}
+        />
+        <StatCard
+          label="عدد المصروفات"
+          value={initialExpenses.length.toLocaleString('ar-EG')}
+          icon={Hash}
+        />
+      </section>
+
+      <section className="dokkan-card min-w-0 p-4 sm:p-5">
+        <div className="mb-5 flex items-start gap-3">
+          <span
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'var(--brand-soft)', color: 'var(--brand)' }}
+          >
+            <Plus size={21} />
+          </span>
+          <div>
+            <h2 className="text-lg font-extrabold">إضافة مصروف جديد</h2>
+            <p className="mt-1 text-xs leading-6 dokkan-text-muted">
+              أدخل بيانات المصروف وسيتم تسجيله على الفرع المحدد.
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={submit}
+          className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2"
+        >
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span>الفرع</span>
             <select
               value={branchId}
               onChange={(event) => setBranchId(event.target.value)}
               required
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none transition focus:border-blue-500"
+              className="dokkan-input"
             >
               <option value="">اختر الفرع</option>
-
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -284,27 +312,25 @@ export default function ExpensesPage({
             </select>
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-700">
-            اسم المصروف
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span>اسم المصروف</span>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               required
               maxLength={150}
               placeholder="مثال: إيجار المحل"
-              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+              className="dokkan-input"
             />
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-700">
-            التصنيف
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span>التصنيف</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
               required
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none transition focus:border-blue-500"
+              className="dokkan-input"
             >
               {categories.map((item) => (
                 <option key={item} value={item}>
@@ -314,9 +340,8 @@ export default function ExpensesPage({
             </select>
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-700">
-            المبلغ بالجنيه
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span>المبلغ بالجنيه</span>
             <input
               type="number"
               value={amount}
@@ -325,27 +350,26 @@ export default function ExpensesPage({
               min="0.01"
               step="0.01"
               placeholder="0.00"
-              className="w-full min-w-0 rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+              className="dokkan-input"
             />
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-sm font-semibold text-slate-700 sm:col-span-2">
-            ملاحظات
-
+          <label className="dokkan-label min-w-0 space-y-2 sm:col-span-2">
+            <span>ملاحظات</span>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
               maxLength={1000}
               placeholder="ملاحظات اختيارية عن المصروف"
-              className="w-full min-w-0 resize-y rounded-xl border border-slate-200 p-3 text-base outline-none transition focus:border-blue-500"
+              className="dokkan-input resize-y"
             />
           </label>
 
           {errorMessage && (
             <p
               role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold leading-6 text-red-700 sm:col-span-2"
+              className="dokkan-status-danger p-3 text-sm font-bold leading-6 sm:col-span-2"
             >
               {errorMessage}
             </p>
@@ -354,7 +378,7 @@ export default function ExpensesPage({
           {message && (
             <p
               role="status"
-              className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-bold leading-6 text-green-700 sm:col-span-2"
+              className="dokkan-status-success p-3 text-sm font-bold leading-6 sm:col-span-2"
             >
               {message}
             </p>
@@ -364,61 +388,71 @@ export default function ExpensesPage({
             <button
               type="submit"
               disabled={isPending || branches.length === 0}
-              className="w-full rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="dokkan-primary inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-              {isPending ? 'جارٍ حفظ المصروف...' : 'حفظ المصروف'}
+              {isPending ? (
+                <>
+                  <LoaderCircle className="animate-spin" size={18} />
+                  جارٍ حفظ المصروف...
+                </>
+              ) : (
+                <>
+                  <Plus size={18} />
+                  حفظ المصروف
+                </>
+              )}
             </button>
           </div>
         </form>
 
         {branches.length === 0 && (
-          <p className="mt-4 rounded-xl bg-orange-50 p-3 text-sm leading-6 text-orange-700">
+          <p className="dokkan-status-warning mt-4 p-3 text-sm leading-6">
             لا يوجد فرع نشط يمكن تسجيل المصروف عليه.
           </p>
         )}
       </section>
 
-      {/* سجل المصروفات */}
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="dokkan-card min-w-0 p-4 sm:p-5">
         <div className="flex min-w-0 flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-lg font-extrabold text-slate-900">
-              سجل المصروفات
-            </h2>
-
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="text-lg font-extrabold">سجل المصروفات</h2>
+            <p className="mt-1 text-xs dokkan-text-muted">
               عرض ومراجعة المصروفات المسجلة
             </p>
           </div>
-
-          <span className="w-fit rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
+          <span
+            className="w-fit rounded-lg px-3 py-2 text-xs font-bold"
+            style={{ background: 'var(--brand-soft)', color: 'var(--brand)' }}
+          >
             {visibleExpenses.length.toLocaleString('ar-EG')} نتيجة
           </span>
         </div>
 
-        {/* البحث والفلاتر */}
         <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600 sm:col-span-2">
-            البحث
-
+          <label className="dokkan-label min-w-0 space-y-2 sm:col-span-2">
+            <span className="inline-flex items-center gap-2">
+              <Search size={15} />
+              البحث
+            </span>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ابحث باسم المصروف أو التصنيف أو الفرع أو الملاحظات..."
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 text-base outline-none transition focus:border-blue-500 focus:bg-white"
+              className="dokkan-input"
             />
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
-            الفرع
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span className="inline-flex items-center gap-2">
+              <Filter size={15} />
+              الفرع
+            </span>
             <select
               value={filterBranch}
               onChange={(event) => setFilterBranch(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input"
             >
               <option value="">كل الفروع</option>
-
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -427,16 +461,14 @@ export default function ExpensesPage({
             </select>
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
-            التصنيف
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span>التصنيف</span>
             <select
               value={filterCategory}
               onChange={(event) => setFilterCategory(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input"
             >
               <option value="">كل التصنيفات</option>
-
               {categories.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -445,99 +477,118 @@ export default function ExpensesPage({
             </select>
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
-            من تاريخ
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span className="inline-flex items-center gap-2">
+              <CalendarDays size={15} />
+              من تاريخ
+            </span>
             <input
               type="date"
               value={from}
               max={to || undefined}
               onChange={(event) => setFrom(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input"
             />
           </label>
 
-          <label className="flex min-w-0 flex-col gap-2 text-xs font-semibold text-slate-600">
-            إلى تاريخ
-
+          <label className="dokkan-label min-w-0 space-y-2">
+            <span className="inline-flex items-center gap-2">
+              <CalendarDays size={15} />
+              إلى تاريخ
+            </span>
             <input
               type="date"
               value={to}
               min={from || undefined}
               onChange={(event) => setTo(event.target.value)}
-              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-base outline-none focus:border-blue-500"
+              className="dokkan-input"
             />
           </label>
         </div>
 
-        {/* إجمالي النتائج بعد الفلترة */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
-          <span className="text-xs font-semibold text-slate-500">
+        <div
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl p-3"
+          style={{
+            background: 'var(--surface-secondary)',
+            border: '1px solid var(--line)',
+          }}
+        >
+          <span className="text-xs font-semibold dokkan-text-muted">
             إجمالي النتائج المعروضة
           </span>
-
-          <strong className="text-sm font-extrabold text-slate-900">
+          <strong className="text-sm font-extrabold">
             {money(filteredTotal)}
           </strong>
         </div>
 
-        {(search || from || to || filterBranch || filterCategory) && (
+        {hasActiveFilters && (
           <button
             type="button"
             onClick={resetFilters}
-            className="mt-3 rounded-lg bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-200"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition"
+            style={{
+              background: 'var(--surface-secondary)',
+              color: 'var(--muted-strong)',
+            }}
           >
+            <RotateCcw size={14} />
             مسح البحث والفلاتر
           </button>
         )}
 
-        {/* جدول الكمبيوتر */}
         {visibleExpenses.length > 0 && (
-          <div className="mt-5 hidden overflow-x-auto lg:block">
+          <div className="dokkan-scrollbar mt-5 hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[750px] text-right text-sm">
-              <thead className="bg-slate-50 text-slate-500">
+              <thead
+                style={{
+                  background: 'var(--table-header)',
+                  color: 'var(--muted)',
+                }}
+              >
                 <tr>
-                  <th className="p-4">المصروف</th>
-                  <th className="p-4">التصنيف</th>
-                  <th className="p-4">الفرع</th>
-                  <th className="p-4">التاريخ</th>
-                  <th className="p-4">المبلغ</th>
+                  <th className="p-4 font-bold">المصروف</th>
+                  <th className="p-4 font-bold">التصنيف</th>
+                  <th className="p-4 font-bold">الفرع</th>
+                  <th className="p-4 font-bold">التاريخ</th>
+                  <th className="p-4 font-bold">المبلغ</th>
                 </tr>
               </thead>
-
               <tbody>
                 {visibleExpenses.map((expense) => (
                   <tr
                     key={expense.id}
-                    className="border-t border-slate-100 transition hover:bg-slate-50"
+                    className="border-t transition-colors"
+                    style={{
+                      borderColor: 'var(--line)',
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.background = 'var(--table-row-hover)'
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.background = 'transparent'
+                    }}
                   >
                     <td className="max-w-xs p-4">
-                      <p className="break-words font-bold text-slate-900">
-                        {expense.title}
-                      </p>
-
+                      <p className="break-words font-bold">{expense.title}</p>
                       {expense.notes && (
-                        <p className="mt-1 break-words text-xs leading-5 text-slate-500">
+                        <p className="mt-1 break-words text-xs leading-5 dokkan-text-muted">
                           {expense.notes}
                         </p>
                       )}
                     </td>
-
                     <td className="p-4">
-                      <span className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ${categoryStyle(expense.category)}`}>
+                      <span
+                        className="whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold"
+                        style={categoryTone(expense.category)}
+                      >
                         {expense.category}
                       </span>
                     </td>
-
-                    <td className="p-4">
-                      {expense.branchName}
-                    </td>
-
-                    <td className="whitespace-nowrap p-4 text-xs text-slate-600">
+                    <td className="p-4">{expense.branchName}</td>
+                    <td className="whitespace-nowrap p-4 text-xs dokkan-text-muted">
                       {new Date(expense.created_at).toLocaleDateString('ar-EG')}
                     </td>
-
-                    <td className="whitespace-nowrap p-4 font-extrabold text-slate-900">
+                    <td className="whitespace-nowrap p-4 font-extrabold">
                       {money(expense.amount)}
                     </td>
                   </tr>
@@ -547,53 +598,54 @@ export default function ExpensesPage({
           </div>
         )}
 
-        {/* بطاقات الموبايل والتابلت */}
         {visibleExpenses.length > 0 && (
           <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 lg:hidden">
             {visibleExpenses.map((expense) => (
               <article
                 key={expense.id}
-                className="min-w-0 rounded-xl border border-slate-200 p-4"
+                className="dokkan-surface min-w-0 p-4"
               >
                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="break-words text-sm font-extrabold text-slate-900">
+                    <h3 className="break-words text-sm font-extrabold">
                       {expense.title}
                     </h3>
-
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="mt-2 text-xs dokkan-text-muted">
                       {expense.branchName}
                     </p>
                   </div>
-
-                  <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${categoryStyle(expense.category)}`}>
+                  <span
+                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold"
+                    style={categoryTone(expense.category)}
+                  >
                     {expense.category}
                   </span>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <div
+                  className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+                  style={{ borderColor: 'var(--line)' }}
+                >
                   <div>
-                    <p className="text-xs text-slate-500">
-                      المبلغ
-                    </p>
-
-                    <p className="mt-1 break-words text-base font-extrabold text-slate-900">
+                    <p className="text-xs dokkan-text-muted">المبلغ</p>
+                    <p className="mt-1 break-words text-base font-extrabold">
                       {money(expense.amount)}
                     </p>
                   </div>
-
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs dokkan-text-muted">
                     {new Date(expense.created_at).toLocaleDateString('ar-EG')}
                   </p>
                 </div>
 
                 {expense.notes && (
-                  <div className="mt-3 rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">
+                  <div
+                    className="mt-3 rounded-lg p-3"
+                    style={{ background: 'var(--surface-secondary)' }}
+                  >
+                    <p className="text-xs font-semibold dokkan-text-muted">
                       ملاحظات
                     </p>
-
-                    <p className="mt-1 break-words text-sm leading-6 text-slate-700">
+                    <p className="mt-1 break-words text-sm leading-6">
                       {expense.notes}
                     </p>
                   </div>
@@ -604,12 +656,20 @@ export default function ExpensesPage({
         )}
 
         {visibleExpenses.length === 0 && (
-          <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-            <p className="font-bold text-slate-700">
-              لا توجد مصروفات تطابق البحث
-            </p>
-
-            <p className="mt-2 text-xs leading-6 text-slate-500">
+          <div
+            className="mt-5 rounded-xl border border-dashed p-8 text-center"
+            style={{
+              borderColor: 'var(--line)',
+              background: 'var(--surface-secondary)',
+            }}
+          >
+            <Wallet
+              size={30}
+              className="mx-auto"
+              style={{ color: 'var(--muted)' }}
+            />
+            <p className="mt-3 font-bold">لا توجد مصروفات تطابق البحث</p>
+            <p className="mt-2 text-xs leading-6 dokkan-text-muted">
               جرّب تغيير كلمات البحث أو الفلاتر المحددة.
             </p>
           </div>
