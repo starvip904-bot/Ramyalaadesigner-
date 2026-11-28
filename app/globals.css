@@ -2,6 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
+/* DOKKAN Design A — Teal + Navy */
+
 :root {
   color-scheme: light;
 
@@ -53,6 +55,11 @@
 
   --radius-card: 1rem;
   --shadow-card: 0 8px 28px rgba(20, 43, 69, 0.055);
+  --shadow-floating: 0 16px 40px rgba(20, 43, 69, 0.12);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 :root[data-theme='dark'] {
@@ -104,10 +111,11 @@
   --table-row-hover: #243D55;
   --disabled: #34485D;
 
-  --radius-card: 1rem;
   --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.16);
+  --shadow-floating: 0 16px 40px rgba(0, 0, 0, 0.28);
 }
 
+/* Automatic dark mode only when no manual theme is selected */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']):not([data-theme='dark']) {
     color-scheme: dark;
@@ -158,8 +166,8 @@
     --table-row-hover: #243D55;
     --disabled: #34485D;
 
-    --radius-card: 1rem;
     --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.16);
+    --shadow-floating: 0 16px 40px rgba(0, 0, 0, 0.28);
   }
 }
 
@@ -170,6 +178,7 @@
 html {
   min-height: 100%;
   background: var(--background);
+  scroll-behavior: smooth;
 }
 
 body {
@@ -179,6 +188,7 @@ body {
   color: var(--foreground);
   font-family: 'Cairo', sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -202,6 +212,8 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+/* Shared cards and surfaces */
+
 .dokkan-card {
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -212,20 +224,26 @@ textarea:focus-visible {
 .dokkan-surface {
   background: var(--card-muted);
   border: 1px solid var(--line);
+  border-radius: 0.875rem;
 }
 
 .dokkan-text-muted {
   color: var(--muted);
 }
 
+/* Shared primary action */
+
 .dokkan-primary {
   background: var(--brand);
   color: var(--brand-contrast);
+  transition: background-color 150ms ease, box-shadow 150ms ease;
 }
 
 .dokkan-primary:hover {
   background: var(--brand-hover);
 }
+
+/* Shared form controls */
 
 .dokkan-input {
   width: 100%;
@@ -255,10 +273,13 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+/* Panels */
+
 .dokkan-panel {
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .dokkan-panel-muted {
@@ -266,6 +287,8 @@ textarea:focus-visible {
   border-radius: 0.75rem;
   background: var(--surface-secondary);
 }
+
+/* Status colors */
 
 .dokkan-status-success {
   border: 1px solid var(--success-soft);
@@ -295,9 +318,16 @@ textarea:focus-visible {
   color: var(--info);
 }
 
+/* Selection and scrolling */
+
 ::selection {
   background: var(--brand-soft);
   color: var(--foreground);
+}
+
+.dokkan-scrollbar {
+  scrollbar-color: var(--line) transparent;
+  scrollbar-width: thin;
 }
 
 ::-webkit-scrollbar {
@@ -309,6 +339,8 @@ textarea:focus-visible {
   background: var(--line);
   border-radius: 99px;
 }
+
+/* Accessibility */
 
 @media (prefers-reduced-motion: reduce) {
   *,
