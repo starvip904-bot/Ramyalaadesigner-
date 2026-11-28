@@ -7,6 +7,11 @@ import { Monitor, Sun, Moon } from 'lucide-react'
 type Theme = 'system' | 'light' | 'dark'
 
 const STORAGE_KEY = 'dokkan-theme'
+const THEME_CHANGE_EVENT = 'dokkan-theme-change'
+
+function isValidTheme(value: unknown): value is Theme {
+  return value === 'system' || value === 'light' || value === 'dark'
+}
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement
@@ -18,25 +23,55 @@ function applyTheme(theme: Theme) {
   }
 }
 
+function readSavedTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return isValidTheme(saved) ? saved : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('system')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+    const initialTheme = readSavedTheme()
 
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        setTheme(saved)
-        applyTheme(saved)
-      } else {
-        applyTheme('system')
+    setTheme(initialTheme)
+    applyTheme(initialTheme)
+    setReady(true)
+
+    function handleThemeChange(event: Event) {
+      const customEvent = event as CustomEvent<Theme>
+
+      if (isValidTheme(customEvent.detail)) {
+        setTheme(customEvent.detail)
+        applyTheme(customEvent.detail)
       }
-    } catch {
-      applyTheme('system')
     }
 
-    setReady(true)
+    function handleStorageChange(event: StorageEvent) {
+      if (event.key !== STORAGE_KEY && event.key !== null) {
+        return
+      }
+
+      const nextTheme = isValidTheme(event.newValue)
+        ? event.newValue
+        : 'system'
+
+      setTheme(nextTheme)
+      applyTheme(nextTheme)
+    }
+
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+      window.removeEventListener('storage', handleStorageChange)
+    }
   }, [])
 
   function changeTheme(nextTheme: Theme) {
@@ -48,6 +83,12 @@ export default function ThemeToggle() {
     } catch {
       // يظل تغيير المظهر فعالًا حتى لو تعذر حفظه.
     }
+
+    window.dispatchEvent(
+      new CustomEvent<Theme>(THEME_CHANGE_EVENT, {
+        detail: nextTheme,
+      })
+    )
   }
 
   const options: {
