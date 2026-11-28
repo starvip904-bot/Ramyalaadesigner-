@@ -18,6 +18,8 @@ import {
   Settings,
   SlidersHorizontal,
   Check,
+  ArrowUp,
+  ArrowDown,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -171,8 +173,9 @@ export default function DashboardPage({
 
         if (Array.isArray(parsed)) {
           const validIds = parsed.filter(
-            (id): id is string =>
+            (id, index, array): id is string =>
               typeof id === 'string' &&
+              array.indexOf(id) === index &&
               shortcuts.some((shortcut) => shortcut.id === id)
           )
 
@@ -202,9 +205,9 @@ export default function DashboardPage({
   const periodData = data.periods[selectedPeriod]
   const emptySales = periodData.salesCount === 0
 
-  const visibleShortcuts = shortcuts.filter((shortcut) =>
-    selectedShortcuts.includes(shortcut.id)
-  )
+  const visibleShortcuts = selectedShortcuts
+    .map((id) => shortcuts.find((shortcut) => shortcut.id === id))
+    .filter((shortcut): shortcut is Shortcut => Boolean(shortcut))
 
   const maxDay = Math.max(
     ...periodData.salesByDay.map((day) => day.total),
@@ -221,6 +224,28 @@ export default function DashboardPage({
         ? current.filter((item) => item !== id)
         : [...current, id]
     )
+  }
+
+  function moveShortcut(id: string, direction: 'up' | 'down') {
+    setSelectedShortcuts((current) => {
+      const index = current.indexOf(id)
+
+      if (index === -1) return current
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current
+      }
+
+      const updated = [...current]
+      ;[updated[index], updated[targetIndex]] = [
+        updated[targetIndex],
+        updated[index],
+      ]
+
+      return updated
+    })
   }
 
   return (
@@ -272,36 +297,65 @@ export default function DashboardPage({
         {showShortcutSettings && (
           <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--surface-secondary)] p-3">
             <p className="mb-3 text-xs font-bold text-[var(--foreground)]">
-              حدد الاختصارات التي تريد ظهورها:
+              حدد الاختصارات ورتب ظهورها:
             </p>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {shortcuts.map((shortcut) => {
                 const selected = selectedShortcuts.includes(shortcut.id)
+                const selectedIndex = selectedShortcuts.indexOf(shortcut.id)
 
                 return (
-                  <label
+                  <div
                     key={shortcut.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--card)] p-2 text-xs text-[var(--foreground)]"
+                    className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--card)] p-2"
                   >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleShortcut(shortcut.id)}
-                      className="size-4 accent-[var(--brand)]"
-                    />
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-xs text-[var(--foreground)]">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleShortcut(shortcut.id)}
+                        className="size-4 shrink-0 accent-[var(--brand)]"
+                      />
 
-                    <span className="min-w-0 flex-1">
-                      {shortcut.label}
-                    </span>
+                      <span className="min-w-0 flex-1">
+                        {shortcut.label}
+                      </span>
+
+                      {selected && (
+                        <Check
+                          size={14}
+                          className="shrink-0 text-[var(--brand)]"
+                        />
+                      )}
+                    </label>
 
                     {selected && (
-                      <Check
-                        size={14}
-                        className="shrink-0 text-[var(--brand)]"
-                      />
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveShortcut(shortcut.id, 'up')}
+                          disabled={selectedIndex === 0}
+                          aria-label={`تحريك ${shortcut.label} للأعلى`}
+                          title="تحريك للأعلى"
+                          className="flex size-7 items-center justify-center rounded-md border border-[var(--line)] text-[var(--muted)] transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => moveShortcut(shortcut.id, 'down')}
+                          disabled={selectedIndex === selectedShortcuts.length - 1}
+                          aria-label={`تحريك ${shortcut.label} للأسفل`}
+                          title="تحريك للأسفل"
+                          className="flex size-7 items-center justify-center rounded-md border border-[var(--line)] text-[var(--muted)] transition hover:bg-[var(--brand-soft)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                      </div>
                     )}
-                  </label>
+                  </div>
                 )
               })}
             </div>
@@ -435,40 +489,52 @@ export default function DashboardPage({
             </div>
           ) : (
             <div
-              className="mt-6 flex h-52 min-w-0 items-end justify-between gap-2 overflow-x-auto"
+              className="mt-6 overflow-x-auto pb-2"
               role="img"
               aria-label={`رسم بياني للمبيعات ${selectedPeriodLabel}`}
             >
-              {periodData.salesByDay.map((day, index) => {
-                const percentage =
-                  day.total > 0
-                    ? Math.max((day.total / maxDay) * 100, 5)
-                    : 0
+              <div
+                className={`flex h-52 items-end justify-between gap-2 ${
+                  periodData.salesByDay.length > 7
+                    ? 'min-w-[520px]'
+                    : 'min-w-0'
+                }`}
+              >
+                {periodData.salesByDay.map((day, index) => {
+                  const percentage =
+                    day.total > 0
+                      ? Math.max((day.total / maxDay) * 100, 5)
+                      : 0
 
-                return (
-                  <div
-                    key={`${day.date}-${index}`}
-                    className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                    title={`${day.label}: ${money(day.total)}`}
-                  >
-                    <div className="flex h-full w-full items-end justify-center">
-                      <div
-                        className="w-full max-w-10 rounded-t-lg bg-[var(--brand)] transition-all duration-300"
-                        style={{
-                          height: `${percentage}%`,
-                          minHeight: day.total > 0 ? '6px' : '0',
-                        }}
-                      />
+                  return (
+                    <div
+                      key={`${day.date}-${index}`}
+                      className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                      title={`${day.label}: ${money(day.total)}`}
+                    >
+                      <div className="flex h-full w-full items-end justify-center">
+                        <div
+                          className="w-full max-w-10 rounded-t-lg bg-[var(--brand)] transition-all duration-300"
+                          style={{
+                            height: `${percentage}%`,
+                            minHeight: day.total > 0 ? '6px' : '0',
+                          }}
+                        />
+                      </div>
+
+                      <span className="max-w-full truncate text-[10px] text-[var(--muted)] sm:text-xs">
+                        {day.label}
+                      </span>
                     </div>
-
-                    <span className="max-w-full truncate text-[10px] text-[var(--muted)] sm:text-xs">
-                      {day.label}
-                    </span>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
+
+          <p className="mt-2 text-[11px] text-[var(--muted)]">
+            مرر أفقيًا لمشاهدة جميع الأيام عند الحاجة.
+          </p>
         </div>
 
         {/* الأكثر مبيعًا */}
@@ -543,7 +609,21 @@ export default function DashboardPage({
           </span>
         </div>
 
-        {!data.lowStockCount && (
+        {data.lowStockCount > 0 ? (
+          <div className="mt-5 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4">
+            <p className="text-sm font-bold text-[var(--foreground)]">
+              يوجد {data.lowStockCount.toLocaleString('ar-EG')} صنف يحتاج إلى مراجعة الكمية.
+            </p>
+
+            <Link
+              href="/inventory"
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90"
+            >
+              مراجعة المخزون
+              <Boxes size={15} />
+            </Link>
+          </div>
+        ) : (
           <p className="mt-5 rounded-xl bg-[var(--surface-secondary)] p-4 text-sm text-[var(--muted)]">
             {data.inventoryUnits === 0
               ? 'لا توجد بيانات مخزون فعلية لعرض التنبيهات.'
